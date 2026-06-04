@@ -74,7 +74,7 @@ from spirehdl.spirehdl_verilog_testbench import write_vector_data_file
 
 BENCHMARKS_DIR = Path(__file__).parent / "benchmarks"
 
-SPIREHDL_SRC = Path("/workspaces/rtlagent/deps/spire-hdl/src/spirehdl")
+SPIREHDL_SRC = Path("/workspaces/rtl_scout/deps/spire-hdl/src/spirehdl")
 
 
 # ---------------------------------------------------------------------------

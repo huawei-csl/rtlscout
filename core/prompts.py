@@ -66,62 +66,62 @@ SPIREHDL_REFERENCES = [
     },
     {
         "name": "spirehdl.py",
-        "path": "/workspaces/rtlagent/deps/spire-hdl/src/spirehdl/spirehdl.py",
+        "path": "/workspaces/rtl_scout/deps/spire-hdl/src/spirehdl/spirehdl.py",
         "description": "Core SpireHDL DSL source (signals, types, operators)",
         "lang": "python",
     },
     {
         "name": "spirehdl_module.py",
-        "path": "/workspaces/rtlagent/deps/spire-hdl/src/spirehdl/spirehdl_module.py",
+        "path": "/workspaces/rtl_scout/deps/spire-hdl/src/spirehdl/spirehdl_module.py",
         "description": "SpireHDL Module class (ports, wires, Verilog emission)",
         "lang": "python",
     },
     {
         "name": "prefix_adder_clean.py",
-        "path": "/workspaces/rtlagent/deps/spire-hdl/src/spirehdl/arithmetic/prefix_adders/prefix_adder_clean.py",
+        "path": "/workspaces/rtl_scout/deps/spire-hdl/src/spirehdl/arithmetic/prefix_adders/prefix_adder_clean.py",
         "description": "Prefix adder builder and classic topologies (Kogge-Stone, Slansky, etc.)",
         "lang": "python",
     },
     {
         "name": "sign_magnitude.py",
-        "path": "/workspaces/rtlagent/deps/spire-hdl/src/spirehdl/arithmetic/encoding/sign_magnitude.py",
+        "path": "/workspaces/rtl_scout/deps/spire-hdl/src/spirehdl/arithmetic/encoding/sign_magnitude.py",
         "description": "Two's complement / sign-magnitude encoder and decoder components",
         "lang": "python",
     },
     {
         "name": "direct_expression_basics.py",
-        "path": "/workspaces/rtlagent/deps/spire-hdl/testing/examples/direct_expression_basics.py",
+        "path": "/workspaces/rtl_scout/deps/spire-hdl/testing/examples/direct_expression_basics.py",
         "description": "Example: direct arithmetic expressions, constants, mux usage",
         "lang": "python",
     },
     # {
     #     "name": "rv32i.py",
-    #     "path": "/workspaces/rtlagent/deps/spire-hdl/testing/riscv/rv32i.py",
+    #     "path": "/workspaces/rtl_scout/deps/spire-hdl/testing/riscv/rv32i.py",
     #     "description": "Example: minimal RISC-V RV32I",
     #     "lang": "python",
     # },
     {
         "name": "sprout_sequential_mac.py",
-        "path": "/workspaces/rtlagent/deps/spire-hdl/testing/basic_examples/sprout_sequential_mac.py",
+        "path": "/workspaces/rtl_scout/deps/spire-hdl/testing/basic_examples/sprout_sequential_mac.py",
         "description": "Example: sequential multiply-accumulate (MAC) with clock and reset",
         "lang": "python",
     },
     # Optional matmul-accumulate core examples (included only when files exist)
     {
         "name": "matmul_accumulate_core.py",
-        "path": "/workspaces/rtlagent/deps/spire-hdl/src/spirehdl/cores/matmul_accumulate/matmul_accumulate_core.py",
+        "path": "/workspaces/rtl_scout/deps/spire-hdl/src/spirehdl/cores/matmul_accumulate/matmul_accumulate_core.py",
         "description": "Core: matrix multiply-accumulate implementation",
         "lang": "python"
     },
     {
         "name": "matmul_accumulate_core_fused.py",
-        "path": "/workspaces/rtlagent/deps/spire-hdl/src/spirehdl/cores/matmul_accumulate/matmul_accumulate_core_fused.py",
+        "path": "/workspaces/rtl_scout/deps/spire-hdl/src/spirehdl/cores/matmul_accumulate/matmul_accumulate_core_fused.py",
         "description": "Core: fused matrix multiply-accumulate implementation",
         "lang": "python"
     },
     {
         "name": "test_matmul_accumulate_core_fused.py",
-        "path": "/workspaces/rtlagent/deps/spire-hdl/testing/matmul_accumulate_core/test_matmul_accumulate_core_fused.py",
+        "path": "/workspaces/rtl_scout/deps/spire-hdl/testing/matmul_accumulate_core/test_matmul_accumulate_core_fused.py",
         "description": "Example: test/usage of the fused matmul-accumulate core",
         "lang": "python"
     },

@@ -132,7 +132,7 @@ class OpenRouterClient(LLMClient):
             api_key=api_key,
             base_url=base_url,
             default_headers={
-                "HTTP-Referer": "https://github.com/rtl-agent",
+                "HTTP-Referer": "https://github.com/huawei-csl/rtlscout",
                 "X-OpenRouter-Title": "core",
             },
         )

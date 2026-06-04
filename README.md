@@ -1,4 +1,4 @@
-# RTL Agent 3
+# RTL Scout
 
 An RTL design agent powered by pluggable LLM backends (DeepInfra, Claude) with tool use. The agent iteratively creates and optimizes Verilog/SystemVerilog designs, targeting **correctness first, then minimal cost** under a configurable cost metric.
 
@@ -8,9 +8,9 @@ An RTL design agent powered by pluggable LLM backends (DeepInfra, Claude) with t
 
 1. Clone this repo with submodules:
    ```bash
-   git clone --recurse-submodules <REMOTE>/rtlagent.git
+   git clone --recurse-submodules <REMOTE>/rtlscout.git
    ```
-2. Open the `rtlagent` folder in VS Code.
+2. Open the `rtlscout` folder in VS Code.
 3. When prompted, click **"Reopen in Container"** (or run the command *Dev Containers: Reopen in Container*).
 4. Once the container is up, make sure the VS Code Python interpreter to `~/pyenv_eda/bin/python` (*Python: Select Interpreter* → enter that path).
 
@@ -23,8 +23,8 @@ cp .env.template .env && code .env
 
 ```bash
 # 1. Clone this repo with submodules (replace <REMOTE> with your Git remote)
-git clone --recurse-submodules <REMOTE>/rtlagent.git
-cd rtlagent
+git clone --recurse-submodules <REMOTE>/rtlscout.git
+cd rtlscout
 
 # 2. Initialize the spire-hdl submodule
 bash .devcontainer/setup_workspace.sh
@@ -51,10 +51,9 @@ See the [Usage](#usage) section for further commands to run.
 
 ## Paper Experiments
 
-Step-by-step workflows for the experiments performed for the paper:
+Step-by-step walkthrough of the FP16 multiplier experiment from the paper:
 
-- [WORKFLOW_fpmul_f16.md](WORKFLOW_fpmul_f16.md) -- FP16 multiplier (fpmul_f16)
-- [WORKFLOW_fpadd_f16.md](WORKFLOW_fpadd_f16.md) -- FP16 adder (fpadd_f16)
+- [README_fpmul.md](README_fpmul.md) -- FP16 multiplier (fpmul_f16)
 
 ## Evaluating a new benchmark (recommended workflow, for SpireHDL)
 
@@ -62,7 +61,7 @@ The multi-stage pipeline with elite-pool seeding consistently produces the best 
 
 ### Step 1: Multi-run agent campaign (no synthesis decorators)
 
-Start with a plain agent campaign — no `@flowy_optimized`, no `@abc_optimized`. Synthesis decorators add complexity that can distract the agent before it has found a good algorithmic baseline. Enable `--arith-autoconfig` so the agent can use `replace_arithmetic_ops()` for automatic arithmetic unit selection. Use `--dont-touch-main-arith` if the benchmark has configurable arithmetic components (MultiplierConfig, AdderConfig) that will be swept in a later stage.
+Start with a plain agent campaign — no `@abc_optimized`. Synthesis decorators add complexity that can distract the agent before it has found a good algorithmic baseline. Enable `--arith-autoconfig` so the agent can use `replace_arithmetic_ops()` for automatic arithmetic unit selection. Use `--dont-touch-main-arith` if the benchmark has configurable arithmetic components (MultiplierConfig, AdderConfig) that will be swept in a later stage.
 
 ```bash
 python run_multistage.py \
@@ -85,7 +84,7 @@ Key flags:
 
 ### Step 2: Seeded campaign with synthesis optimization
 
-Seed from the best designs of Step 1, now with `@flowy_optimized` and/or `@abc_optimized` enabled. Fewer runs are needed since the agent starts from a strong baseline.
+Seed from the best designs of Step 1, now with `@abc_optimized` enabled. Fewer runs are needed since the agent starts from a strong baseline.
 
 ```bash
 python run_multistage.py \
@@ -95,7 +94,7 @@ python run_multistage.py \
     --cost-metric area --target-delay 500 \
     --language spirehdl \
     --arith-autoconfig \
-    --flowy-optimize --abc-optimize \
+    --abc-optimize \
     --elite-size 3 \
     --seed-from runs/my_bench_stage1 \
     --save-workspaces \
@@ -104,8 +103,8 @@ python run_multistage.py \
 
 Key differences from Step 1:
 - `--seed-from runs/my_bench_stage1`: seeds the elite pool from the best designs of the first campaign.
-- `--flowy-optimize --abc-optimize`: the agent now has access to synthesis optimization decorators.
-- `--max-concurrent 1`: Flowy/ABC runs are heavier; sequential execution avoids resource contention.
+- `--abc-optimize`: the agent now has access to synthesis optimization decorators.
+- `--max-concurrent 1`: Synthesis optimization runs are heavier; sequential execution avoids resource contention.
 - Fewer runs (`--total-runs 6`) since we're refining, not exploring from scratch.
 
 ### Step 3: Extract Pareto front and plot results
@@ -134,7 +133,7 @@ This aggregates all evaluations from both campaigns, computes the Pareto front, 
 python plot_pareto_paper.py \
     --compare pareto_fronts/my_bench runs/my_bench_stage1 \
     -o plots/my_bench/ \
-    --label-a "With Flowy/ABC" --label-b "Without"
+    --label-a "With ABC" --label-b "Without"
 ```
 
 Or plot a single campaign's multistage evolution:
@@ -171,9 +170,9 @@ python plot_pareto_paper.py runs/my_bench_stage1 -o plots/my_bench/
      │  File tools    │  │ run_evaluation│  │     done       │
      │  create_file   │  │               │  │  (final eval)  │
      │  replace_file  │  │  ┌─────────┐  │  └───────┬────────┘
-     │  apply_diff    │  │  │SpireHDL│  │          │
+     │  apply_diff    │  │  │SpireHDL │  │          │
      │  read_file     │  │  │compile  │  │          │
-     │  ls            │  │  │(if EDSL)│  │          v
+     │  ls            │  │  │(if flag)│  │          v
      └────────┬───────┘  │  └────┬────┘  │    ┌───────────┐
               │          │       v       │    │  Result   │
               │          │  ┌─────────┐  │    │ best_cost │
@@ -207,8 +206,6 @@ python plot_pareto_paper.py runs/my_bench_stage1 -o plots/my_bench/
 
 **Strategy**: the LLM is instructed to (1) build a simple correct design first, (2) run evaluation, (3) once 100% correct, iteratively optimize to reduce the cost metric, reverting if correctness breaks.
 
-> **See [WORKFLOWS.md](WORKFLOWS.md)** for a full overview of all repositories, how they interact, and step-by-step commands for every flow (single-run, multi-run, model comparison, Pareto extraction, architecture sweeps, and plot generation).
-
 ## Architecture
 
 ```
@@ -222,7 +219,7 @@ core/
 ├── benchmarks.py    # Benchmark loading
 └── runner.py        # Orchestration (model x benchmark)
 
-benchmarks/          # 7 benchmarks (same format as rtl-agent2)
+benchmarks/          # benchmark suite (one dir per benchmark)
 run_benchmark.py     # CLI: single benchmark + model
 run_model.py         # CLI: all benchmarks for one model
 run_sweep.py         # CLI: multiple models x benchmarks
@@ -260,11 +257,14 @@ The cost metric is configurable via `--cost-metric`. All metrics follow the same
 | Transistors | `transistors` (default) | Yosys + ABC | Estimated transistor count via `stat -tech cmos` |
 | Yosys cells | `yosys_cells` | Yosys | Cell count after `synth; clean -purge; stat` (technology-independent) |
 | Yosys wires | `yosys_wires` | Yosys | Wire count after `synth; clean -purge; stat` (technology-independent) |
+| Yosys transistors | `yosys_transistors` | Yosys | Transistor count from the same `synth; clean -purge; stat` pipeline (hierarchy-correct; matches `yosys_cells`/`yosys_wires` on multi-module designs) |
 | Delay | `delay` | Yosys + OpenROAD STA | Critical-path delay (ns) |
 | Area | `area` | Yosys + OpenROAD STA | Design area (um²) |
 | Power | `power` | Yosys + OpenROAD STA | Total power (W) |
+| AIG count | `aig_count` | Yosys + spirehdl/aigverse | Post-optimization AIG AND-node count (`aig.size()`), combinational designs only |
+| AIG depth | `aig_depth` | Yosys + spirehdl/aigverse | Post-optimization AIG logic depth (`DepthAig.num_levels()`), combinational designs only |
 
-**Transistors / yosys_cells / yosys_wires** use fast Yosys-only flows (technology-independent). The `yosys_cells` / `yosys_wires` variants skip ABC and instead run `synth; clean -purge; stat` — `clean -purge` drops public-alias buffers that `opt_clean` preserves for debuggability, giving counts that more faithfully reflect the netlist. **Delay/area/power** use the `tech_eval` package which synthesizes against a standard cell library (nangate45) and runs OpenROAD static timing analysis. PPA metrics require designs with a `clk` port.
+**Transistors / yosys_cells / yosys_wires / yosys_transistors** use fast Yosys-only flows (technology-independent). The `yosys_cells` / `yosys_wires` / `yosys_transistors` variants skip ABC and instead run `synth; clean -purge; stat` — `clean -purge` drops public-alias buffers that `opt_clean` preserves for debuggability, giving counts that more faithfully reflect the netlist. **Delay/area/power** use the `tech_eval` package which synthesizes against a standard cell library (nangate45) and runs OpenROAD static timing analysis. PPA metrics require designs with a `clk` port. **aig_count / aig_depth** measure the And-Inverter Graph after spirehdl's aigverse optimization (yosys `aigmap` → aigverse); combinational designs only.
 
 For PPA metrics, the `--target-delay` flag (in ps) controls the synthesis timing constraint. Lower values push for faster designs at the expense of area/power.
 
@@ -306,7 +306,7 @@ python run_benchmark.py \
   --target-delay 500
 ```
 
-### Using SpireHDL (Python EDSL)
+### Using SpireHDL
 
 The `--language spirehdl` flag switches the agent from writing Verilog directly to writing Python scripts using the SpireHDL embedded DSL. The framework runs the `.py` file; the script writes Verilog directly via `m.to_verilog_file("design.v")`, and the resulting file is evaluated as usual.
 
@@ -321,26 +321,9 @@ python run_benchmark.py \
   --cost-metric delay
 ```
 
-### Flowy synthesis optimization (SpireHDL only)
-
-The `--flowy-optimize` flag injects guidance into the system prompt telling the agent to use the `@flowy_optimized` decorator from `spirehdl.optimize`. This decorator runs the design through the Flowy/Mockturtle synthesis pipeline (AIG → MIG rewriting) to reduce gate count and depth — useful after the agent has already produced a correct, code-optimized design.
-
-```bash
-python run_benchmark.py \
-  --benchmark fpmul_f16 \
-  --model deepinfra:MiniMaxAI/MiniMax-M2.5 \
-  --language spirehdl \
-  --cost-metric delay \
-  --flowy-optimize
-```
-
-Flowy and Mockturtle are **not part of this public release**, so `--flowy-optimize` is unavailable and the related code paths stay dormant.
-
-Flowy parameters are configured via `flowy_config.json` in the project root. This file must match between `rtlagent/` and `tech_eval/` — SpireHDL caches optimised circuits based on input + config, so mismatched configs will produce different results and break cache reuse. See [WORKFLOWS.md](WORKFLOWS.md#flowy-configuration-flowy_configjson) for details.
-
 ### SpireHDL optimize cache propagation
 
-`@flowy_optimized` and `@abc_optimized` populate a content-addressed disk cache at `<workspace>/.spirehdl_cache/` (SHA of AIG + decorator kwargs). Cache reuse across the various execution seams is:
+ `@abc_optimized` populates a content-addressed disk cache at `<workspace>/.spirehdl_cache/` (SHA of AIG + decorator kwargs). Cache reuse across the various execution seams is:
 
 | Seam | Cached? |
 |:---|:---:|
@@ -450,10 +433,6 @@ python run_eval.py runs/.../best_design/workspace/design.py --benchmark benchmar
 
 # Output as JSON
 python run_eval.py runs/.../workspace/design.py --json
-
-# Stream SpireHDL/Flowy output in real time (useful for long optimization runs)
-SPIREHDL_VERBOSE=1 python run_eval.py --language spirehdl runs/.../workspace/design.py
-```
 
 Flags:
 - `--language` — `verilog`, `spirehdl`, or `amaranth` (default: auto-detect from extension)
@@ -682,57 +661,3 @@ class MyCost(CostMetric):
 ```
 
 Then register it in `COST_METRICS` and `make_cost_metric()`, or pass it directly to `RTLAgent(cost_metric=MyCost())`.
-
-## Comparison with SpireHDL Results
-
-```
-in tech_eval:
-
-src/tech_eval/ppa_extract/sweeps/multipliers/mul_add_sweep_mp.py
-
-in core:
-
-PYTHONPATH='/workspaces/core' python experiments/run_cost_language_sweep.py --workers 50
-
-python plot_area_delay.py runs/cost_lang_sweep_20260223_164824/
-
-python plot_area_delay_with_ref.py runs/cost_lang_sweep_20260223_164824/ \
-    --ref deps/tech_eval/results/ppa/Add_a16_results.json --ref-benchmark add16
-
-python plot_area_delay_with_ref.py runs/cost_lang_sweep_20260223_164824/ \
-    --ref deps/tech_eval/results/ppa/Mult_a16_results.json --ref-benchmark mult16
-
-# use cost-metric to select only runs targeting a specific metric
-
-python plot_area_delay_with_ref.py runs/fpmul_f16/ --ref deps/tech_eval/results/ppa/FpMul_e5f10_results.json --ref-benchmark mult16 --delay-threshold  3000 --ref-group-by ppa_cls_name
-```
-
-### Flattening tech_eval reference data
-
-The tech_eval `*_results.json` files contain multiple cases (e.g. `e5f10_init`, `e5f10_opt`, ...) under `case_results`. Use `flatten_tech_eval.py` to merge all (or selected) cases into one, so the benchmark name matches the agent runs and everything lands on the same plot.
-
-```bash
-# Merge all cases into a single case named "fpmul_f16"
-python flatten_tech_eval.py deps/tech_eval/results/ppa/FpMul_e5f10_results.json \
-    --name fpmul_f16
-
-# Merge only specific cases
-python flatten_tech_eval.py deps/tech_eval/results/ppa/FpMul_e5f10_results.json \
-    --name fpmul_f16 --cases e5f10_init e5f10_opt
-
-# Custom output path
-python flatten_tech_eval.py deps/tech_eval/results/ppa/FpMul_e5f10_results.json \
-    --name fpmul_f16 --output ./ref_data/fpmul_f16.json
-```
-
-Each entry keeps its original case in the `case_name` field. The output file is written next to the input by default (`<input_dir>/<name>.json`), never overwriting the original.
-
-Then plot with the flattened file — use `--ref-group-by case_name` to colour by original case:
-
-```bash
-python plot_area_delay_with_ref.py runs/fpmul_f16/ \
-    --ref deps/tech_eval/results/ppa/fpmul_f16.json \
-    --ref-benchmark fpmul_f16 \
-    --ref-group-by case_name \
-    --delay-threshold 3000
-```

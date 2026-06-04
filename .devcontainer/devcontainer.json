@@ -14,6 +14,10 @@
     "name": "rtl_scout",
     "initializeCommand": "bash -c 'cd ${localWorkspaceFolder} && bash .devcontainer/setup_workspace.sh && bash .devcontainer/build_image.sh'",
     "image": "rtlscout:latest",
+    // Pin the workspace path to /workspaces/rtl_scout regardless of the cloned folder's name, so the
+    // VS Code flow matches start_container.sh / entrypoint.sh and the absolute paths used in core/.
+    "workspaceFolder": "/workspaces/rtl_scout",
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/rtl_scout,type=bind",
     "customizations": {
         "vscode": {
             "extensions": [
@@ -22,7 +26,7 @@
             ]
         }
     },
-    "postCreateCommand": "bash /workspaces/${localWorkspaceFolderBasename}/.devcontainer/post_create.sh"
+    "postCreateCommand": "bash /workspaces/rtl_scout/.devcontainer/post_create.sh"
     // gpu support
     //"runArgs": [ "--gpus", "all" ]
 }

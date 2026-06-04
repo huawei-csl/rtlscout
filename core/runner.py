@@ -21,7 +21,7 @@ from core.llm_client import ClaudeClient, DeepInfraClient, OpenRouterClient, LLM
 # Load .env for API keys
 _ENV_PATHS = [
     Path(__file__).parent.parent / ".env",
-    Path("/workspaces/rtlagent/.env"),
+    Path("/workspaces/rtl_scout/.env"),
 ]
 for p in _ENV_PATHS:
     if p.exists():

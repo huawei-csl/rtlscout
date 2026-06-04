@@ -7,7 +7,7 @@ pareto_front.json + design_NNN/ directory structure.
 
 Usage:
     python extract_sweep_pareto.py \
-        /workspaces/rtlagent/deps/tech_eval/results/ppa/FpMul_e5f10_results.json \
+        /workspaces/rtl_scout/deps/tech_eval/results/ppa/FpMul_e5f10_results.json \
         -o pareto_fronts/fpmul_sweep --separate-dirs -n 50
 """
 
