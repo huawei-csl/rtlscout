@@ -1,3 +1,9 @@
+<div align="center">
+  <img src="imgs/rtlscout_logo_1200.png" alt="RTL Scout" width="600">
+</div>
+
+<br>
+
 # RTL Scout
 
 An RTL design agent powered by pluggable LLM backends (DeepInfra, Claude) with tool use. The agent iteratively creates and optimizes Verilog/SystemVerilog designs, targeting **correctness first, then minimal cost** under a configurable cost metric.
