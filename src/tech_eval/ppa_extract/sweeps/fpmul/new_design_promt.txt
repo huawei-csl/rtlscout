@@ -1,0 +1,25 @@
+Add references/<design_file>.py as a new case to the fpmul sweep.
+
+Use a Python script (not manual editing) to extract the logic (everything
+after the module/IO setup and before any `m.to_verilog_file(...)` or `return m`
+call) and indent it with 8 spaces inside `elaborate()`. If the logic is wrapped
+in a function, strip exactly that function's body indent (e.g. 4 spaces) from
+each line before adding the 8-space indent — do NOT use textwrap.dedent on
+individual lines as it strips all whitespace and destroys relative indentation.
+Only patch these two lines — everything else must be verbatim:
+
+  - `prod = mA_eff * mB_eff`
+    → `prod = build_multiplier(mA_eff, mB_eff, mult_cfg) if mult_cfg is not None else mA_eff * mB_eff`
+  - `exp_sum = eA_eff + eB_eff`
+    → `exp_sum = build_adder(eA_eff, eB_eff, adder_cfg) if adder_cfg is not None else eA_eff + eB_eff`
+
+Also patch any `m.wire(...)` calls → `Wire(...)` (Wire is available via
+`from spirehdl.spirehdl import *`).
+
+Infer the class name, output filename, and case suffix from the design file.
+Use fp_mul_v16.py as the reference for the Component boilerplate.
+Append the new case to the loop in fpmul_sweep_mp.py with the next available
+opt<i> suffix (look at the existing entries to determine i).
+
+Finally, run a single-point verification (200 vectors, 1 target delay,
+1 ppa_opt, 1 fsa_opt) for all cases and confirm 0 failures.
