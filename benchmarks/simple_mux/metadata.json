@@ -1,0 +1,5 @@
+{
+  "name": "simple_mux",
+  "module_name": "mux2",
+  "tb_module": "tb"
+}

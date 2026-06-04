@@ -1,0 +1,4 @@
+Design a module named fp_mul_e5f10 that multiplies two floating-point numbers. Format: 16-bit (1 sign + 5 exponent + 10 fraction). Inputs: a and b (16-bit each). Output: y (16-bit). Subnormal numbers must be supported. 
+
+
+A working starting point is provided: run `starting_point.py` (SpireHDL mode) to generate a correct reference design (design.v). Study the context files in your workspace for implementation details, then optimize from there.

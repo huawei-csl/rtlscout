@@ -1,0 +1,5 @@
+Design a module named `DiffCheck`. RGB555 color-proximity predicate. Inputs `rgb1[14:0]` and `rgb2[14:0]` are two packed 5-5-5 RGB values. Output `result` is a 1-bit flag: 0 when the two colors are close in YUV space (per the thresholds in the reference), 1 otherwise. The exact decision function is defined by `context/starting_point.v`.
+
+Inputs: `rgb1[14:0]`, `rgb2[14:0]`. Outputs: `result` (1-bit).
+
+A reference implementation is provided at `context/starting_point.v`. Read it to understand the intended behavior, then produce a functionally-identical design optimized for the target cost metric.

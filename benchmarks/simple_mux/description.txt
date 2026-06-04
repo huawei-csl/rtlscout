@@ -1,0 +1,1 @@
+Design a module named mux2 that selects between two 8-bit inputs a and b. The module has inputs a[7:0], b[7:0], sel, and output y[7:0]. When sel is 0, y must equal a; when sel is 1, y must equal b.

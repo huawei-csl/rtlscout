@@ -1,0 +1,3 @@
+Memory-mapped SPI master with an internal SPI slave + RAM (loopback-style benchmark). Sync active-high `rst`. Register writes via `addr[2:0]` + `write_data[31:0]` + `we`; reads via `re` produce `read_data[31:0]`. No external SPI pins — the SPI master and slave are wired together internally.
+
+`context/starting_point.v` provides the verbatim DR_RTL baseline as a starting point for optimization.

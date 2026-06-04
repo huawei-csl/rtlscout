@@ -1,0 +1,32 @@
+{
+  "ticket": {
+    "wires": 35,
+    "cells": 33,
+    "transistors": 258
+  },
+  "controller": {
+    "wires": 235,
+    "cells": 257,
+    "transistors": 1376
+  },
+  "router": {
+    "wires": 1240,
+    "cells": 1707,
+    "transistors": 9878
+  },
+  "pcie": {
+    "wires": 2641,
+    "cells": 2731,
+    "transistors": 17860
+  },
+  "cpu_pipe": {
+    "wires": 3823,
+    "cells": 4155,
+    "transistors": 27862
+  },
+  "datapath": {
+    "wires": 4156,
+    "cells": 5615,
+    "transistors": 43354
+  }
+}

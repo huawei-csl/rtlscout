@@ -1,0 +1,5 @@
+{
+  "name": "alu8",
+  "module_name": "alu8",
+  "tb_module": "tb"
+}

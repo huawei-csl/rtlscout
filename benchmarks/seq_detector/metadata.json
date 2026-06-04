@@ -1,0 +1,5 @@
+{
+  "name": "seq_detector",
+  "module_name": "seq_det",
+  "tb_module": "tb"
+}

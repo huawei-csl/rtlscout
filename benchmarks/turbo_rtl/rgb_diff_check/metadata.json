@@ -1,0 +1,10 @@
+{
+  "name": "rgb_diff_check",
+  "module_name": "DiffCheck",
+  "tb_module": "tb",
+  "source": {
+    "zip": "benchmarks/final_benchmark_samples.zip",
+    "path": "final_benchmark_samples/rtlcoder_success_20251104/8900/8900_8.v",
+    "module_key": "rtlcoder_success_20251104/8900"
+  }
+}

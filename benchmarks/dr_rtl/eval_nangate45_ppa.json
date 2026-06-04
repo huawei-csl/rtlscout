@@ -1,0 +1,17 @@
+{
+  "target_delay_ps": 100,
+  "technology": "nangate45",
+  "lib": "/prog/OpenROAD-flow-scripts/flow/platforms/nangate45/lib/NangateOpenCellLibrary_typical.lib",
+  "results": [
+    {
+      "case": "router",
+      "module": "router_top",
+      "target_delay_ps": 100,
+      "delay_ps": 424.5,
+      "area_um2": 5444.221962136453,
+      "power_w": 0.00169,
+      "worst_slack_ns": -0.36,
+      "used_fallback": false
+    }
+  ]
+}

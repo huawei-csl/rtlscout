@@ -1,0 +1,37 @@
+{
+  "name": "communicate",
+  "module_name": "sync_serial_communication_tx_rx",
+  "cost_metric": [
+    "yosys_wires",
+    "yosys_cells"
+  ],
+  "tb_module": "tb",
+  "tb_mode": "seq",
+  "source": {
+    "repo": "https://github.com/hkust-zhiyao/DR_RTL",
+    "path": "rtl_dataset/communication.v0.v"
+  },
+  "clock_port": "clk",
+  "reset_port": "reset_n",
+  "reset_active_low": true,
+  "reference": {
+    "paper_source": "arXiv:2604.14989 (Dr. RTL), Table 2",
+    "paper_design_name": "communicate",
+    "paper_target_delay_ns": 0.1,
+    "paper_synthesis_tool": "Synopsys Design Compiler + Nangate 45 nm",
+    "paper_loc": 225,
+    "paper_num_modules": 3,
+    "paper_num_gates_baseline": 1023,
+    "paper_num_registers_baseline": 232,
+    "paper_baseline_wns_ns": -0.4,
+    "paper_baseline_tns_ns": -73.08,
+    "paper_baseline_area_um2": 2092,
+    "paper_drrtl_wns_ns": -0.26,
+    "paper_drrtl_wns_improvement_pct": -35.0,
+    "paper_drrtl_tns_ns": -58.84,
+    "paper_drrtl_tns_improvement_pct": -19.5,
+    "paper_drrtl_area_um2": 2446,
+    "paper_drrtl_area_improvement_pct": 17.0,
+    "paper_drrtl_sec_pass_pct": 95
+  }
+}

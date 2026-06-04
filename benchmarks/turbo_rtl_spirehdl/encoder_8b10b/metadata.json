@@ -1,0 +1,10 @@
+{
+  "name": "encoder_8b10b",
+  "module_name": "encoder",
+  "tb_module": "tb",
+  "source": {
+    "zip": "benchmarks/final_benchmark_samples.zip",
+    "path": "final_benchmark_samples/deepcircuitx_success_20251104/10105/10105_19.v",
+    "module_key": "deepcircuitx_success_20251104/10105"
+  }
+}

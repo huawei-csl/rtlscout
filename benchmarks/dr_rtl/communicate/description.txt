@@ -1,0 +1,3 @@
+Synchronous serial TX → RX loopback with selectable data width. Async active-low `reset_n`. `data_in[63:0]` is the parallel word fed into the TX block; `sel[2:0]` selects how many bits are transmitted; `data_out[63:0]` is the parallel word reconstructed by the RX block; `done` signals end-of-transmission.
+
+`context/starting_point.v` provides the verbatim DR_RTL baseline as a starting point for optimization.

@@ -1,0 +1,7 @@
+Design a module named `multiplier_block`. 32-bit shift-and-add constant multiplier. Computes o_data0 = i_data0 * K, where K is the constant implemented by the reference in `context/starting_point.py` (happens to be 3853). Output wraps mod 2^32. Match the reference bit-for-bit on the supplied vectors.
+
+Inputs: `i_data0[31:0]`. Outputs: `o_data0[31:0]`.
+
+A reference implementation is provided at `context/starting_point.py`. Read it to understand the intended behavior, then produce a functionally-identical design optimized for the target cost metric.
+
+A working starting point is provided: run `starting_point.py` (SpireHDL mode) to generate a correct reference design (`design.v`). Study the context files in your workspace for implementation details, then optimize from there.

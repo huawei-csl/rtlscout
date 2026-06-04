@@ -1,0 +1,5 @@
+{
+  "name": "mult16",
+  "module_name": "mult16",
+  "tb_module": "tb"
+}

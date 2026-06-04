@@ -1,0 +1,3 @@
+AES datapath. Holds the 4 × 32-bit column / key / IV registers, the sbox lookup, MixColumns, and the round-key schedule. `bus_in[31:0]` is the shared write-data bus; per-stage enables (`col_en_host` / `col_en_cnt_unit`, `key_host_en` / `key_en`, `iv_en`) decide which register column is loaded each cycle. Selector ports (`rk_sel`, `key_out_sel`, `sbox_sel`, `col_sel`, `col_sel_host`, `key_sel_rd`, `iv_sel_rd`) drive the various input muxes. Async active-low `rst_n` clears state; outputs are the three 32-bit buses + 1-bit `end_aes`.
+
+`context/starting_point.v` provides the verbatim DR_RTL baseline as a starting point for optimization.

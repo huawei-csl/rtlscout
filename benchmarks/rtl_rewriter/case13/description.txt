@@ -1,0 +1,3 @@
+2:1 mux with one input tied to the constant `1`. Top module `mux_tree` is combinational, takes 1-bit `sel` and `a`, and produces 1-bit `y`.
+
+`context/starting_point.v` provides a reference implementation that can be used as a starting point for optimization.

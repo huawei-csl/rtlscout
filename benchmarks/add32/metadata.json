@@ -1,0 +1,5 @@
+{
+  "name": "add32",
+  "module_name": "add32",
+  "tb_module": "tb"
+}

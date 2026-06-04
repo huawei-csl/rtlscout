@@ -1,0 +1,5 @@
+{
+  "name": "register_enable",
+  "module_name": "reg_en",
+  "tb_module": "tb"
+}

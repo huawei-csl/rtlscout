@@ -1,0 +1,3 @@
+32-bit commutativity / associativity sharing across six output expressions. Top module `example` takes eight 32-bit inputs (X, Y, Z, P, Q, R, S, T) and computes six 32-bit outputs (`output1` … `output6`) as algebraic expressions over those inputs. Many subterms repeat across outputs (e.g. `X*Y`, `P+Z`, `Q-R`, `Y+X+...`), exposing rewrite opportunities for common-subexpression elimination and operator reordering.
+
+`context/starting_point.py` provides a SpireHDL reference implementation that can be used as a starting point for optimization.

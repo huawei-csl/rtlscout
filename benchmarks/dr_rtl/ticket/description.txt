@@ -1,0 +1,3 @@
+Vending-machine ticket FSM with sync active-high `clear` reset. Inputs `ten` and `twenty` accumulate coin value through a one-hot state register; outputs are Moore signals `ready`, `dispense`, `return_sig`, and `bill`. State advances on `posedge clk`; on `clear=1` the next clock edge returns the FSM to the RDY state.
+
+`context/starting_point.v` provides the verbatim DR_RTL baseline as a starting point for optimization.

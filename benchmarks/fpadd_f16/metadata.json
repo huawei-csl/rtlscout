@@ -1,0 +1,5 @@
+{
+  "name": "fpadd_f16",
+  "module_name": "fp_add_e5f10",
+  "tb_module": "tb"
+}

@@ -1,0 +1,41 @@
+# Public rtl_scout .gitignore
+# (the build script copies tracked files only, so this is mostly belt-and-suspenders)
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+
+# Secrets / env — NEVER commit real keys
+.env
+.env.*
+!.env.template
+
+# Run outputs / generated artifacts
+runs/
+worker_*/
+results/
+output/
+pareto_fronts/
+paper_plots*/
+images/
+seeds_*/
+rename/
+.spirehdl_cache/
+obj_dir/
+.pytest_cache/
+
+# Excluded dependencies (not part of the public release)
+deps/flowy/
+deps/mockturtle/
+
+# Misc
+*.patch
+abc.history
+.devcontainer/git_base_url.env
+
+# Keep benchmark metadata/inputs tracked (override broad ignores if you add any)
+!benchmarks/**/*.json
+!benchmarks/**/*.txt

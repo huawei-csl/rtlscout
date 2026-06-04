@@ -1,0 +1,30 @@
+{
+  "name": "case5",
+  "module_name": "example",
+  "confidence": "low",
+  "cost_metric": [
+    "yosys_wires",
+    "yosys_cells"
+  ],
+  "reference": {
+    "paper_baseline_wires": 193,
+    "paper_baseline_cells": 49,
+    "paper_rtlr_wires": 65,
+    "paper_rtlr_cells": 49,
+    "reproduced_baseline_wires": 43,
+    "reproduced_baseline_cells": 49,
+    "reproduced_rtlr_wires": 43,
+    "reproduced_rtlr_cells": 49
+  },
+  "source": {
+    "repo": "https://github.com/yaoxufeng/RTLRewriter-Bench",
+    "commit": "96639fe67bc8f020c05978ef5028d75fcf6980f2",
+    "upstream_name": "adder_bit_width",
+    "path": "short_benchmark/datapath/adder_bit_width/adder_bit_width.v",
+    "rtlr_file": "short_benchmark/datapath/adder_bit_width/adder_bit_width_ours.v"
+  },
+  "language": "spirehdl",
+  "starting_point": "context/starting_point.py",
+  "tb_module": "tb",
+  "tb_mode": "comb"
+}

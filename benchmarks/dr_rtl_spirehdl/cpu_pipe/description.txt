@@ -1,0 +1,3 @@
+DCPU-16 pipelined CPU core. Sync active-high `rst`. Two memory buses: `f_*` (fetch) and `g_*` (general). Each bus exposes 16-bit `*_adr` / `*_dto` outputs and `*_stb` / `*_wre` strobes, with the external memory driving back `*_dti[15:0]` data and `*_ack` ready. Random stimulus produces deterministic but architecturally-meaningless capture/replay — useful for synthesis cost but not for any semantic optimisation.
+
+`context/starting_point.py` provides the verbatim DR_RTL baseline as a starting point for optimization.

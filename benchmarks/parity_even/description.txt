@@ -1,0 +1,1 @@
+Design a module named parity8 that computes the even parity of an 8-bit input. The module has input data[7:0] and output parity. The output parity must be 1 when the number of 1 bits in data is even, and 0 when the number of 1 bits is odd.

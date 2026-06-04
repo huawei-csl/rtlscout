@@ -1,0 +1,38 @@
+{
+  "ticket": {
+    "area": 55.59400162447048,
+    "delay": 90.0,
+    "area_delay_product": 5003.460146202343,
+    "error": ""
+  },
+  "controller": {
+    "area": 280.6299914670518,
+    "delay": 226.3,
+    "area_delay_product": 63506.56706899383,
+    "error": ""
+  },
+  "router": {
+    "area": 5375.3281825663635,
+    "delay": 416.6,
+    "area_delay_product": 2239361.720857147,
+    "error": ""
+  },
+  "pcie": {
+    "area": 1842.049957012648,
+    "delay": 246.9,
+    "area_delay_product": 454802.1343864228,
+    "error": ""
+  },
+  "cpu_pipe": {
+    "area": 6098.316074343302,
+    "delay": 793.9000000000001,
+    "area_delay_product": 4841453.131421148,
+    "error": ""
+  },
+  "datapath": {
+    "area": 18339.369134423578,
+    "delay": 798.3,
+    "area_delay_product": 14640318.38001034,
+    "error": ""
+  }
+}

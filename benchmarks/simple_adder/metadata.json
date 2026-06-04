@@ -1,0 +1,5 @@
+{
+  "name": "simple_adder",
+  "module_name": "adder",
+  "tb_module": "tb"
+}

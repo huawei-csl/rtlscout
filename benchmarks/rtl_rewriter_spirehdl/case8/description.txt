@@ -1,0 +1,3 @@
+Inefficient bit-width multiplier with redundant branches. Top module `inefficient_multiplier` selects one of two 8-bit multiplier pairs (A×B or C×D) via 1-bit `sel`, extends each operand to 32 bits before multiplying, and truncates the 32-bit product to a 16-bit `product` output. The 32-bit intermediates and the duplicated `if (sel)` block are rewrite targets for bit-width reduction and dead-branch elimination.
+
+`context/starting_point.py` provides a SpireHDL reference implementation that can be used as a starting point for optimization.

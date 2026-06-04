@@ -1,0 +1,5 @@
+{
+  "name": "parity_even",
+  "module_name": "parity8",
+  "tb_module": "tb"
+}

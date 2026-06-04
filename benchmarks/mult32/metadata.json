@@ -1,0 +1,5 @@
+{
+  "name": "mult32",
+  "module_name": "mult32",
+  "tb_module": "tb"
+}

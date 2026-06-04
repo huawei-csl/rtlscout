@@ -1,0 +1,3 @@
+3-channel packet router. Sync active-low `resetn`. `packet_valid` + `datain[7:0]` ingest a stream of bytes whose header byte's two LSBs select the output channel. Each channel has a 16-entry FIFO read out via `read_enb_<n>` and produces `data_out_<n>[7:0]` + `vldout_<n>`. `err` and `busy` are global status outputs.
+
+`context/starting_point.v` provides the verbatim DR_RTL baseline as a starting point for optimization.

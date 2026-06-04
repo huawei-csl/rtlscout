@@ -1,0 +1,28 @@
+{
+  "name": "case2",
+  "module_name": "arithmetic_operations",
+  "confidence": "high",
+  "cost_metric": [
+    "yosys_wires",
+    "yosys_cells"
+  ],
+  "reference": {
+    "paper_baseline_wires": 11646,
+    "paper_baseline_cells": 11824,
+    "paper_rtlr_wires": 11299,
+    "paper_rtlr_cells": 11477,
+    "reproduced_baseline_wires": 11646,
+    "reproduced_baseline_cells": 11824,
+    "reproduced_rtlr_wires": 11297,
+    "reproduced_rtlr_cells": 11475
+  },
+  "source": {
+    "repo": "https://github.com/yaoxufeng/RTLRewriter-Bench",
+    "commit": "96639fe67bc8f020c05978ef5028d75fcf6980f2",
+    "upstream_name": "commutativity_subexpression",
+    "path": "short_benchmark/basic/commutativity_subexpression/basic.v",
+    "rtlr_file": "short_benchmark/basic/commutativity_subexpression/basic_ours.v"
+  },
+  "tb_module": "tb",
+  "tb_mode": "comb"
+}

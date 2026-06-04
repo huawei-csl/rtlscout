@@ -1,0 +1,3 @@
+Vending-machine FSM with parameterised wide discount registers. `DATA_WIDTH=64`, `K=16` → `discountA..D` are each `K*DATA_WIDTH=1024` bits. The current `total_discount` is one of two combinational sums (`discountA+discountB` or `discountC+discountD`) selected by `sel`; the FSM walks an 11-state graph driven by `condition` and emits a 1-bit `sell_signal`. Async active-high `reset` returns the FSM to S0.
+
+`context/starting_point.v` provides the verbatim DR_RTL baseline as a starting point for optimization.

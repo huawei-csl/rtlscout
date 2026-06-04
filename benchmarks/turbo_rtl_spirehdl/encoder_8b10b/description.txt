@@ -1,0 +1,5 @@
+Design a module named `encoder`. 8b/10b encoder. Takes an 8-bit data byte `in_8b` and a 1-bit control signal `dataK`, and produces a 10-bit encoded output `out_10b`. The exact encoding is defined by the reference implementation; match it bit-for-bit on the supplied random-stimulus vectors.
+
+Inputs: `in_8b[7:0]`, `dataK` (1-bit). Outputs: `out_10b[9:0]`.
+
+A reference starting point is provided: run `starting_point.py` (SpireHDL mode) to generate a correct reference design (`design.v`). Study the context files in your workspace for implementation details, then optimize from there.

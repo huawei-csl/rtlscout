@@ -1,0 +1,8 @@
+Design a module named fifo_sync4 implementing a synchronous 4-entry FIFO of 8-bit data. Ports: clk, rst_n (active-low synchronous reset), wr_en, rd_en, din[7:0], dout[7:0], full, empty, count[2:0]. Behavior:
+- On rising clk: if rst_n is 0 then clear FIFO, empty=1, full=0, count=0.
+- If wr_en and not full, write din into FIFO.
+- If rd_en and not empty, read next element into dout.
+- If both wr_en and rd_en are asserted, and FIFO is neither full nor empty, perform both in the same cycle (count unchanged).
+- full must be 1 when count==4; empty must be 1 when count==0.
+- count reflects number of stored elements (0-4).
+- dout holds the last value read; on reset set dout to 0.

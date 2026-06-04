@@ -1,0 +1,4 @@
+[submodule "deps/spire-hdl"]
+	path = deps/spire-hdl
+	url = https://github.com/huawei-csl/spire-hdl.git
+	branch = main

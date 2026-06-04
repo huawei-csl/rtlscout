@@ -1,0 +1,86 @@
+{
+  "case1": {
+    "module_name": "example",
+    "wires": 28,
+    "cells": 18,
+    "error": ""
+  },
+  "case2": {
+    "module_name": "arithmetic_operations",
+    "wires": 17927,
+    "cells": 18105,
+    "error": ""
+  },
+  "case3": {
+    "module_name": "example",
+    "wires": 1136,
+    "cells": 1220,
+    "error": ""
+  },
+  "case4": {
+    "module_name": "example",
+    "wires": 1376,
+    "cells": 1462,
+    "error": ""
+  },
+  "case5": {
+    "module_name": "example",
+    "wires": 43,
+    "cells": 49,
+    "error": ""
+  },
+  "case6": {
+    "module_name": "example",
+    "wires": 124,
+    "cells": 129,
+    "error": ""
+  },
+  "case7": {
+    "module_name": "example",
+    "wires": 350,
+    "cells": 351,
+    "error": ""
+  },
+  "case8": {
+    "module_name": "inefficient_multiplier",
+    "wires": 360,
+    "cells": 370,
+    "error": ""
+  },
+  "case9": {
+    "module_name": "example",
+    "wires": 55,
+    "cells": 54,
+    "error": ""
+  },
+  "case10": {
+    "module_name": "example",
+    "wires": 31,
+    "cells": 30,
+    "error": ""
+  },
+  "case11": {
+    "module_name": "example",
+    "wires": 21,
+    "cells": 24,
+    "error": ""
+  },
+  "case12": {
+    "module_name": "example",
+    "wires": 19486,
+    "cells": 19664,
+    "error": ""
+  },
+  "case13": {
+    "module_name": "mux_tree",
+    "wires": 3,
+    "cells": 1,
+    "error": ""
+  },
+  "case14": {
+    "module_name": "mux_tree",
+    "wires": 8,
+    "cells": 3,
+    "error": ""
+  }
+}

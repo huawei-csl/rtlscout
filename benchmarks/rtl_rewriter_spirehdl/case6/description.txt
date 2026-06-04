@@ -1,0 +1,3 @@
+Four-operand 8-bit chain sum. Top module `example` is combinational, takes 8-bit inputs `a`, `b`, `c`, `d`, and produces the 10-bit output `sum` = a + b + c + d.
+
+`context/starting_point.py` provides a reference implementation that can be used as a starting point for optimization.

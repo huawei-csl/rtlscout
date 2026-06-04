@@ -1,0 +1,29 @@
+{
+  "name": "case8",
+  "module_name": "inefficient_multiplier",
+  "confidence": "low",
+  "cost_metric": [
+    "yosys_wires",
+    "yosys_cells"
+  ],
+  "reference": {
+    "paper_baseline_wires": 466,
+    "paper_baseline_cells": 354,
+    "paper_rtlr_wires": 370,
+    "paper_rtlr_cells": 354,
+    "reproduced_baseline_wires": 360,
+    "reproduced_baseline_cells": 370,
+    "reproduced_rtlr_wires": 360,
+    "reproduced_rtlr_cells": 370
+  },
+  "source": {
+    "repo": "https://github.com/yaoxufeng/RTLRewriter-Bench",
+    "commit": "96639fe67bc8f020c05978ef5028d75fcf6980f2",
+    "upstream_name": "multiplier_bitwidth",
+    "path": "short_benchmark/datapath/multiplier_bitwidth/multiplier_bitwidth.v",
+    "rtlr_file": "short_benchmark/datapath/multiplier_bitwidth/multiplier_bitwidth_optimized.v",
+    "rtlr_file_note": "Upstream multiplier_bitwidth_ours.v is 0 bytes / missing \u2014 substituted multiplier_bitwidth_optimized.v (the human-golden file) as the rtlr reference. That file declares a different top module name (`optimized_multiplier`), so its numbers were captured via `hierarchy -auto-top` rather than the case's `module_name`. Reproduced rtlr numbers (360/370) are identical to baseline, suggesting Yosys 0.55 already optimizes the inefficient bit-widths automatically; this is why cells matches paper rtlr 354 only within 16."
+  },
+  "tb_module": "tb",
+  "tb_mode": "comb"
+}

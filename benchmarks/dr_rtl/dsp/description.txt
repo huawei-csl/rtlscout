@@ -1,0 +1,3 @@
+DSP slice with pre-add/sub → 18×18 multiplier → 48-bit post-add/sub pipeline, modelled on the Xilinx DSP48-style block. Pipeline stages are independently gated by per-stage clock enables (`CEA..CEP`) and per-stage sync resets (`rstA..rstP`). `opMode[7:0]` selects mux/add/sub modes along the pipeline; inputs `A`/`B`/`D` are 18-bit, `C`/`PCIn` are 48-bit. Outputs `P`/`PCOut` are 48-bit accumulator results, `M` is the 36-bit multiplier output, `BCOut` is the B-cascade output. No single reset port — all `rst*` signals are treated as regular stimulus inputs and verilator's 2-state init zeros every pipeline register at t=0.
+
+`context/starting_point.v` provides the verbatim DR_RTL baseline as a starting point for optimization.

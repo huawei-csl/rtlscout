@@ -1,0 +1,10 @@
+Design a module named alu8 with inputs a[7:0], b[7:0], op[2:0] and outputs y[7:0] and zero. Operations by op (described in Verilog syntax):
+- 3'b000: y = a + b (8-bit wraparound)
+- 3'b001: y = a - b (8-bit wraparound)
+- 3'b010: y = a & b
+- 3'b011: y = a | b
+- 3'b100: y = a ^ b
+- 3'b101: y = ~a
+- 3'b110: y = {a[6:0], 1'b0} (logical left shift by 1)
+- 3'b111: y = {1'b0, a[7:1]} (logical right shift by 1)
+The output zero must be 1 when y equals 8'h00, else 0.

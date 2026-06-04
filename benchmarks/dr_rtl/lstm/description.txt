@@ -1,0 +1,3 @@
+One LSTM cell, purely combinational. Inputs are the previous cell state `c_in`, the previous hidden state `h_in`, and the current input `X`, all 16-bit signed Q8.8 fixed-point. Internal submodules compute forget/input/cell/output gates via ConcatMultAdd + piecewise sigmoid/tanh approximations; outputs `c_out` and `h_out` are the new cell and hidden states. Weights and biases are hard-coded constants in the source.
+
+`context/starting_point.v` provides the verbatim DR_RTL baseline as a starting point for optimization.

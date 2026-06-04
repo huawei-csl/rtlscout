@@ -1,0 +1,30 @@
+{
+  "name": "case11",
+  "module_name": "example",
+  "confidence": "medium",
+  "cost_metric": [
+    "yosys_wires",
+    "yosys_cells"
+  ],
+  "reference": {
+    "paper_baseline_wires": 34,
+    "paper_baseline_cells": 35,
+    "paper_rtlr_wires": 21,
+    "paper_rtlr_cells": 24,
+    "reproduced_baseline_wires": 13,
+    "reproduced_baseline_cells": 24,
+    "reproduced_rtlr_wires": null,
+    "reproduced_rtlr_cells": null
+  },
+  "source": {
+    "repo": "https://github.com/yaoxufeng/RTLRewriter-Bench",
+    "commit": "96639fe67bc8f020c05978ef5028d75fcf6980f2",
+    "upstream_name": "mux_dead_code",
+    "path": "short_benchmark/mux/mux_dead_code/mux_dead_code.v",
+    "rtlr_file": "short_benchmark/mux/mux_dead_code/mux_dead_code_ours.v"
+  },
+  "language": "spirehdl",
+  "starting_point": "context/starting_point.py",
+  "tb_module": "tb",
+  "tb_mode": "comb"
+}

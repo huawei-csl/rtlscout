@@ -1,0 +1,3 @@
+4-input mux tree with redundancy. Top module `mux_tree` selects among inputs `a` and `b` using three 2-to-1 muxes: two intermediate muxes (`mux0` controlled by `c`, `mux1` controlled by `d`) both choose between `a` and `b`, and a final `mux2` selects between those intermediates using `sel`. Since both intermediates choose from the same `{a, b}` set, the design is a rewrite target for redundancy elimination.
+
+`context/starting_point.v` provides a reference implementation that can be used as a starting point for optimization.

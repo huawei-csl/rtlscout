@@ -1,0 +1,3 @@
+PCIe-style serial data pipeline: scrambler → PISO (8→10b encode + parallel-in-serial-out) → SIPO (serial-in-parallel-out + 10→8b decode) → descrambler. Async active-low `rst`. `s_en` and `d_en` are enables for the scrambler and descrambler stages, `m_piso` / `m_sipo` mode-select the encoder/decoder, `datain[7:0]` is the byte stream input, `dataout[7:0]` is the recovered byte stream output. Top module is unhelpfully named `top` — `--top-module top` already pins it correctly in the verilator + yosys probe builds.
+
+`context/starting_point.v` provides the verbatim DR_RTL baseline as a starting point for optimization.

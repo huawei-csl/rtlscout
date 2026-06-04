@@ -1,0 +1,28 @@
+{
+  "name": "case6",
+  "module_name": "example",
+  "confidence": "medium",
+  "cost_metric": [
+    "yosys_wires",
+    "yosys_cells"
+  ],
+  "reference": {
+    "paper_baseline_wires": 172,
+    "paper_baseline_cells": 129,
+    "paper_rtlr_wires": 161,
+    "paper_rtlr_cells": 129,
+    "reproduced_baseline_wires": 125,
+    "reproduced_baseline_cells": 129,
+    "reproduced_rtlr_wires": 124,
+    "reproduced_rtlr_cells": 129
+  },
+  "source": {
+    "repo": "https://github.com/yaoxufeng/RTLRewriter-Bench",
+    "commit": "96639fe67bc8f020c05978ef5028d75fcf6980f2",
+    "upstream_name": "adder_subexpression",
+    "path": "short_benchmark/datapath/adder_subexpression/adder_subexpression.v",
+    "rtlr_file": "short_benchmark/datapath/adder_subexpression/adder_subexpression_ours.v"
+  },
+  "tb_module": "tb",
+  "tb_mode": "comb"
+}

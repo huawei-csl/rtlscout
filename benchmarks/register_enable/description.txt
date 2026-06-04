@@ -1,0 +1,1 @@
+Design a module named reg_en that implements an 8-bit register with an active-low synchronous reset and an enable. The module has inputs clk, rst_n, en, d[7:0], and output q[7:0]. On each rising edge of clk, if rst_n is 0 then q must become 0. Otherwise, if en is 1 then q must take d. If en is 0, q must hold its previous value.

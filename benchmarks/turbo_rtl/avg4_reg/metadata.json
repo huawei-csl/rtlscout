@@ -1,0 +1,10 @@
+{
+  "name": "avg4_reg",
+  "module_name": "average_module",
+  "tb_module": "tb",
+  "source": {
+    "zip": "benchmarks/final_benchmark_samples.zip",
+    "path": "final_benchmark_samples/rtlcoder_success_20251104/13396/13396_4.v",
+    "module_key": "rtlcoder_success_20251104/13396"
+  }
+}

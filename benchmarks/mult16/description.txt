@@ -1,0 +1,1 @@
+Design a module named mult16 that takes two unsigned 16-bit inputs a and b and produces a 32-bit output y. The output should be the unsigned product of a and b.

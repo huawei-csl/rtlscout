@@ -1,0 +1,3 @@
+ARM9-compatible CPU core (~2800 LOC). Async active-high `rst`. `cpu_en` advances the pipeline; `cpu_restart` reloads PC. Interrupt inputs `fiq` / `irq`; abort signals `ram_abort` / `rom_abort`. Memory bus: `rom_addr[31:0]`/`rom_en` for instruction fetch (`rom_data[31:0]` driving back), `ram_addr[31:0]`/`ram_wdata[31:0]`/`ram_cen`/`ram_wen`/`ram_flag[3:0]` for the data side (`ram_rdata[31:0]` driving back). Random stimulus is architecturally meaningless.
+
+`context/starting_point.v` provides the verbatim DR_RTL baseline as a starting point for optimization.

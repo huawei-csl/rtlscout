@@ -1,0 +1,3 @@
+Combinational mux with dead-code branches. Top module `example` selects among five sub-operations (and/or/add/sub/alu) on 8-bit operands `a` and `b` via 1-bit controls `x` and `sel`, driving the 8-bit `result` output. The nested `if (x) ... else if (x) ...` structure makes one branch unreachable, leaving the adder, subtractor, and alu submodules dead — a rewrite target.
+
+`context/starting_point.v` provides a reference implementation that can be used as a starting point for optimization.

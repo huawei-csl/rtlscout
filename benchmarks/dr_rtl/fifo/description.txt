@@ -1,0 +1,3 @@
+Async dual-clock FIFO (32-bit data, 128-deep). Async active-low `rst`. The DR_RTL baseline declares two clock ports — `clk_in` (write side) and `clk_out` (read side). The generator drives `clk_in` as the main clock and feeds `clk_out` as an LFSR input; baseline-vs-baseline self-replay passes deterministically, but **be aware** that any optimisation changing CDC synchroniser depth or read-pointer latency may break correctness against the captured vectors. A hand-written dual-clock tb would be the right way to make this benchmark agent-friendly — see `NOTES_dr_rtl_scaffolding.md` for the forward-looking suggestion.
+
+`context/starting_point.v` provides the verbatim DR_RTL baseline as a starting point for optimization.

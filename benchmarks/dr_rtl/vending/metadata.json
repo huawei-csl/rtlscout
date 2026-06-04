@@ -1,0 +1,37 @@
+{
+  "name": "vending",
+  "module_name": "vending_machine",
+  "cost_metric": [
+    "yosys_wires",
+    "yosys_cells"
+  ],
+  "tb_module": "tb",
+  "tb_mode": "seq",
+  "source": {
+    "repo": "https://github.com/hkust-zhiyao/DR_RTL",
+    "path": "rtl_dataset/vending_machine.v0.v"
+  },
+  "clock_port": "clk",
+  "reset_port": "reset",
+  "reset_active_low": false,
+  "reference": {
+    "paper_source": "arXiv:2604.14989 (Dr. RTL), Table 2",
+    "paper_design_name": "vending",
+    "paper_target_delay_ns": 0.1,
+    "paper_synthesis_tool": "Synopsys Design Compiler + Nangate 45 nm",
+    "paper_loc": 128,
+    "paper_num_modules": 1,
+    "paper_num_gates_baseline": 20272,
+    "paper_num_registers_baseline": 4,
+    "paper_baseline_wns_ns": -0.27,
+    "paper_baseline_tns_ns": -1.02,
+    "paper_baseline_area_um2": 20488,
+    "paper_drrtl_wns_ns": -0.09,
+    "paper_drrtl_wns_improvement_pct": -66.7,
+    "paper_drrtl_tns_ns": -0.5,
+    "paper_drrtl_tns_improvement_pct": -51.0,
+    "paper_drrtl_area_um2": 20533,
+    "paper_drrtl_area_improvement_pct": 0.2,
+    "paper_drrtl_sec_pass_pct": 77
+  }
+}

@@ -1,0 +1,7 @@
+Design a module named `conversor_num_16b`. 5-digit BCD-to-binary converter. Input `numeros[19:0]` packs five 4-bit BCD digits (MSB=ten-thousands). Output `operador[15:0]` is the unsigned binary sum. Digits above 9 produce the same out-of-spec values as the reference in `context/starting_point.py`; match the reference bit-for-bit on the supplied random vectors.
+
+Inputs: `numeros[19:0]`. Outputs: `operador[15:0]`.
+
+A reference implementation is provided at `context/starting_point.py`. Read it to understand the intended behavior, then produce a functionally-identical design optimized for the target cost metric.
+
+A working starting point is provided: run `starting_point.py` (SpireHDL mode) to generate a correct reference design (`design.v`). Study the context files in your workspace for implementation details, then optimize from there.

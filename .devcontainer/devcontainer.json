@@ -1,0 +1,28 @@
+// .devcontainer/devcontainer.json
+//
+// Two options for the image:
+//
+// Option A (default): Pre-built image.
+//   Build once with `bash .devcontainer/build_image.sh`, then reuse.
+//
+// Option B: Build from Dockerfile on container creation.
+//   Replace "image" with:
+//     "build": { "dockerfile": "Dockerfile", "context": ".." }
+//   Slow on first open (the base image compiles OpenROAD from source, ~1-2h).
+//
+{
+    "name": "rtl_scout",
+    "initializeCommand": "bash -c 'cd ${localWorkspaceFolder} && bash .devcontainer/setup_workspace.sh && bash .devcontainer/build_image.sh'",
+    "image": "rtlscout:latest",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-vscode.cpptools",
+                "ms-python.python"
+            ]
+        }
+    },
+    "postCreateCommand": "bash /workspaces/${localWorkspaceFolderBasename}/.devcontainer/post_create.sh"
+    // gpu support
+    //"runArgs": [ "--gpus", "all" ]
+}

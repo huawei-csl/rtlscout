@@ -1,0 +1,3 @@
+Design a module named smult8acc that takes four signed 8-bit inputs a, b, c, d and produces a signed 17-bit output y. The output should be the signed sum of two signed products: y = a*b + c*d.
+
+All operands are interpreted as two's-complement signed integers. With 8-bit signed inputs in the range [-128, 127], each product is in [-16256, 16384] and their sum is in [-32512, 32768], which requires 17 bits of signed representation.

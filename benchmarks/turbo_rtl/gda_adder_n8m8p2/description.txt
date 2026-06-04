@@ -1,0 +1,5 @@
+Design a module named `GDA_St_N8_M8_P2`. Approximate 8-bit GDA (Gracefully-Degrading Adder) with N=8, M=8, P=2. Takes two 8-bit operands `in1` and `in2` and produces a 9-bit output `res`. This is an approximate adder: the reference implementation in `context/starting_point.v` is NOT a full exact adder — match its behavior bit-for-bit on the supplied random vectors.
+
+Inputs: `in1[7:0]`, `in2[7:0]`. Outputs: `res[8:0]`.
+
+A reference implementation is provided at `context/starting_point.v`. Read it to understand the intended behavior, then produce a functionally-identical design optimized for the target cost metric.

@@ -1,0 +1,3 @@
+AES control unit FSM. Sequences AES rounds (key expansion, round key selection, mixcol, last-round handling) for ECB / CBC / CTR modes and three operation modes (encryption, key derivation, decryption-with-derivation). Inputs `operation_mode[1:0]`, `aes_mode[1:0]`, `start`, `disable_core` drive an internal state register; outputs are control signals to the AES datapath (sbox/rk/col/key muxes, round counter, mode/last-round flags). Sync active-low `rst_n` returns the FSM to the IDLE state.
+
+`context/starting_point.v` provides the verbatim DR_RTL baseline as a starting point for optimization.

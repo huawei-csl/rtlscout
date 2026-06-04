@@ -1,0 +1,5 @@
+{
+  "name": "fifo_sync4",
+  "module_name": "fifo_sync4",
+  "tb_module": "tb"
+}

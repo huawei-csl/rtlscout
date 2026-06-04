@@ -1,0 +1,37 @@
+{
+  "name": "spi1",
+  "module_name": "simple_spi_top",
+  "cost_metric": [
+    "yosys_wires",
+    "yosys_cells"
+  ],
+  "tb_module": "tb",
+  "tb_mode": "seq",
+  "source": {
+    "repo": "https://github.com/hkust-zhiyao/DR_RTL",
+    "path": "rtl_dataset/simple_spi.v0.v"
+  },
+  "clock_port": "clk_i",
+  "reset_port": "rst_i",
+  "reset_active_low": true,
+  "reference": {
+    "paper_source": "arXiv:2604.14989 (Dr. RTL), Table 2",
+    "paper_design_name": "spi1",
+    "paper_target_delay_ns": 0.1,
+    "paper_synthesis_tool": "Synopsys Design Compiler + Nangate 45 nm",
+    "paper_loc": 332,
+    "paper_num_modules": 2,
+    "paper_num_gates_baseline": 647,
+    "paper_num_registers_baseline": 131,
+    "paper_baseline_wns_ns": -0.32,
+    "paper_baseline_tns_ns": -33.42,
+    "paper_baseline_area_um2": 1208,
+    "paper_drrtl_wns_ns": -0.29,
+    "paper_drrtl_wns_improvement_pct": -9.4,
+    "paper_drrtl_tns_ns": -33.53,
+    "paper_drrtl_tns_improvement_pct": 0.3,
+    "paper_drrtl_area_um2": 1276,
+    "paper_drrtl_area_improvement_pct": 5.7,
+    "paper_drrtl_sec_pass_pct": 63
+  }
+}

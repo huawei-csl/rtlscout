@@ -1,0 +1,37 @@
+{
+  "name": "router",
+  "module_name": "router_top",
+  "cost_metric": [
+    "yosys_wires",
+    "yosys_cells"
+  ],
+  "tb_module": "tb",
+  "tb_mode": "seq",
+  "source": {
+    "repo": "https://github.com/hkust-zhiyao/DR_RTL",
+    "path": "rtl_dataset/router.v0.v"
+  },
+  "clock_port": "clk",
+  "reset_port": "resetn",
+  "reset_active_low": true,
+  "reference": {
+    "paper_source": "arXiv:2604.14989 (Dr. RTL), Table 2",
+    "paper_design_name": "router",
+    "paper_target_delay_ns": 0.1,
+    "paper_synthesis_tool": "Synopsys Design Compiler + Nangate 45 nm",
+    "paper_loc": 571,
+    "paper_num_modules": 5,
+    "paper_num_gates_baseline": 3036,
+    "paper_num_registers_baseline": 609,
+    "paper_baseline_wns_ns": -0.53,
+    "paper_baseline_tns_ns": -289.91,
+    "paper_baseline_area_um2": 5479,
+    "paper_drrtl_wns_ns": -0.46,
+    "paper_drrtl_wns_improvement_pct": -13.2,
+    "paper_drrtl_tns_ns": -246.66,
+    "paper_drrtl_tns_improvement_pct": -14.9,
+    "paper_drrtl_area_um2": 5575,
+    "paper_drrtl_area_improvement_pct": 1.8,
+    "paper_drrtl_sec_pass_pct": 92
+  }
+}

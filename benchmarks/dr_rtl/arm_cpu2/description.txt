@@ -1,0 +1,3 @@
+RISClite — slimmed ARM-compatible RISC CPU core (~1200 LOC). Async active-high `rst`. `cpu_en` advances the pipeline. Memory bus same shape as `arm_cpu1` — `rom_addr` / `rom_data` / `rom_en` for fetch, `ram_addr` / `ram_wdata` / `ram_rdata` / `ram_cen` / `ram_wen` / `ram_flag` for data. No external interrupt or abort inputs. Random stimulus same caveat as `arm_cpu1` / `cpu_pipe` / `tv80`.
+
+`context/starting_point.v` provides the verbatim DR_RTL baseline as a starting point for optimization.

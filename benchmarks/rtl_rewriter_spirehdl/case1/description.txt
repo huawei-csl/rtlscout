@@ -1,0 +1,3 @@
+9-input registered chain adder. Top module `example` samples 1-bit inputs `in_a`..`in_i` on `posedge clk` and drives a 1-bit registered `sum` output one cycle later.
+
+`context/starting_point.py` provides a reference implementation that can be used as a starting point for optimization.

@@ -1,0 +1,32 @@
+{
+  "name": "fpmul_f16",
+  "module_name": "fp_mul_e5f10",
+  "tb_module": "tb",
+  "generator": {
+    "type": "fpmul",
+    "module_name": "fp_mul_e5f10",
+    "num_vectors": 2000,
+    "config": {
+      "exponent_width": 5,
+      "fraction_width": 10,
+      "subnormals": true,
+      "always_subnormal_rounding": false,
+      "mult_cfg": null,
+      "module_name": null,
+      "with_clock": false,
+      "with_reset": false
+    },
+    "command": [
+      "add_benchmark.py",
+      "fpmul",
+      "--exponent-width",
+      "5",
+      "--fraction-width",
+      "10",
+      "--subnormal-support",
+      "--name",
+      "fpmul_f16",
+      "--force"
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+Design a module named `adder_4bit`. Registered 4-bit adder. Inputs `a[3:0]`, `b[3:0]`, `cin` are sampled on the rising edge of `clk` and the outputs `sum[3:0]` and `cout` are produced one cycle later. The exact next-state function is defined by the reference in `context/starting_point.py` (note: `cout` is a hash of specific bits, NOT the true carry-out of the addition). Match the reference cycle-by-cycle on the supplied random-stimulus vectors.
+
+Inputs: `a[3:0]`, `b[3:0]`, `cin` (1-bit). Outputs: `sum[3:0]`, `cout` (1-bit). Clock: `clk`.
+
+This is a **sequential** benchmark: the testbench holds reset (if any) for a few cycles, then drives a new input combination and samples the outputs on every rising clock edge. Your design must produce the same output stream as the reference, cycle-by-cycle, on the supplied `vectors.dat`.
+
+A reference implementation is provided at `context/starting_point.py`. Read it to understand the intended behavior, then produce a functionally-identical design optimized for the target cost metric.
+
+A working starting point is provided: run `starting_point.py` (SpireHDL mode) to generate a correct reference design (`design.v`). Study the context files in your workspace for implementation details, then optimize from there.

@@ -1,0 +1,37 @@
+{
+  "name": "arm_cpu1",
+  "module_name": "arm9_compatiable_code",
+  "cost_metric": [
+    "yosys_wires",
+    "yosys_cells"
+  ],
+  "tb_module": "tb",
+  "tb_mode": "seq",
+  "source": {
+    "repo": "https://github.com/hkust-zhiyao/DR_RTL",
+    "path": "rtl_dataset/arm_cpu1.v0.v"
+  },
+  "clock_port": "clk",
+  "reset_port": "rst",
+  "reset_active_low": false,
+  "reference": {
+    "paper_source": "arXiv:2604.14989 (Dr. RTL), Table 2",
+    "paper_design_name": "arm_cpu1",
+    "paper_target_delay_ns": 0.1,
+    "paper_synthesis_tool": "Synopsys Design Compiler + Nangate 45 nm",
+    "paper_loc": 2070,
+    "paper_num_modules": 1,
+    "paper_num_gates_baseline": 11772,
+    "paper_num_registers_baseline": 1222,
+    "paper_baseline_wns_ns": -5.24,
+    "paper_baseline_tns_ns": -3148.68,
+    "paper_baseline_area_um2": 22172,
+    "paper_drrtl_wns_ns": -5.19,
+    "paper_drrtl_wns_improvement_pct": -1.0,
+    "paper_drrtl_tns_ns": -3117.41,
+    "paper_drrtl_tns_improvement_pct": -1.0,
+    "paper_drrtl_area_um2": 22257,
+    "paper_drrtl_area_improvement_pct": 0.4,
+    "paper_drrtl_sec_pass_pct": 56
+  }
+}

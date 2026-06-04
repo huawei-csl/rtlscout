@@ -1,0 +1,29 @@
+{
+  "name": "case14",
+  "module_name": "mux_tree",
+  "confidence": "low",
+  "cost_metric": [
+    "yosys_wires",
+    "yosys_cells"
+  ],
+  "reference": {
+    "paper_baseline_wires": 16,
+    "paper_baseline_cells": 6,
+    "paper_rtlr_wires": 8,
+    "paper_rtlr_cells": 3,
+    "reproduced_baseline_wires": 20,
+    "reproduced_baseline_cells": 3,
+    "reproduced_rtlr_wires": 15,
+    "reproduced_rtlr_cells": 2
+  },
+  "source": {
+    "repo": "https://github.com/yaoxufeng/RTLRewriter-Bench",
+    "commit": "96639fe67bc8f020c05978ef5028d75fcf6980f2",
+    "upstream_name": "mux_type4",
+    "path": "short_benchmark/mux/mux_type4/mux_type4_redundancy.v",
+    "rtlr_file": "short_benchmark/mux/mux_type4/mux_type4_redundancy_optimzied.v",
+    "rtlr_file_note": "Upstream mux_type_ours.v is 0 bytes / missing (and the filename is itself typo'd \u2014 missing the `4`). Two non-empty candidates exist in the directory: mux_type4_redundancy_improve.v and mux_type4_redundancy_optimzied.v (note the upstream `optimzied` typo); they are byte-identical, so this scaffold uses the `_optimzied.v` variant. Numbers drift from paper in both metrics \u2014 likely Yosys-version differences on this trivial design."
+  },
+  "tb_module": "tb",
+  "tb_mode": "comb"
+}

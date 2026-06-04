@@ -1,0 +1,3 @@
+32-bit arithmetic with reassociation / common-subexpression opportunities. Top module `arithmetic_operations` is combinational, takes eight 32-bit inputs `A`..`H`, and produces six 32-bit outputs `result1`..`result6` defined by independent but shareable arithmetic expressions.
+
+`context/starting_point.py` provides a reference implementation that can be used as a starting point for optimization.

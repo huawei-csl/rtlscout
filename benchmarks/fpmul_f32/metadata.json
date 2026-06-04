@@ -1,0 +1,5 @@
+{
+  "name": "fpmul_f32",
+  "module_name": "fp_mul_e8f23",
+  "tb_module": "tb"
+}

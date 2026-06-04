@@ -1,0 +1,10 @@
+{
+  "name": "gda_adder_n8m8p2",
+  "module_name": "GDA_St_N8_M8_P2",
+  "tb_module": "tb",
+  "source": {
+    "zip": "benchmarks/final_benchmark_samples.zip",
+    "path": "final_benchmark_samples/mgverilog_success_20251104/1113/1113_3.v",
+    "module_key": "mgverilog_success_20251104/1113"
+  }
+}

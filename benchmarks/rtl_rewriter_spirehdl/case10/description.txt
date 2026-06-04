@@ -1,0 +1,3 @@
+7-state FSM over a 1-bit input. Top module `example` has clock `clk`, active-high async-reset `reset`, 1-bit input `x`, and drives a 1-bit `output_signal` as a function of the current state.
+
+`context/starting_point.py` provides a reference implementation that can be used as a starting point for optimization.

@@ -1,0 +1,1 @@
+Design a module named mult8 that takes two unsigned 8-bit inputs a and b and produces a 16-bit output y. The output should be the unsigned product of a and b.

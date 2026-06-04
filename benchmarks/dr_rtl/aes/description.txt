@@ -1,0 +1,3 @@
+AES-128 key expansion. SystemVerilog (uses `always_ff`, multi-dim unpacked arrays, generate blocks). Async active-low `rst_async_n` clears the expanded-key register. `i_key[127:0]` is the input key; `i_start` triggers the 10-step round-key schedule. After 10 cycles, `o_done` rises and `o_expanded_key` (11 × 128 = 1408 bits) carries the full expanded key from round 0 (the input key) through round 10.
+
+`context/starting_point.sv` provides the verbatim DR_RTL baseline as a starting point for optimization.

@@ -1,0 +1,212 @@
+{
+  "case1": {
+    "module_name": "example",
+    "verilog": {
+      "wires": 28,
+      "cells": 18
+    },
+    "spirehdl": {
+      "wires": 28,
+      "cells": 18
+    },
+    "delta": {
+      "wires_pct": 0.0,
+      "cells_pct": 0.0
+    }
+  },
+  "case2": {
+    "module_name": "arithmetic_operations",
+    "verilog": {
+      "wires": 11646,
+      "cells": 11824
+    },
+    "spirehdl": {
+      "wires": 17927,
+      "cells": 18105
+    },
+    "delta": {
+      "wires_pct": 53.93268074875494,
+      "cells_pct": 53.12077131258457
+    }
+  },
+  "case3": {
+    "module_name": "example",
+    "verilog": {
+      "wires": 1136,
+      "cells": 1220
+    },
+    "spirehdl": {
+      "wires": 1136,
+      "cells": 1220
+    },
+    "delta": {
+      "wires_pct": 0.0,
+      "cells_pct": 0.0
+    }
+  },
+  "case4": {
+    "module_name": "example",
+    "verilog": {
+      "wires": 1376,
+      "cells": 1462
+    },
+    "spirehdl": {
+      "wires": 1376,
+      "cells": 1462
+    },
+    "delta": {
+      "wires_pct": 0.0,
+      "cells_pct": 0.0
+    }
+  },
+  "case5": {
+    "module_name": "example",
+    "verilog": {
+      "wires": 43,
+      "cells": 49
+    },
+    "spirehdl": {
+      "wires": 43,
+      "cells": 49
+    },
+    "delta": {
+      "wires_pct": 0.0,
+      "cells_pct": 0.0
+    }
+  },
+  "case6": {
+    "module_name": "example",
+    "verilog": {
+      "wires": 124,
+      "cells": 129
+    },
+    "spirehdl": {
+      "wires": 124,
+      "cells": 129
+    },
+    "delta": {
+      "wires_pct": 0.0,
+      "cells_pct": 0.0
+    }
+  },
+  "case7": {
+    "module_name": "example",
+    "verilog": {
+      "wires": 402,
+      "cells": 403
+    },
+    "spirehdl": {
+      "wires": 350,
+      "cells": 351
+    },
+    "delta": {
+      "wires_pct": -12.935323383084578,
+      "cells_pct": -12.903225806451612
+    }
+  },
+  "case8": {
+    "module_name": "inefficient_multiplier",
+    "verilog": {
+      "wires": 360,
+      "cells": 370
+    },
+    "spirehdl": {
+      "wires": 360,
+      "cells": 370
+    },
+    "delta": {
+      "wires_pct": 0.0,
+      "cells_pct": 0.0
+    }
+  },
+  "case9": {
+    "module_name": "example",
+    "verilog": {
+      "wires": 38,
+      "cells": 40
+    },
+    "spirehdl": {
+      "wires": 55,
+      "cells": 54
+    },
+    "delta": {
+      "wires_pct": 44.73684210526316,
+      "cells_pct": 35.0
+    }
+  },
+  "case10": {
+    "module_name": "example",
+    "verilog": {
+      "wires": 55,
+      "cells": 56
+    },
+    "spirehdl": {
+      "wires": 31,
+      "cells": 30
+    },
+    "delta": {
+      "wires_pct": -43.63636363636363,
+      "cells_pct": -46.42857142857143
+    }
+  },
+  "case11": {
+    "module_name": "example",
+    "verilog": {
+      "wires": 13,
+      "cells": 24
+    },
+    "spirehdl": {
+      "wires": 21,
+      "cells": 24
+    },
+    "delta": {
+      "wires_pct": 61.53846153846154,
+      "cells_pct": 0.0
+    }
+  },
+  "case12": {
+    "module_name": "example",
+    "verilog": {
+      "wires": 14782,
+      "cells": 14960
+    },
+    "spirehdl": {
+      "wires": 19486,
+      "cells": 19664
+    },
+    "delta": {
+      "wires_pct": 31.822486808280342,
+      "cells_pct": 31.44385026737968
+    }
+  },
+  "case13": {
+    "module_name": "mux_tree",
+    "verilog": {
+      "wires": 7,
+      "cells": 1
+    },
+    "spirehdl": {
+      "wires": 3,
+      "cells": 1
+    },
+    "delta": {
+      "wires_pct": -57.142857142857146,
+      "cells_pct": 0.0
+    }
+  },
+  "case14": {
+    "module_name": "mux_tree",
+    "verilog": {
+      "wires": 20,
+      "cells": 3
+    },
+    "spirehdl": {
+      "wires": 8,
+      "cells": 3
+    },
+    "delta": {
+      "wires_pct": -60.0,
+      "cells_pct": 0.0
+    }
+  }
+}

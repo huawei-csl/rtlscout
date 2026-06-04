@@ -1,0 +1,3 @@
+Wishbone-mapped I2C master controller. Sync active-high `wb_rst_i` is the main reset; the design also has a second async reset `arst_i` whose active level is set by parameter ARST_LVL=0 (the generator drives `arst_i` as a normal LFSR input — deterministic capture/replay still works). Wishbone interface: `wb_adr_i[2:0]` + `wb_dat_i[7:0]` + we/stb/cyc → `wb_dat_o[7:0]` + `wb_ack_o`. I2C pads: separate input (`scl_pad_i`/`sda_pad_i`), output (`scl_pad_o`/`sda_pad_o`), and output-enable (`*_padoen_o`, active-low) — no real tri-state.
+
+`context/starting_point.v` provides the verbatim DR_RTL baseline as a starting point for optimization.

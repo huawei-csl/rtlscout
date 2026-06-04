@@ -1,0 +1,7 @@
+Design a module named `average_module`. Synchronous-reset running-accumulator 'average' module. Each cycle computes `{sum, carry} <= ((b + {4{carry}}) + d) + (c + a)` and emits `average <= sum >> 2` on the next cycle. On `reset`=1, all state goes to 0. Because of the carry feedback and the 1-cycle delay on `average`, the output is NOT a simple mean — match the reference in `context/starting_point.v` bit-for-bit cycle by cycle.
+
+Inputs: `a[7:0]`, `b[7:0]`, `c[7:0]`, `d[7:0]`. Outputs: `average[7:0]`. Clock: `clk`. Synchronous active-high reset: `reset`.
+
+This is a **sequential** benchmark: the testbench holds reset (if any) for a few cycles, then drives a new input combination and samples the outputs on every rising clock edge. Your design must produce the same output stream as the reference, cycle-by-cycle, on the supplied `vectors.dat`.
+
+A reference implementation is provided at `context/starting_point.v`. Read it to understand the intended behavior, then produce a functionally-identical design optimized for the target cost metric.

@@ -1,0 +1,3 @@
+Simple SPI master with a Wishbone-style bus interface. Async active-low `rst_i`; Wishbone signals `cyc_i`, `stb_i`, `adr_i[1:0]`, `we_i`, `dat_i[7:0]` drive the register-mapped SPI control / status / data registers, and `dat_o[7:0]` + `ack_o` complete the read/write. Serial side: `sck_o`, `mosi_o`, `miso_i`. `inta_o` is the SPI interrupt output.
+
+`context/starting_point.v` provides the verbatim DR_RTL baseline as a starting point for optimization.

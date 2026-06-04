@@ -1,0 +1,37 @@
+{
+  "name": "tv80",
+  "module_name": "tv80_core",
+  "cost_metric": [
+    "yosys_wires",
+    "yosys_cells"
+  ],
+  "tb_module": "tb",
+  "tb_mode": "seq",
+  "source": {
+    "repo": "https://github.com/hkust-zhiyao/DR_RTL",
+    "path": "rtl_dataset/tv80.v0.v"
+  },
+  "clock_port": "clk",
+  "reset_port": "reset_n",
+  "reset_active_low": true,
+  "reference": {
+    "paper_source": "arXiv:2604.14989 (Dr. RTL), Table 2",
+    "paper_design_name": "tv80",
+    "paper_target_delay_ns": 0.1,
+    "paper_synthesis_tool": "Synopsys Design Compiler + Nangate 45 nm",
+    "paper_loc": 4615,
+    "paper_num_modules": 5,
+    "paper_num_gates_baseline": 4431,
+    "paper_num_registers_baseline": 359,
+    "paper_baseline_wns_ns": -1.31,
+    "paper_baseline_tns_ns": -381.2,
+    "paper_baseline_area_um2": 6044,
+    "paper_drrtl_wns_ns": -1.22,
+    "paper_drrtl_wns_improvement_pct": -6.9,
+    "paper_drrtl_tns_ns": -362.09,
+    "paper_drrtl_tns_improvement_pct": -5.0,
+    "paper_drrtl_area_um2": 6200,
+    "paper_drrtl_area_improvement_pct": 2.6,
+    "paper_drrtl_sec_pass_pct": 92
+  }
+}

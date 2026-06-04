@@ -1,0 +1,3 @@
+Inefficient bit-width adder. Top module `example` adds two 8-bit inputs `a` and `b` and produces a 9-bit `sum`. The baseline stores the intermediate result in a 128-bit internal register before truncating to 9 bits — wider than the operation requires, and a rewrite target for bit-width reduction.
+
+`context/starting_point.py` provides a SpireHDL reference implementation that can be used as a starting point for optimization.

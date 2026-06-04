@@ -1,0 +1,3 @@
+Three parallel constant multiplications over a shared 32-bit input. Top module `example` is combinational, takes a 32-bit input `x`, and produces `y = 9*x`, `z = 23*x`, `w = 81*x` (all 32-bit, wrapping).
+
+`context/starting_point.py` provides a reference implementation that can be used as a starting point for optimization.

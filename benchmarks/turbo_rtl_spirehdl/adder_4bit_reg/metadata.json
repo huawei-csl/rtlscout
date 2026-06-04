@@ -1,0 +1,10 @@
+{
+  "name": "adder_4bit_reg",
+  "module_name": "adder_4bit",
+  "tb_module": "tb",
+  "source": {
+    "zip": "benchmarks/final_benchmark_samples.zip",
+    "path": "final_benchmark_samples/rtlcoder_success_20251104/9045/9045_11.v",
+    "module_key": "rtlcoder_success_20251104/9045"
+  }
+}

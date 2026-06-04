@@ -1,0 +1,10 @@
+{
+  "name": "const_mult_3853",
+  "module_name": "multiplier_block",
+  "tb_module": "tb",
+  "source": {
+    "zip": "benchmarks/final_benchmark_samples.zip",
+    "path": "final_benchmark_samples/deeprtl_success_20251104/20904/20904_3.v",
+    "module_key": "deeprtl_success_20251104/20904"
+  }
+}

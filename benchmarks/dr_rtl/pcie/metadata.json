@@ -1,0 +1,38 @@
+{
+  "name": "pcie",
+  "comment": "LOCAL MODIFICATION vs. upstream DR_RTL source: the encoder and decoder always @(*) case statements had no default, so data_out was unassigned for unmapped codes and yosys inferred a transparent latch on data_out. The latch survives as behavioral always @* in the gate netlist and OpenROAD gate-level STA rejects it (STA-0171), making the design unmeasurable. Added explicit `data_out = 0;` defaults to both blocks so they synthesize as pure combinational logic — matching the SpireHDL variant's Const(0) fallback for unmapped codes. Functionally identical for all valid 8b/10b codes; baseline PPA therefore differs from the unmodified upstream RTL and must be re-measured. See the header comment in context/starting_point.v.",
+  "module_name": "top",
+  "cost_metric": [
+    "yosys_wires",
+    "yosys_cells"
+  ],
+  "tb_module": "tb",
+  "tb_mode": "seq",
+  "source": {
+    "repo": "https://github.com/hkust-zhiyao/DR_RTL",
+    "path": "rtl_dataset/pcie.v0.v"
+  },
+  "clock_port": "clk",
+  "reset_port": "rst",
+  "reset_active_low": true,
+  "reference": {
+    "paper_source": "arXiv:2604.14989 (Dr. RTL), Table 2",
+    "paper_design_name": "pcie",
+    "paper_target_delay_ns": 0.1,
+    "paper_synthesis_tool": "Synopsys Design Compiler + Nangate 45 nm",
+    "paper_loc": 923,
+    "paper_num_modules": 7,
+    "paper_num_gates_baseline": 1773,
+    "paper_num_registers_baseline": 97,
+    "paper_baseline_wns_ns": -0.79,
+    "paper_baseline_tns_ns": -23.83,
+    "paper_baseline_area_um2": 2156,
+    "paper_drrtl_wns_ns": -0.44,
+    "paper_drrtl_wns_improvement_pct": -44.3,
+    "paper_drrtl_tns_ns": -19.75,
+    "paper_drrtl_tns_improvement_pct": -17.1,
+    "paper_drrtl_area_um2": 1426,
+    "paper_drrtl_area_improvement_pct": -33.9,
+    "paper_drrtl_sec_pass_pct": 100
+  }
+}

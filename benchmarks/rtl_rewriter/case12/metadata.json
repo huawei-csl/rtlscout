@@ -1,0 +1,29 @@
+{
+  "name": "case12",
+  "module_name": "example",
+  "confidence": "high",
+  "cost_metric": [
+    "yosys_wires",
+    "yosys_cells"
+  ],
+  "reference": {
+    "paper_baseline_wires": 14782,
+    "paper_baseline_cells": 14960,
+    "paper_rtlr_wires": 14525,
+    "paper_rtlr_cells": 14703,
+    "reproduced_baseline_wires": 14782,
+    "reproduced_baseline_cells": 14960,
+    "reproduced_rtlr_wires": 14496,
+    "reproduced_rtlr_cells": 14674
+  },
+  "source": {
+    "repo": "https://github.com/yaoxufeng/RTLRewriter-Bench",
+    "commit": "96639fe67bc8f020c05978ef5028d75fcf6980f2",
+    "upstream_name": "communtativity_subpexpression2",
+    "path": "short_benchmark/basic/communtativity_subpexpression2/basic.v",
+    "rtlr_file": "short_benchmark/basic/communtativity_subpexpression2/basic_optimized.v",
+    "rtlr_file_note": "Upstream basic_ours.v is 0 bytes / missing \u2014 substituted basic_optimized.v (the human-golden file) as the rtlr reference. Baseline reproduces paper exactly (14782/14960); rtlr reproduces paper within ~30 (14496/14674 vs paper 14525/14703). Upstream directory name has a typo: `communtativity_subpexpression2`."
+  },
+  "tb_module": "tb",
+  "tb_mode": "comb"
+}

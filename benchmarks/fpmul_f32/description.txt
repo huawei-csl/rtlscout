@@ -1,0 +1,4 @@
+Design a module named fp_mul_e8f23 that multiplies two floating-point numbers. Format: 32-bit (1 sign + 8 exponent + 23 fraction). Inputs: a and b (32-bit each). Output: y (32-bit). Subnormal numbers must be supported. 
+
+
+A working starting point is provided: run `starting_point.py` (SpireHDL mode) to generate a correct reference design (design.v). Study the context files in your workspace for implementation details, then optimize from there.

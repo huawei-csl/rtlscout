@@ -1,0 +1,3 @@
+8-bit ALU with opcode-selected operation. Top module `example` is combinational, takes four 8-bit operands `input_a`..`input_d`, a 4-bit `opcode`, and a 1-bit `sel`, and produces an 8-bit `result` plus a 1-bit `zero_flag`.
+
+`context/starting_point.py` provides a reference implementation that can be used as a starting point for optimization.

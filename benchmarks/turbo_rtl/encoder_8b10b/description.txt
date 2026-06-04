@@ -1,0 +1,5 @@
+Design a module named `encoder`. 8b/10b encoder. The module takes an 8-bit data byte `in_8b` and a 1-bit control signal `dataK`, and produces a 10-bit encoded output `out_10b`. The exact encoding is defined by the reference implementation in `context/starting_point.v`. Your design must produce bit-identical outputs on the supplied random-stimulus vectors.
+
+Inputs: `in_8b[7:0]`, `dataK` (1-bit). Outputs: `out_10b[9:0]`.
+
+A reference implementation is provided at `context/starting_point.v`. Read it to understand the intended behavior, then produce a functionally-identical design optimized for the target cost metric.

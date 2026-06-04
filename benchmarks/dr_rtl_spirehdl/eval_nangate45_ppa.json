@@ -1,0 +1,12 @@
+[
+  {
+    "case": "router",
+    "module": "router_top",
+    "target_delay_ps": 100,
+    "delay_ps": 497.8,
+    "area_um2": 5552.21779663384,
+    "power_w": 0.00189,
+    "worst_slack_ns": -0.43,
+    "used_fallback": false
+  }
+]
