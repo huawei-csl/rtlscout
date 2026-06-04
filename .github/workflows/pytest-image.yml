@@ -1,0 +1,53 @@
+name: pytest (slim image)
+
+# Runs the test suite INSIDE the prebuilt slim EDA image (ghcr.io/huawei-csl/rtlscout:slim) — i.e. the
+# exact toolchain (Yosys 0.55, Verilator 5.040, OpenROAD, OpenSTA) rather than the distro apt builds the
+# stock `pytest.yml` workflow uses. This lets CI exercise the OpenROAD-backed metrics too.
+#
+# REQUIRES the image to be published to GHCR as a PUBLIC package (see README, "Prebuilt image"). Until
+# then this workflow can't pull the image, so it's `workflow_dispatch`-only by default; uncomment the
+# push/pull_request triggers once the package is public.
+on:
+  workflow_dispatch:
+  # push:
+  #   branches: [ main ]
+  # pull_request:
+  #   branches: [ main ]
+
+jobs:
+  pytest-image:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/huawei-csl/rtlscout:slim    # must be a PUBLIC package, or add `credentials:`
+    steps:
+      - name: Checkout (with the spire-hdl submodule)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install package + deps into the image's Python env
+        run: |
+          . /home/vscode/pyenv_eda/bin/activate
+          pip install -e deps/spire-hdl
+          pip install -e deps/tech_eval
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Tool sanity (Yosys / Verilator / OpenROAD load)
+        run: |
+          . /home/vscode/pyenv_eda/bin/activate
+          yosys --version
+          verilator --version
+          /opt/tools/openroad/OpenROAD/bin/openroad -version
+
+      - name: pytest
+        run: |
+          . /home/vscode/pyenv_eda/bin/activate
+          pytest -q tests/
+
+      - name: PPA smoke (no LLM, no API key) — yosys + sky130 metrics
+        run: |
+          . /home/vscode/pyenv_eda/bin/activate
+          printf 'module adder(input [7:0] a, b, output [7:0] sum);\n  assign sum = a + b;\nendmodule\n' > /tmp/adder.sv
+          python run_eval.py /tmp/adder.sv --benchmark benchmarks/simple_adder --top-module adder --cost-metric transistors
+          python run_eval.py /tmp/adder.sv --benchmark benchmarks/simple_adder --top-module adder --cost-metric sky130_adp

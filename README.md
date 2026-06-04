@@ -49,6 +49,20 @@ python run_eval.py benchmarks/fpmul_f16/context/starting_point.py \
 
 See the [Usage](#usage) section for further commands to run.
 
+### Docker image: full build, slim build, or prebuilt pull
+
+The base EDA image (OpenROAD, Yosys, Verilator, OpenSTA, sv2v, …) is large. Three ways to get it:
+
+- **Full build** (default) — `bash .devcontainer/build_image.sh`. Builds everything from source (~1–2 h the first time; ~54 GB image).
+- **Slim build** — `BUILD_SLIM=1 bash .devcontainer/build_image.sh`. Same toolchain, but the final image drops the OpenROAD build tree and the PDK data the flow never reads — **~3 GB instead of ~54 GB** (uses `deps/tech_eval/.devcontainer/Dockerfile.slim`; shares the full build's compile cache).
+- **Prebuilt image** (no build) — pull the slim image from GitHub Container Registry:
+  ```bash
+  docker pull ghcr.io/huawei-csl/rtlscout:slim
+  docker tag  ghcr.io/huawei-csl/rtlscout:slim rtlscout:latest   # start_container.sh / the devcontainer expect this tag
+  bash .devcontainer/setup_workspace.sh                          # still need the spire-hdl submodule
+  bash .devcontainer/start_container.sh
+  ```
+
 ## Paper Experiments
 
 Step-by-step walkthrough of the FP16 multiplier experiment from the paper:

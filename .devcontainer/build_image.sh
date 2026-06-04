@@ -9,8 +9,11 @@
 # Step 2 builds the thin rtlscout layer (ELAU only) on top.
 #
 # Env:
-#   NO_CACHE=1   force a clean rebuild (docker build --no-cache) AND rebuild the base even if it
-#                already exists — i.e. a genuine from-scratch build, re-fetching all upstream sources.
+#   NO_CACHE=1    force a clean rebuild (docker build --no-cache) AND rebuild the base even if it
+#                 already exists — i.e. a genuine from-scratch build, re-fetching all upstream sources.
+#   BUILD_SLIM=1  build the SLIM base (~3 GB) from Dockerfile.slim instead of the full ~54 GB base.
+#                 Same toolchain; drops the inherited ORFS build tree + unused PDK data. The builder
+#                 stages are shared, so it reuses the full base's compile cache.
 
 set -euo pipefail
 
@@ -22,7 +25,12 @@ CACHE_FLAG=""
 
 # ---- Step 1: Build base image from tech_eval (skip if already exists, unless NO_CACHE=1) ----
 BASE_IMAGE="rtlscout_base:latest"
-BASE_DOCKERFILE="$REPO_ROOT/deps/tech_eval/.devcontainer/Dockerfile"
+if [ "${BUILD_SLIM:-0}" = "1" ]; then
+    BASE_DOCKERFILE="$REPO_ROOT/deps/tech_eval/.devcontainer/Dockerfile.slim"
+    echo "BUILD_SLIM=1: building the slim base image (~3 GB; same tools, trimmed PDK data)"
+else
+    BASE_DOCKERFILE="$REPO_ROOT/deps/tech_eval/.devcontainer/Dockerfile"
+fi
 
 if [ "${NO_CACHE:-0}" != "1" ] && docker image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
     echo "Base image $BASE_IMAGE already exists, skipping."
