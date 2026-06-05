@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="imgs/rtlscout_logo_1200.png" alt="RTL Scout" width="600">
+  <img src="imgs/rtlscout_logo_white_800.png" alt="RTL Scout" width="600">
 </div>
 
 <br>
