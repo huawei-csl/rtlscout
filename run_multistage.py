@@ -72,6 +72,8 @@ def main():
                         help="Enable replace_arithmetic_ops() guidance in system prompt (SpireHDL only)")
     parser.add_argument("--dont-touch-main-arith", action="store_true",
                         help="Tell agent to not modify core multiplier/adder configs (for later-stage arithmetic sweeps)")
+    parser.add_argument("--fsm-optimize", action="store_true",
+                        help="Enable FSM / state-encoding optimization guidance (optimized_fsm / optimized_encoding) in the system prompt (SpireHDL only)")
     args = parser.parse_args()
 
     runs_root = None
@@ -100,6 +102,7 @@ def main():
         abc_optimize=args.abc_optimize,
         arith_autoconfig=args.arith_autoconfig,
         dont_touch_main_arith=args.dont_touch_main_arith,
+        fsm_optimize=args.fsm_optimize,
     )
 
 

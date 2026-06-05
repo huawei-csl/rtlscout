@@ -6,7 +6,7 @@
 
 # RTL Scout
 
-An RTL design agent powered by pluggable LLM backends (DeepInfra, Claude) with tool use. The agent iteratively creates and optimizes Verilog/SystemVerilog designs, targeting **correctness first, then minimal cost** under a configurable cost metric.
+An RTL design agent powered by pluggable LLM backends (DeepInfra, Anthropic) with tool use. The agent iteratively creates and optimizes Verilog/SystemVerilog, Spire or Amaranth designs, targeting **correctness first, then minimal cost** under a configurable cost metric.
 
 ## Getting Started
 
@@ -20,7 +20,7 @@ An RTL design agent powered by pluggable LLM backends (DeepInfra, Claude) with t
 3. When prompted, click **"Reopen in Container"** (or run the command *Dev Containers: Reopen in Container*).
 4. Once the container is up, make sure the VS Code Python interpreter to `~/pyenv_eda/bin/python` (*Python: Select Interpreter* → enter that path).
 
-The Dev Container extension will build the Docker image and start the environment. Edit `.env` with your API keys once inside:
+The Dev Container extension will **pull the prebuilt image** (the default) and start the environment — or build it from source instead (see *Docker image* below). Edit `.env` with your API keys once inside:
 ```bash
 cp .env.template .env && code .env
 ```
@@ -39,12 +39,15 @@ bash .devcontainer/setup_workspace.sh
 cp .env.template .env
 vi .env
 
-# 4. Build the Docker image (one-time, takes a while)
-bash .devcontainer/build_image.sh
+# 4. Get the Docker image — pull the prebuilt slim image (fast; recommended)
+bash .devcontainer/pull_image.sh
+#    (or build from source: bash .devcontainer/build_image.sh — see "Docker image" below)
 
 # 5. Start the container (mounts repo, installs packages, drops into shell)
 bash .devcontainer/start_container.sh
 ```
+
+### First run (after Option A or B)
 
 Once inside the container:
 ```bash
@@ -53,33 +56,43 @@ python run_eval.py benchmarks/fpmul_f16/context/starting_point.py \
     --cost-metric area --target-delay 500
 ```
 
+Or run the full agent loop with a **fake (offline) LLM** — no API key needed (the same fake provider the test suite uses):
+```bash
+python run_benchmark.py --benchmark simple_adder --model fake:simple_adder_pass
+```
+
 See the [Usage](#usage) section for further commands to run.
 
-### Docker image: full build, slim build, or prebuilt pull
+### Docker image: prebuilt pull (default) or self-build
 
-The base EDA image (OpenROAD, Yosys, Verilator, OpenSTA, sv2v, …) is large. Three ways to get it:
+The base EDA image (OpenROAD, Yosys, Verilator, OpenSTA, sv2v, …) is large. The easiest path is to **pull the prebuilt slim image**; building from source is fully supported as an alternative.
 
-- **Full build** (default) — `bash .devcontainer/build_image.sh`. Builds everything from source (~1–2 h the first time; ~54 GB image).
-- **Slim build** — `BUILD_SLIM=1 bash .devcontainer/build_image.sh`. Same toolchain, but the final image drops the OpenROAD build tree and the PDK data the flow never reads — **~3 GB instead of ~54 GB** (uses `deps/tech_eval/.devcontainer/Dockerfile.slim`; shares the full build's compile cache).
-- **Prebuilt image** (no build) — pull the slim image from GitHub Container Registry:
-  ```bash
-  docker pull ghcr.io/huawei-csl/rtlscout:slim
-  docker tag  ghcr.io/huawei-csl/rtlscout:slim rtlscout:latest   # start_container.sh / the devcontainer expect this tag
-  bash .devcontainer/setup_workspace.sh                          # still need the spire-hdl submodule
-  bash .devcontainer/start_container.sh
-  ```
+- **Prebuilt pull** (default, recommended) — `bash .devcontainer/pull_image.sh`. Pulls `ghcr.io/huawei-csl/rtlscout:slim` (~3 GB) and tags it `rtlscout:latest` (the tag `start_container.sh` and the devcontainer expect). By hand: `docker pull ghcr.io/huawei-csl/rtlscout:slim && docker tag ghcr.io/huawei-csl/rtlscout:slim rtlscout:latest`.
+- **Slim self-build** — `BUILD_SLIM=1 bash .devcontainer/build_image.sh`. Builds the same ~3 GB image from source: same toolchain, but drops the OpenROAD build tree and the PDK data the flow never reads (uses `deps/tech_eval/.devcontainer/Dockerfile.slim`; shares the full build's compile cache).
+- **Full self-build** — `bash .devcontainer/build_image.sh`. Builds everything from source (~1–2 h the first time; ~54 GB image).
+
+The VS Code devcontainer pulls by default; to self-build instead, edit `initializeCommand` in `.devcontainer/devcontainer.json`.
 
 ## Paper Experiments
 
-Step-by-step walkthrough of the FP16 multiplier experiment from the paper:
+The paper builds designs with a multi-phase optimization pipeline (up to four phases):
 
-- [README_fpmul.md](README_fpmul.md) -- FP16 multiplier (fpmul_f16)
+1. **Multi-run agent campaigns** — a multi-run *elite-pool* optimizer runs many agents, each either *fresh* (from the spec) or *seeded* from the best designs so far, with lessons-learned feedback shared between runs. Area- and delay-targeted campaigns together build a Pareto front.
+2. **Seeded campaigns with synthesis optimization** — re-run seeded from Phase 1's best designs, with the agent additionally placing optimization decorators it controls (e.g. `@abc_optimized`, and `@arithmetic_optimized` for structural arithmetic).
+3. **Arithmetic architecture sweep** *(FP-specialized)* — swaps the core mantissa multiplier / exponent adder for classical structures (Wallace & Dadda trees; Kogge–Stone / Brent–Kung / Sklansky adders; …) across optimization targets.
+4. **High-effort gate-level refinement** *(FP-specialized)* — many parallel, high-budget Mockturtle AIG-rewriting passes over the whole design.
 
-## Evaluating a new benchmark (recommended workflow, for SpireHDL)
+**This README focuses on the general, less-specialized workflow — Phases 1–2.** Those two agentic phases apply to arbitrary RTL: in the paper this is exactly how the general (non-floating-point) RTLRewriter benchmarks are handled — the Phase-3 arithmetic sweep is folded into the `@arithmetic_optimized` decorator and Phase 4 is dropped, so the pipeline reduces to Phases 1–2. The runnable, step-by-step version is **[Running a benchmark (Phases 1–2)](#running-a-benchmark-phases-12)** below (Step 1 = Phase 1, Step 2 = Phase 2).
+
+**For the specialized floating-point pipeline** — the full multi-phase workflow that adds the Phase 3 arithmetic architecture sweep (and, in the paper, the Phase 4 high-effort Mockturtle refinement), as used for `fpmul_f16` / `fpadd_f16` — see **[README_fpmul.md](README_fpmul.md)** (worked end-to-end for `fpmul_f16`).
+
+> **Note:** This repository currently supports only the **ABC** synthesis-optimization backend (`@abc_optimized`). Mockturtle-based optimization — the `@mockturtle_optimized` decorator and the Phase 4 high-effort refinement — is **not installed** here.
+
+## Running a benchmark (Phases 1–2)
 
 The multi-stage pipeline with elite-pool seeding consistently produces the best results. Here is a recommended workflow for evaluating a new benchmark, using `my_bench` as an example (replace with your benchmark name, model, and cost metric).
 
-### Step 1: Multi-run agent campaign (no synthesis decorators)
+### Step 1 (Phase 1): Multi-run agent campaign (no synthesis decorators)
 
 Start with a plain agent campaign — no `@abc_optimized`. Synthesis decorators add complexity that can distract the agent before it has found a good algorithmic baseline. Enable `--arith-autoconfig` so the agent can use `replace_arithmetic_ops()` for automatic arithmetic unit selection. Use `--dont-touch-main-arith` if the benchmark has configurable arithmetic components (MultiplierConfig, AdderConfig) that will be swept in a later stage.
 
@@ -102,7 +115,7 @@ Key flags:
 - `--save-workspaces`: saves a snapshot of the workspace after each evaluation step (needed for `extract_pareto.py` later).
 - Omit `--dont-touch-main-arith` if you want the agent to freely explore all design parameters.
 
-### Step 2: Seeded campaign with synthesis optimization
+### Step 2 (Phase 2): Seeded campaign with synthesis optimization
 
 Seed from the best designs of Step 1, now with `@abc_optimized` enabled. Fewer runs are needed since the agent starts from a strong baseline.
 
@@ -115,6 +128,7 @@ python run_multistage.py \
     --language spirehdl \
     --arith-autoconfig \
     --abc-optimize \
+    --fsm-optimize \
     --elite-size 3 \
     --seed-from runs/my_bench_stage1 \
     --save-workspaces \
@@ -124,6 +138,7 @@ python run_multistage.py \
 Key differences from Step 1:
 - `--seed-from runs/my_bench_stage1`: seeds the elite pool from the best designs of the first campaign.
 - `--abc-optimize`: the agent now has access to synthesis optimization decorators.
+- `--fsm-optimize`: opts the agent into FSM / state-encoding optimization (`optimized_fsm` / `optimized_encoding`).
 - `--max-concurrent 1`: Synthesis optimization runs are heavier; sequential execution avoids resource contention.
 - Fewer runs (`--total-runs 6`) since we're refining, not exploring from scratch.
 
@@ -166,7 +181,7 @@ python plot_pareto_paper.py runs/my_bench_stage1 -o plots/my_bench/
 
 - **Cost metric choice**: `area` is the most common objective. Use `delay` for timing-critical designs, or run both and combine with `extract_pareto.py`.
 - **Target delay**: affects the synthesis timing constraint. Lower values push the synthesizer toward faster logic (often at the cost of area). Experiment with different values (200–2000 ps).
-- **Model choice**: Claude Opus produces the best results but is slower and more expensive. Claude Sonnet is a good alternative for initial exploration or larger run counts.
+- **Model choice**: More powerful models produces the best results but are usually slower and more expensive.
 - **Step budget**: `--max-steps 30` gives the agent enough room to iterate. For simpler benchmarks (e.g. 8-bit multipliers), `--max-steps 15-20` may suffice.
 
 ## Agent flow

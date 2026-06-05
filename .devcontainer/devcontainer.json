@@ -1,18 +1,17 @@
 // .devcontainer/devcontainer.json
 //
-// Two options for the image:
+// Getting the image (initializeCommand, below):
 //
-// Option A (default): Pre-built image.
-//   Build once with `bash .devcontainer/build_image.sh`, then reuse.
+//   DEFAULT — pull the prebuilt slim image from GHCR (~3 GB pull, fast). This is what `pull_image.sh`
+//   does; it tags it as rtlscout:latest.
 //
-// Option B: Build from Dockerfile on container creation.
-//   Replace "image" with:
-//     "build": { "dockerfile": "Dockerfile", "context": ".." }
-//   Slow on first open (the base image compiles OpenROAD from source, ~1-2h).
+//   SELF-BUILD (alternative) — to build from source instead, change `pull_image.sh` in the
+//   initializeCommand to `build_image.sh` (full ~54 GB) or `BUILD_SLIM=1 bash .devcontainer/build_image.sh`
+//   (slim ~3 GB). Building the base compiles OpenROAD from source (~1-2 h on first open).
 //
 {
     "name": "rtl_scout",
-    "initializeCommand": "bash -c 'cd ${localWorkspaceFolder} && bash .devcontainer/setup_workspace.sh && bash .devcontainer/build_image.sh'",
+    "initializeCommand": "bash -c 'cd ${localWorkspaceFolder} && bash .devcontainer/setup_workspace.sh && bash .devcontainer/pull_image.sh'",
     "image": "rtlscout:latest",
     // Pin the workspace path to /workspaces/rtl_scout regardless of the cloned folder's name, so the
     // VS Code flow matches start_container.sh / entrypoint.sh and the absolute paths used in core/.

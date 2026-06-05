@@ -52,3 +52,9 @@ jobs:
           printf 'module adder(input [7:0] a, b, output [7:0] sum);\n  assign sum = a + b;\nendmodule\n' > /tmp/adder.sv
           python run_eval.py /tmp/adder.sv --benchmark benchmarks/simple_adder --top-module adder --cost-metric transistors
           python run_eval.py /tmp/adder.sv --benchmark benchmarks/simple_adder --top-module adder --cost-metric sky130_adp
+
+      - name: Agent-loop smoke — full run_benchmark.py with a fake (offline) LLM, no API key
+        run: |
+          . /home/vscode/pyenv_eda/bin/activate
+          python run_benchmark.py --benchmark simple_adder --model fake:simple_adder_pass --runs-dir /tmp/runs | tee /tmp/bench.log
+          grep -q 'Best: PASS' /tmp/bench.log   # fail the job if the agent loop didn't produce a passing design
