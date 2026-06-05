@@ -10,7 +10,7 @@ An RTL design agent powered by pluggable LLM backends (DeepInfra, Anthropic) wit
 
 ## Getting Started
 
-### Option A: VS Code Dev Container (recommended)
+### Option A: VS Code Dev Container
 
 1. Clone this repo with submodules:
    ```bash
@@ -90,15 +90,16 @@ The paper builds designs with a multi-phase optimization pipeline (up to four ph
 
 ## Running a benchmark (Phases 1–2)
 
-The multi-stage pipeline with elite-pool seeding consistently produces the best results. Here is a recommended workflow for evaluating a new benchmark, using `my_bench` as an example (replace with your benchmark name, model, and cost metric).
+The multi-stage pipeline with elite-pool seeding consistently produces the best results. The example below uses the `fpmul_f16` benchmark, but any benchmark directory under `benchmarks/` works — swap the name, model, and cost metric for yours.
 
 ### Step 1 (Phase 1): Multi-run agent campaign (no synthesis decorators)
 
 Start with a plain agent campaign — no `@abc_optimized`. Synthesis decorators add complexity that can distract the agent before it has found a good algorithmic baseline. Enable `--arith-autoconfig` so the agent can use `replace_arithmetic_ops()` for automatic arithmetic unit selection. Use `--dont-touch-main-arith` if the benchmark has configurable arithmetic components (MultiplierConfig, AdderConfig) that will be swept in a later stage.
 
 ```bash
+# --benchmark is any benchmark name under benchmarks/ (here fpmul_f16; e.g. simple_adder, fpadd_f16, dr_rtl_spirehdl/controller, …)
 python run_multistage.py \
-    --benchmark my_bench \
+    --benchmark fpmul_f16 \
     --model claude:claude-opus-4-6 \
     --total-runs 10 --max-concurrent 2 --max-steps 30 \
     --cost-metric area --target-delay 500 \
@@ -106,7 +107,7 @@ python run_multistage.py \
     --arith-autoconfig \
     --elite-size 3 --fresh-first 3 \
     --save-workspaces \
-    --runs-root runs/my_bench_stage1
+    --runs-root runs/fpmul_f16_stage1
 ```
 
 Key flags:
@@ -121,7 +122,7 @@ Seed from the best designs of Step 1, now with `@abc_optimized` enabled. Fewer r
 
 ```bash
 python run_multistage.py \
-    --benchmark my_bench \
+    --benchmark fpmul_f16 \
     --model claude:claude-opus-4-6 \
     --total-runs 6 --max-concurrent 1 --max-steps 30 \
     --cost-metric area --target-delay 500 \
@@ -130,13 +131,13 @@ python run_multistage.py \
     --abc-optimize \
     --fsm-optimize \
     --elite-size 3 \
-    --seed-from runs/my_bench_stage1 \
+    --seed-from runs/fpmul_f16_stage1 \
     --save-workspaces \
-    --runs-root runs/my_bench_stage2
+    --runs-root runs/fpmul_f16_stage2
 ```
 
 Key differences from Step 1:
-- `--seed-from runs/my_bench_stage1`: seeds the elite pool from the best designs of the first campaign.
+- `--seed-from runs/fpmul_f16_stage1`: seeds the elite pool from the best designs of the first campaign.
 - `--abc-optimize`: the agent now has access to synthesis optimization decorators.
 - `--fsm-optimize`: opts the agent into FSM / state-encoding optimization (`optimized_fsm` / `optimized_encoding`).
 - `--max-concurrent 1`: Synthesis optimization runs are heavier; sequential execution avoids resource contention.
@@ -147,16 +148,16 @@ Key differences from Step 1:
 **Plot per-run cost evolution** (one chart per campaign):
 
 ```bash
-python plot_results.py --input runs/my_bench_stage1
-python plot_results.py --input runs/my_bench_stage2
+python plot_results.py --input runs/fpmul_f16_stage1
+python plot_results.py --input runs/fpmul_f16_stage2
 ```
 
 **Extract Pareto-optimal designs** (area vs delay) from both campaigns:
 
 ```bash
 python extract_pareto.py \
-    runs/my_bench_stage1 runs/my_bench_stage2 \
-    -o pareto_fronts/my_bench \
+    runs/fpmul_f16_stage1 runs/fpmul_f16_stage2 \
+    -o pareto_fronts/fpmul_f16 \
     --separate-dirs -n 20
 ```
 
@@ -166,15 +167,15 @@ This aggregates all evaluations from both campaigns, computes the Pareto front, 
 
 ```bash
 python plot_pareto_paper.py \
-    --compare pareto_fronts/my_bench runs/my_bench_stage1 \
-    -o plots/my_bench/ \
+    --compare pareto_fronts/fpmul_f16 runs/fpmul_f16_stage1 \
+    -o plots/fpmul_f16/ \
     --label-a "With ABC" --label-b "Without"
 ```
 
 Or plot a single campaign's multistage evolution:
 
 ```bash
-python plot_pareto_paper.py runs/my_bench_stage1 -o plots/my_bench/
+python plot_pareto_paper.py runs/fpmul_f16_stage1 -o plots/fpmul_f16/
 ```
 
 ### Tips
@@ -615,7 +616,7 @@ Minimal schema:
 
 ```json
 {
-  "name": "my_bench",
+  "name": "fpmul_f16",
   "module_name": "my_dut",
   "tb_module": "tb"
 }
