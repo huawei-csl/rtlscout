@@ -27,11 +27,12 @@ jobs:
 
       - name: Install package + deps into the image's Python env
         run: |
+          # The image's pyenv_eda is a `uv venv` (no pip); use `uv pip`, like post_create.sh does.
           . /home/vscode/pyenv_eda/bin/activate
-          pip install -e deps/spire-hdl
-          pip install -e deps/tech_eval
-          pip install -r requirements.txt
-          pip install pytest
+          uv pip install -e deps/spire-hdl
+          uv pip install -e deps/tech_eval
+          uv pip install -r requirements.txt
+          uv pip install pytest
 
       - name: Tool sanity (Yosys / Verilator / OpenROAD load)
         run: |
