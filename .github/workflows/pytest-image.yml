@@ -4,15 +4,15 @@ name: pytest (slim image)
 # exact toolchain (Yosys 0.55, Verilator 5.040, OpenROAD, OpenSTA) rather than the distro apt builds the
 # stock `pytest.yml` workflow uses. This lets CI exercise the OpenROAD-backed metrics too.
 #
-# REQUIRES the image to be published to GHCR as a PUBLIC package (see README, "Prebuilt image"). Until
-# then this workflow can't pull the image, so it's `workflow_dispatch`-only by default; uncomment the
-# push/pull_request triggers once the package is public.
+# REQUIRES the image published to GHCR as a PUBLIC package `ghcr.io/huawei-csl/rtlscout:slim`
+# (see README, "Prebuilt image"). If that package is ever made private, the pull will fail — either
+# republish it public or add `permissions: packages: read` + `container.credentials` to this job.
 on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
-  # push:
-  #   branches: [ main ]
-  # pull_request:
-  #   branches: [ main ]
 
 jobs:
   pytest-image:
