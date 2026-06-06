@@ -9,7 +9,7 @@ Four scripts that drive the `benchmarks/rtl_rewriter/` + `benchmarks/rtl_rewrite
 
 **Multi-run + two-phase pipeline** (see [Multirun pipeline](#multirun-pipeline) below):
 
-- [`rtl_rewriter_multirun.py`](rtl_rewriter_multirun.py) — drives `core.multistage.run_multistage` with an optional phase-2 pass seeded from phase 1.
+- [`rtl_rewriter_multirun.py`](rtl_rewriter_multirun.py) — drives `core.multirun.run_multirun` with an optional phase-2 pass seeded from phase 1.
 - [`table_rtl_rewriter_multirun.py`](table_rtl_rewriter_multirun.py) — renders two tables per metric: best per phase, then a distribution (min / max / mean / n) per phase.
 - [`plot_rtl_rewriter_multirun.py`](plot_rtl_rewriter_multirun.py) — grid of per-case subplots; both languages overlaid, each phase column shows all per-run costs with the best highlighted, language-coloured baseline and RTLR-target horizontal reference lines.
 
@@ -162,7 +162,7 @@ The runner prints the exact `python experiments/table_rtl_rewriter.py <path>` in
 
 ## Multirun pipeline
 
-The multirun variant runs N agents per case per language (via `core.multistage.run_multistage`) and optionally chains two phases, where phase 2 seeds from phase 1's elite pool. For spirehdl only, the prompt-feature flags differ by phase:
+The multirun variant runs N agents per case per language (via `core.multirun.run_multirun`) and optionally chains two phases, where phase 2 seeds from phase 1's elite pool. For spirehdl only, the prompt-feature flags differ by phase:
 
 | Phase | `--arith-autoconfig` | `--flowy-optimize` | `--abc-optimize` |
 |:---|:-:|:-:|:-:|
@@ -171,7 +171,7 @@ The multirun variant runs N agents per case per language (via `core.multistage.r
 
 Verilog runs carry none of those spirehdl-only flags; for verilog, phase 2 is effectively "restart with phase-1's best designs seeded into the elite pool", which still often improves a bit.
 
-**Phase-2 is pure exploitation.** `rtl_rewriter_multirun.py` overrides `core.multistage`'s default fresh-agent schedule (`fresh_base=0.5 → fresh_min=0.1`) by pinning `fresh_base=0, fresh_min=0, fresh_first=0` on the phase-2 call, so every phase-2 agent seeds from the pool that was pre-populated from phase 1's summary. This is reflected in the summary's `phase_exploration` block. Phase 1 keeps the default schedule — exploration still matters when the pool is cold.
+**Phase-2 is pure exploitation.** `rtl_rewriter_multirun.py` overrides `core.multirun`'s default fresh-agent schedule (`fresh_base=0.5 → fresh_min=0.1`) by pinning `fresh_base=0, fresh_min=0, fresh_first=0` on the phase-2 call, so every phase-2 agent seeds from the pool that was pre-populated from phase 1's summary. This is reflected in the summary's `phase_exploration` block. Phase 1 keeps the default schedule — exploration still matters when the pool is cold.
 
 ### `rtl_rewriter_multirun.py` arguments
 
@@ -183,13 +183,13 @@ Verilog runs carry none of those spirehdl-only flags; for verilog, phase 2 is ef
 | `--model SPEC` | `claude:claude-opus-4-6` | |
 | `--cost-metric NAME` | `yosys_cells` | |
 | `--total-runs N` | `6` | Agents inside **each** phase. |
-| `--max-concurrent N` | `2` | Parallel agents inside one `run_multistage` call. |
+| `--max-concurrent N` | `2` | Parallel agents inside one `run_multirun` call. |
 | `--max-steps N` | `20` | Agent budget per run. |
 | `--elite-size N` | `5` | Elite pool size per phase. |
 | `--workers N` | `4` | Outer parallelism — parallel `(case × language)` pairs. |
 | `--runs-root PATH` | `runs/rtl_rewriter_multirun_<ts>` | |
 | `--summary-out PATH` | `<runs-root>/summary.json` | |
-| `--backfill PATH` | — | Re-read each phase's `multistage_summary.json` and rewrite the given summary in place (for when a previous run was interrupted or the script evolved). |
+| `--backfill PATH` | — | Re-read each phase's `multirun_summary.json` and rewrite the given summary in place (for when a previous run was interrupted or the script evolved). |
 
 Concurrent agent cap = `outer_workers × max_concurrent`. The defaults (4 × 2) cap at 8 agents; bump to taste.
 
@@ -198,13 +198,13 @@ Concurrent agent cap = `outer_workers × max_concurrent`. The defaults (4 × 2) 
 ```
 <runs-root>/
     phase1/
-        verilog/case<N>/     ← multistage runs_root
+        verilog/case<N>/     ← multirun runs_root
             run_000/ run_001/ ...    ← one per agent
             best_design/             ← global-best from this phase
-            multistage_summary.json
+            multirun_summary.json
         spirehdl/case<N>/   ← idem
     phase2/
-        verilog/case<N>/     ← seeded from phase1's multistage_summary.json
+        verilog/case<N>/     ← seeded from phase1's multirun_summary.json
         spirehdl/case<N>/
     summary.json
 ```
@@ -221,7 +221,7 @@ Same top-level `results: {case_id: {language: rec}}` shape as the single-run var
         "baseline_wires": 28, "baseline_cells": 18,
         "phase1": {
           "runs_root": "<runs-root>/phase1/verilog/case1",
-          "multistage_summary_path": ".../multistage_summary.json",
+          "multirun_summary_path": ".../multirun_summary.json",
           "flags": {},                       // empty for verilog
           "stats": {
             "cells": {"min": 14, "max": 17, "mean": 15.5, "count": 4},

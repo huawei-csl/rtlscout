@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""CLI: Plot multistage optimiser results.
+"""CLI: Plot multirun optimiser results.
 
 Usage:
-  python plot_multistage.py --input runs/multistage_<ts>/multistage_summary.json
-  python plot_multistage.py --input runs/multistage_<ts>/  # auto-finds multistage_summary.json
+  python plot_multirun.py --input runs/multirun_<ts>/multirun_summary.json
+  python plot_multirun.py --input runs/multirun_<ts>/  # auto-finds multirun_summary.json
 """
 
 import argparse
@@ -31,7 +31,7 @@ def _fmt_cost(v) -> str:
 
 
 def plot_cost_evolution(data: Dict[str, Any], output_dir: Path, source: str = "") -> List[Path]:
-    """Plot cost evolution across multistage agent runs."""
+    """Plot cost evolution across multirun agent runs."""
     output_dir.mkdir(parents=True, exist_ok=True)
     outputs: List[Path] = []
 
@@ -156,7 +156,7 @@ def plot_cost_evolution(data: Dict[str, Any], output_dir: Path, source: str = ""
 
     ax.legend(loc="best", fontsize=8)
     fig.tight_layout()
-    path = output_dir / "multistage_cost_evolution.png"
+    path = output_dir / "multirun_cost_evolution.png"
     fig.savefig(path, dpi=160)
     plt.close(fig)
     outputs.append(path)
@@ -165,14 +165,14 @@ def plot_cost_evolution(data: Dict[str, Any], output_dir: Path, source: str = ""
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Plot multistage optimiser results")
-    parser.add_argument("--input", required=True, help="Path to multistage_summary.json or its directory")
+    parser = argparse.ArgumentParser(description="Plot multirun optimiser results")
+    parser.add_argument("--input", required=True, help="Path to multirun_summary.json or its directory")
     parser.add_argument("--output-dir", default=None, help="Output directory for plots (default: <input>/plots)")
     args = parser.parse_args()
 
     input_path = Path(args.input)
     if input_path.is_dir():
-        input_path = input_path / "multistage_summary.json"
+        input_path = input_path / "multirun_summary.json"
 
     data = load_json(input_path)
     output_dir = Path(args.output_dir) if args.output_dir else input_path.parent / "plots"

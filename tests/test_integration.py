@@ -1,4 +1,4 @@
-"""Integration tests for run_benchmark, run_multistage, and run_eval."""
+"""Integration tests for run_benchmark, run_multirun, and run_eval."""
 
 import shutil
 from pathlib import Path
@@ -94,11 +94,11 @@ def test_run_benchmark_simple_adder_spirehdl(tmp_path):
 
 @requires_verilator
 @requires_yosys
-def test_run_multistage_simple_adder(tmp_path):
-    """Run multistage on simple_adder with a fake Verilog provider."""
-    from core.multistage import run_multistage
+def test_run_multirun_simple_adder(tmp_path):
+    """Run multirun on simple_adder with a fake Verilog provider."""
+    from core.multirun import run_multirun
 
-    summary = run_multistage(
+    summary = run_multirun(
         benchmark_name="simple_adder",
         model="fake:simple_adder_pass",
         total_runs=2,
@@ -111,18 +111,18 @@ def test_run_multistage_simple_adder(tmp_path):
 
     assert summary["global_best_cost"] is not None
     assert summary["global_best_cost"] > 0
-    assert (tmp_path / "ms_runs" / "multistage_summary.json").exists()
+    assert (tmp_path / "ms_runs" / "multirun_summary.json").exists()
     passing = [r for r in summary["runs"] if r.get("passed")]
     assert len(passing) >= 1
 
 
 @requires_verilator
 @requires_yosys
-def test_run_multistage_simple_adder_spirehdl(tmp_path):
-    """Run multistage on simple_adder with a fake SpireHDL provider."""
-    from core.multistage import run_multistage
+def test_run_multirun_simple_adder_spirehdl(tmp_path):
+    """Run multirun on simple_adder with a fake SpireHDL provider."""
+    from core.multirun import run_multirun
 
-    summary = run_multistage(
+    summary = run_multirun(
         benchmark_name="simple_adder",
         model="fake:simple_adder_spirehdl_pass",
         total_runs=2,
@@ -136,6 +136,6 @@ def test_run_multistage_simple_adder_spirehdl(tmp_path):
 
     assert summary["global_best_cost"] is not None
     assert summary["global_best_cost"] > 0
-    assert (tmp_path / "ms_runs" / "multistage_summary.json").exists()
+    assert (tmp_path / "ms_runs" / "multirun_summary.json").exists()
     passing = [r for r in summary["runs"] if r.get("passed")]
     assert len(passing) >= 1

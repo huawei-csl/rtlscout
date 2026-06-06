@@ -82,108 +82,66 @@ The paper builds designs with a multi-phase optimization pipeline (up to four ph
 3. **Arithmetic architecture sweep** *(FP-specialized)* — swaps the core mantissa multiplier / exponent adder for classical structures (Wallace & Dadda trees; Kogge–Stone / Brent–Kung / Sklansky adders; …) across optimization targets.
 4. **High-effort gate-level refinement** *(FP-specialized)* — many parallel, high-budget Mockturtle AIG-rewriting passes over the whole design.
 
-**This README focuses on the general, less-specialized workflow — Phases 1–2.** Those two agentic phases apply to arbitrary RTL: in the paper this is exactly how the general (non-floating-point) RTLRewriter benchmarks are handled — the Phase-3 arithmetic sweep is folded into the `@arithmetic_optimized` decorator and Phase 4 is dropped, so the pipeline reduces to Phases 1–2. The runnable, step-by-step version is **[Running a benchmark (Phases 1–2)](#running-a-benchmark-phases-12)** below (Step 1 = Phase 1, Step 2 = Phase 2).
+**This README focuses on the general, less-specialized workflow — Phases 1–2.** Those two agentic phases apply to arbitrary RTL: in the paper this is exactly how the general (non-floating-point) RTLRewriter benchmarks are handled — the Phase-3 arithmetic sweep is folded into the `@arithmetic_optimized` decorator and Phase 4 is dropped, so the pipeline reduces to Phases 1–2. The runnable version is **[Running benchmarks](#running-benchmarks)** below — `run_pipeline.py` chains both phases (Phase 1 structural, Phase 2 synthesis-aware) over area + delay campaigns.
 
 **For the specialized floating-point pipeline** — the full multi-phase workflow that adds the Phase 3 arithmetic architecture sweep (and, in the paper, the Phase 4 high-effort Mockturtle refinement), as used for `fpmul_f16` / `fpadd_f16` — see **[README_fpmul.md](README_fpmul.md)** (worked end-to-end for `fpmul_f16`).
 
-> **Note:** This repository currently supports only the **ABC** synthesis-optimization backend (`@abc_optimized`). Mockturtle-based optimization — the `@mockturtle_optimized` decorator and the Phase 4 high-effort refinement — is **not installed** here.
+> **Note:** This repository currently supports the **ABC** synthesis-optimization backend (`@abc_optimized`). Mockturtle-based optimization — the `@mockturtle_optimized` decorator and the Phase 4 high-effort refinement — is **not installed** here.
 
-## Running a benchmark (Phases 1–2)
+## Running benchmarks
 
-The multi-stage pipeline with elite-pool seeding consistently produces the best results. The example below uses the `fpmul_f16` benchmark, but any benchmark directory under `benchmarks/` works — swap the name, model, and cost metric for yours.
+> Every command here drives an LLM provider, so set your API token in `.env` first (`DEEPINFRA_API_KEY`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, …) — see [Getting Started](#getting-started). The `--model` argument always uses **`provider:model`** syntax; providers are `deepinfra`, `claude`, `openrouter` (and `fake` for offline testing).
 
-### Step 1 (Phase 1): Multi-run agent campaign (no synthesis decorators)
+RTL Scout has three entry points, from a single agent up to the full optimization pipeline. The examples use `fpmul_f16`, but any directory under `benchmarks/` works — swap the benchmark, model, and cost metric for yours.
 
-Start with a plain agent campaign — no `@abc_optimized`. Synthesis decorators add complexity that can distract the agent before it has found a good algorithmic baseline. Enable `--arith-autoconfig` so the agent can use `replace_arithmetic_ops()` for automatic arithmetic unit selection. Use `--dont-touch-main-arith` if the benchmark has configurable arithmetic components (MultiplierConfig, AdderConfig) that will be swept in a later stage.
+### Single run — `run_benchmark.py`
+
+One agent works a single benchmark for a step budget and reports the best design it finds. Good for a first look at a benchmark or for debugging.
 
 ```bash
-# --benchmark is any benchmark name under benchmarks/ (here fpmul_f16; e.g. simple_adder, fpadd_f16, dr_rtl_spirehdl/controller, …)
-python run_multistage.py \
+python run_benchmark.py \
     --benchmark fpmul_f16 \
-    --model claude:claude-opus-4-6 \
-    --total-runs 10 --max-concurrent 2 --max-steps 30 \
-    --cost-metric area --target-delay 500 \
-    --language spirehdl \
-    --arith-autoconfig \
-    --elite-size 3 --fresh-first 3 \
-    --save-workspaces \
-    --runs-root runs/fpmul_f16_stage1
+    --model deepinfra:MiniMaxAI/MiniMax-M2.5 \
+    --cost-metric transistors
 ```
 
-Key flags:
-- `--total-runs 10`: 10 independent agent runs with elite-pool seeding.
-- `--fresh-first 3`: the first 3 runs start from scratch (no seed), the rest sample from the elite pool of best-so-far designs.
-- `--save-workspaces`: saves a snapshot of the workspace after each evaluation step (needed for `extract_pareto.py` later).
-- Omit `--dont-touch-main-arith` if you want the agent to freely explore all design parameters.
+### Multirun campaign — `run_multirun.py`
 
-### Step 2 (Phase 2): Seeded campaign with synthesis optimization
-
-Seed from the best designs of Step 1, now with `@abc_optimized` enabled. Fewer runs are needed since the agent starts from a strong baseline.
+Many agents run in parallel sharing an **elite pool**: some start fresh (exploration), the rest are seeded from the best designs found so far (exploitation). This is the core optimizer and reliably beats single runs on a given objective. See **[README_multirun.md](README_multirun.md)** for the full set of knobs — elite-pool sizing, the fresh schedule, seeding formats, and per-campaign plotting.
 
 ```bash
-python run_multistage.py \
+python run_multirun.py \
     --benchmark fpmul_f16 \
-    --model claude:claude-opus-4-6 \
-    --total-runs 6 --max-concurrent 1 --max-steps 30 \
-    --cost-metric area --target-delay 500 \
-    --language spirehdl \
-    --arith-autoconfig \
-    --abc-optimize \
-    --fsm-optimize \
-    --elite-size 3 \
-    --seed-from runs/fpmul_f16_stage1 \
-    --save-workspaces \
-    --runs-root runs/fpmul_f16_stage2
+    --model deepinfra:MiniMaxAI/MiniMax-M2.5 \
+    --total-runs 10 --max-concurrent 4 --max-steps 30 \
+    --cost-metric area --language spirehdl
 ```
 
-Key differences from Step 1:
-- `--seed-from runs/fpmul_f16_stage1`: seeds the elite pool from the best designs of the first campaign.
-- `--abc-optimize`: the agent now has access to synthesis optimization decorators.
-- `--fsm-optimize`: opts the agent into FSM / state-encoding optimization (`optimized_fsm` / `optimized_encoding`).
-- `--max-concurrent 1`: Synthesis optimization runs are heavier; sequential execution avoids resource contention.
-- Fewer runs (`--total-runs 6`) since we're refining, not exploring from scratch.
+### Full pipeline — `run_pipeline.py`
 
-### Step 3: Extract Pareto front and plot results
+The recommended **general workflow**. It chains two phases of multirun campaigns and combines everything into a single Pareto front:
 
-**Plot per-run cost evolution** (one chart per campaign):
+- **Phase 1** — structural exploration, one campaign per cost metric, no synthesis decorators.
+- **Phase 2** — synthesis-aware polish: each campaign is *seeded* from the matching Phase-1 elite pool and run as pure exploitation. For SpireHDL the agent additionally gets `@arithmetic_optimized` and `@abc_optimized`.
+- **Pareto** — the Pareto-optimal designs across all campaigns, written to `pareto_fronts/<benchmark>/`.
+
+Running a campaign for **both** `area` and `delay` (the default `--metrics area,delay`) and combining them produces the area-vs-delay front — the **area + speed** workflow that a single `--cost-metric` run can't give you.
 
 ```bash
-python plot_results.py --input runs/fpmul_f16_stage1
-python plot_results.py --input runs/fpmul_f16_stage2
+python run_pipeline.py \
+    --benchmark fpmul_f16 \
+    --model deepinfra:MiniMaxAI/MiniMax-M2.5 \
+    --metrics area,delay \
+    --total-runs 8 --max-concurrent 4 --max-steps 20 \
+    --language spirehdl
 ```
 
-**Extract Pareto-optimal designs** (area vs delay) from both campaigns:
+- `--metrics area` runs a single objective; `--no-phase2` stops after Phase 1.
+- `--fsm-optimize` adds FSM / state-encoding guidance (SpireHDL); `--dont-touch-main-arith` freezes configurable multiplier/adder configs (`MultiplierConfig` / `AdderConfig`).
+- `--target-delay` (ps) sets the synthesis timing constraint for PPA metrics — lower pushes toward faster logic at the cost of area (typical range 200–2000).
+- `--dry-run` prints the exact `run_multirun.py` and `extract_pareto.py` commands the pipeline would run, so you can drive the phases by hand. On completion it also prints the `plot_pareto_paper.py` command to chart the front.
 
-```bash
-python extract_pareto.py \
-    runs/fpmul_f16_stage1 runs/fpmul_f16_stage2 \
-    -o pareto_fronts/fpmul_f16 \
-    --separate-dirs -n 20
-```
-
-This aggregates all evaluations from both campaigns, computes the Pareto front, and extracts up to 20 designs (Pareto-optimal first, then best-scored non-Pareto designs).
-
-**Plot the Pareto front** (paper-quality area vs delay scatter):
-
-```bash
-python plot_pareto_paper.py \
-    --compare pareto_fronts/fpmul_f16 runs/fpmul_f16_stage1 \
-    -o plots/fpmul_f16/ \
-    --label-a "With ABC" --label-b "Without"
-```
-
-Or plot a single campaign's multistage evolution:
-
-```bash
-python plot_pareto_paper.py runs/fpmul_f16_stage1 -o plots/fpmul_f16/
-```
-
-### Tips
-
-- **Cost metric choice**: `area` is the most common objective. Use `delay` for timing-critical designs, or run both and combine with `extract_pareto.py`.
-- **Target delay**: affects the synthesis timing constraint. Lower values push the synthesizer toward faster logic (often at the cost of area). Experiment with different values (200–2000 ps).
-- **Model choice**: More powerful models produces the best results but are usually slower and more expensive.
-- **Step budget**: `--max-steps 30` gives the agent enough room to iterate. For simpler benchmarks (e.g. 8-bit multipliers), `--max-steps 15-20` may suffice.
+> **Note:** This is the *general* (less specialized) workflow. The FP-specialized **4-phase** pipeline (arithmetic-architecture sweep + high-effort Mockturtle refinement) is documented separately in **[README_fpmul.md](README_fpmul.md)**.
 
 ## Agent flow
 
@@ -259,7 +217,8 @@ benchmarks/          # benchmark suite (one dir per benchmark)
 run_benchmark.py     # CLI: single benchmark + model
 run_model.py         # CLI: all benchmarks for one model
 run_sweep.py         # CLI: multiple models x benchmarks
-run_multistage.py    # CLI: async elite-pool multi-stage optimisation
+run_multirun.py      # CLI: async elite-pool multi-run optimisation
+run_pipeline.py      # CLI: full Phases 1-2 pipeline (multirun campaigns + Pareto)
 run_eval.py          # CLI: re-evaluate a design file
 plot_results.py      # CLI: plotting at any level
 ```
@@ -364,17 +323,17 @@ python run_benchmark.py \
 | Seam | Cached? |
 |:---|:---:|
 | Step → step (same agent) | ✓ |
-| Seeded agent ← earlier elite best (inside one `run_multistage`) | ✓ |
+| Seeded agent ← earlier elite best (inside one `run_multirun`) | ✓ |
 | Phase 1 → phase 2 (`rtl_rewriter_multirun.py`'s chained phases) | ✓ |
-| Multirun → multirun via `--seed-from <multistage_summary.json>` | ✓ |
+| Multirun → multirun via `--seed-from <multirun_summary.json>` | ✓ |
 | Fresh agent (empty elite pool, or `p_fresh` coin flip) | ✗ |
 | Multirun → multirun via `--seed-from <pareto_front.json>` (extract format) | ✗ |
 
-The propagation lives in `core.multistage.build_seed_context`, which whitelists `.spirehdl_cache/` when copying a seeding predecessor's `best_design/` into the seeded agent's context.
+The propagation lives in `core.multirun.build_seed_context`, which whitelists `.spirehdl_cache/` when copying a seeding predecessor's `best_design/` into the seeded agent's context.
 
-**Fresh agents don't inherit any cache** — by design. `core.multistage._make_task` (the fresh/seeded dispatch) skips `build_seed_context` entirely when the pool is empty or the `p_fresh` coin flip fires, so a fresh agent always starts from the benchmark's raw `context/` folder with a cold cache. This is intentional: fresh agents are the exploration arm and should not be biased by prior exploitation work.
+**Fresh agents don't inherit any cache** — by design. `core.multirun._make_task` (the fresh/seeded dispatch) skips `build_seed_context` entirely when the pool is empty or the `p_fresh` coin flip fires, so a fresh agent always starts from the benchmark's raw `context/` folder with a cold cache. This is intentional: fresh agents are the exploration arm and should not be biased by prior exploitation work.
 
-**Extract-format seeds don't carry a cache.** `_prepare_extract_seed_dir` (`core/multistage.py:207`) only copies the single extracted `.v`/`.py` file referenced by a `pareto_front.json` / `best_designs.json` entry — it never looks at a sibling `.spirehdl_cache/`. Matters only if you ever run `run_multistage.py --seed-from <pareto_front.json>` (the extract-format seed path). Workaround: convert to `multistage_summary.json` format, or pre-warm by setting `SPIREHDL_CACHE_DIR` via env to a shared location before the run.
+**Extract-format seeds don't carry a cache.** `_prepare_extract_seed_dir` (`core/multirun.py:207`) only copies the single extracted `.v`/`.py` file referenced by a `pareto_front.json` / `best_designs.json` entry — it never looks at a sibling `.spirehdl_cache/`. Matters only if you ever run `run_multirun.py --seed-from <pareto_front.json>` (the extract-format seed path). Workaround: convert to `multirun_summary.json` format, or pre-warm by setting `SPIREHDL_CACHE_DIR` via env to a shared location before the run.
 
 ### Saving evaluation snapshots
 
@@ -441,12 +400,12 @@ python run_sweep.py \
   --max-steps 20
 ```
 
-### Multi-stage optimisation
+### Multi-run optimisation
 
-Run multiple agents in parallel with an evolving elite pool of best designs. See [README_multistage.md](README_multistage.md) for full documentation.
+Run multiple agents in parallel with an evolving elite pool of best designs. See [README_multirun.md](README_multirun.md) for full documentation.
 
 ```bash
-python run_multistage.py \
+python run_multirun.py \
     --benchmark fpmul_f16 \
     --model deepinfra:MiniMaxAI/MiniMax-M2.5 \
     --total-runs 10 --max-concurrent 4 --max-steps 30 \
@@ -481,11 +440,11 @@ Flags:
 
 ### Extract best designs
 
-Extract the top N passing designs from any run directory (multistage or single benchmark), sorted by a chosen metric.
+Extract the top N passing designs from any run directory (multirun or single benchmark), sorted by a chosen metric.
 
 ```bash
 # Top 5 by cost (default)
-python extract_best_designs.py runs/multistage_20260316_143944 -n 5 -o best_5/
+python extract_best_designs.py runs/multirun_20260316_143944 -n 5 -o best_5/
 
 # Top 3 sorted by delay
 python extract_best_designs.py runs/mult8 -n 3 --sort-by delay -o best_delay/
@@ -503,7 +462,7 @@ Output includes the design files and a `best_designs.json` manifest linking each
 Extract designs on the area-vs-delay Pareto front. A design is Pareto-optimal if no other design is strictly better in both area and delay.
 
 ```bash
-python extract_pareto.py runs/multistage_20260316_143944 -o pareto_front/
+python extract_pareto.py runs/multirun_20260316_143944 -o pareto_front/
 ```
 
 Flags:

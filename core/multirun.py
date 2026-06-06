@@ -1,4 +1,4 @@
-"""Async elite-pool multi-stage optimisation.
+"""Async elite-pool multi-run optimisation.
 
 Runs a configurable number of agent runs in parallel.  An *elite pool*
 (top-K passing designs, sorted by cost) is maintained across runs.  When
@@ -170,7 +170,7 @@ def _metrics_from_entry(d: Dict[str, Any]) -> Dict[str, Any]:
     """Return the flat metrics dict from a manifest/result entry, or ``{}``.
 
     Manifest entries (pareto_front.json, best_designs.json) carry ``metrics``;
-    multistage summary entries carry ``best_metrics``.
+    multirun summary entries carry ``best_metrics``.
     """
     for key in ("metrics", "best_metrics"):
         sub = d.get(key)
@@ -181,7 +181,7 @@ def _metrics_from_entry(d: Dict[str, Any]) -> Dict[str, Any]:
 
 def make_elite_entry(result_dict: Dict[str, Any], run_index: int,
                      override_cost_metric: Optional[str] = None) -> Optional[EliteEntry]:
-    """Build an EliteEntry from a multistage result dict, or None if not eligible.
+    """Build an EliteEntry from a multirun result dict, or None if not eligible.
 
     If *override_cost_metric* differs from the original, cost is re-read from the flat
     metrics so the pool sorts by the current run's metric, not the seed run's.
@@ -263,7 +263,7 @@ def make_elite_entry_from_extract(entry_dict: Dict[str, Any], design_dir: Path, 
 
 def build_seed_context(benchmark: Benchmark, entry: EliteEntry) -> Path:
     """Create a temp context dir with original context + seed design files."""
-    temp_dir = Path(tempfile.mkdtemp(prefix="multistage_ctx_"))
+    temp_dir = Path(tempfile.mkdtemp(prefix="multirun_ctx_"))
 
     # Copy original context
     if benchmark.context_dir and benchmark.context_dir.is_dir():
@@ -308,7 +308,7 @@ def build_seed_prompt(
 
     if not pool.is_empty():
         best = pool.best()
-        lines.append(f"## Multi-stage optimisation — run {run_index + 1}/{total_runs}")
+        lines.append(f"## Multi-run optimisation — run {run_index + 1}/{total_runs}")
         lines.append(f"Previous best cost: {best.cost:.4g} {best.cost_metric}")
         lines.append("")
 
@@ -456,7 +456,7 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
 
 # ── main orchestrator ────────────────────────────────────────────────────────
 
-def run_multistage(
+def run_multirun(
     benchmark_name: str,
     model: str,
     total_runs: int = 10,
@@ -480,12 +480,12 @@ def run_multistage(
     dont_touch_main_arith: bool = False,
     fsm_optimize: bool = False,
 ) -> Dict[str, Any]:
-    """Run the async elite-pool multi-stage optimization."""
+    """Run the async elite-pool multi-run optimization."""
     from datetime import datetime
 
     if runs_root is None:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        runs_root = Path("runs") / f"multistage_{ts}"
+        runs_root = Path("runs") / f"multirun_{ts}"
     runs_root.mkdir(parents=True, exist_ok=True)
 
     # Load benchmark
@@ -505,7 +505,7 @@ def run_multistage(
         seed_path = Path(seed_from)
         if seed_path.is_dir():
             for name in ("pareto_front.json", "best_designs.json",
-                         "multistage_summary.json"):
+                         "multirun_summary.json"):
                 candidate = seed_path / name
                 if candidate.exists():
                     seed_path = candidate
@@ -513,11 +513,11 @@ def run_multistage(
             else:
                 raise FileNotFoundError(
                     f"No manifest found in {seed_path}. Expected "
-                    "pareto_front.json, best_designs.json, or multistage_summary.json")
+                    "pareto_front.json, best_designs.json, or multirun_summary.json")
         prev = json.loads(seed_path.read_text())
         seeded = 0
         if isinstance(prev, dict) and "runs" in prev:
-            # multistage_summary.json format
+            # multirun_summary.json format
             for run in prev["runs"]:
                 entry = make_elite_entry(run, run.get("run_index", -1),
                                         override_cost_metric=cost_metric)
@@ -571,7 +571,7 @@ def run_multistage(
     (runs_root / "config.json").write_text(json.dumps(config, indent=2))
 
     print(f"{'=' * 60}")
-    print(f"Multi-stage optimisation")
+    print(f"Multi-run optimisation")
     print(f"Benchmark: {benchmark_name} | Model: {model}")
     print(f"Total runs: {total_runs} | Max concurrent: {max_concurrent}")
     print(f"Elite size: {elite_size} | Temperature: {temperature}")
@@ -733,11 +733,11 @@ def run_multistage(
         "cost_progression": cost_progression,
         "runs": sorted(outcomes, key=lambda r: r.get("run_index", 0)),
     }
-    summary_path = runs_root / "multistage_summary.json"
+    summary_path = runs_root / "multirun_summary.json"
     summary_path.write_text(json.dumps(summary, indent=2))
 
     print(f"\n{'=' * 60}")
-    print(f"Multi-stage complete: {completed} runs in {grand_duration}s")
+    print(f"Multi-run complete: {completed} runs in {grand_duration}s")
     if global_best_cost is not None:
         print(f"Global best: {global_best_cost:.4g} {cost_metric}")
     else:

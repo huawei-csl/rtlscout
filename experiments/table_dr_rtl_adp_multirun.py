@@ -15,7 +15,7 @@ What this renderer does that the yosys renderer doesn't:
    target_delay)`` pair, cached at
    ``benchmarks/dr_rtl{,_spirehdl}/baselines_adp_<tech>_<target>ps.json``.
 2. **Reads each phase's agent-tracked best** straight from the per-run
-   ``best_metrics`` dict in ``multistage_summary.json`` (same shape as
+   ``best_metrics`` dict in ``multirun_summary.json`` (same shape as
    ``experiments/table_rtl_rewriter_multirun.py``). The agent may have
    searched at a non-nominal ``target_delay`` (the eval tool exposes a
    per-call override), so re-measuring at the nominal target would
@@ -186,7 +186,7 @@ def _phase_runs(rec: Dict[str, Any], phase: str) -> List[Dict[str, Any]]:
 def _phase_best_adp(rec: Dict[str, Any], phase: str
                     ) -> Dict[str, Optional[float]]:
     """ADP/area/delay for the phase's best passing run, read directly from the
-    multistage_summary.json's per-run ``best_metrics`` dict (the agent's own
+    multirun_summary.json's per-run ``best_metrics`` dict (the agent's own
     eval values)."""
     runs = [r for r in _phase_runs(rec, phase)
             if r.get("passed") and r.get("best_cost") is not None]

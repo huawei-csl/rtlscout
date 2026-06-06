@@ -37,41 +37,39 @@ targeting **delay**, and the resulting Pareto-optimal designs are pooled.
 ### 1.1 Area campaign
 
 ```bash
-python run_multistage.py \
+python run_multirun.py \
     --benchmark fpmul_f16 \
     --model claude:claude-sonnet-4-6 \
     --total-runs 12 --max-concurrent 4 --max-steps 30 \
     --cost-metric area --target-delay 500 \
     --language spirehdl \
     --dont-touch-main-arith \
-    --elite-size 2 --fresh-first 4 \
-    --save-workspaces
+    --elite-size 2 --fresh-first 4
 ```
 
-Output: `runs/multistage_<AREA_TS>/` (note the timestamp for later steps).
+Output: `runs/multirun_<AREA_TS>/` (note the timestamp for later steps).
 
 ### 1.2 Delay campaign
 
 ```bash
-python run_multistage.py \
+python run_multirun.py \
     --benchmark fpmul_f16 \
     --model claude:claude-opus-4-6 \
     --total-runs 6 --max-concurrent 2 --max-steps 30 \
     --cost-metric delay --target-delay 500 \
     --language spirehdl \
     --dont-touch-main-arith \
-    --elite-size 2 --fresh-first 3 \
-    --save-workspaces
+    --elite-size 2 --fresh-first 3
 ```
 
-Output: `runs/multistage_<DELAY_TS>/`.
+Output: `runs/multirun_<DELAY_TS>/`.
 
 ### 1.3 Plot cost evolution + Pareto scatter
 
 ```bash
-python plot_pareto_paper.py runs/multistage_<AREA_TS> -o images/
+python plot_pareto_paper.py runs/multirun_<AREA_TS> -o images/
 python plot_pareto_paper.py --side-by-side-combined \
-    runs/multistage_<AREA_TS> runs/multistage_<DELAY_TS> \
+    runs/multirun_<AREA_TS> runs/multirun_<DELAY_TS> \
     --label-a "Area target" --label-b "Delay target" -o images/
 ```
 
@@ -79,8 +77,8 @@ python plot_pareto_paper.py --side-by-side-combined \
 
 ```bash
 python extract_pareto.py \
-    runs/multistage_<AREA_TS> \
-    runs/multistage_<DELAY_TS> \
+    runs/multirun_<AREA_TS> \
+    runs/multirun_<DELAY_TS> \
     --benchmark fpmul_f16 --no-flowy \
     -o pareto_fronts/fpmul_f16 --separate-dirs
 ```
@@ -110,7 +108,7 @@ Flowy/Mockturtle backend is installed (see the paper for parameters; default 50 
 ### 2.1 Area + synthesis-optimization campaign
 
 ```bash
-python run_multistage.py \
+python run_multirun.py \
     --benchmark fpmul_f16 \
     --model claude:claude-opus-4-6 \
     --total-runs 6 --max-concurrent 2 --max-steps 30 \
@@ -119,16 +117,15 @@ python run_multistage.py \
     --abc-optimize \
     --dont-touch-main-arith \
     --elite-size 2 --fresh-first 3 \
-    --seed-from runs/multistage_<AREA_TS> \
-    --save-workspaces
+    --seed-from runs/multirun_<AREA_TS>
 ```
 
-Output: `runs/multistage_<ABC_AREA_TS>/`.
+Output: `runs/multirun_<ABC_AREA_TS>/`.
 
 ### 2.2 Delay + synthesis-optimization campaign
 
 ```bash
-python run_multistage.py \
+python run_multirun.py \
     --benchmark fpmul_f16 \
     --model claude:claude-opus-4-6 \
     --total-runs 4 --max-concurrent 1 --max-steps 30 \
@@ -137,20 +134,19 @@ python run_multistage.py \
     --abc-optimize \
     --dont-touch-main-arith \
     --elite-size 2 \
-    --seed-from runs/multistage_<DELAY_TS> \
-    --save-workspaces
+    --seed-from runs/multirun_<DELAY_TS>
 ```
 
-Output: `runs/multistage_<ABC_DELAY_TS>/`.
+Output: `runs/multirun_<ABC_DELAY_TS>/`.
 
 ### 2.3 Extract combined Pareto front (Phase 1 + Phase 2)
 
 ```bash
 python extract_pareto.py \
-    runs/multistage_<AREA_TS> \
-    runs/multistage_<DELAY_TS> \
-    runs/multistage_<ABC_AREA_TS> \
-    runs/multistage_<ABC_DELAY_TS> \
+    runs/multirun_<AREA_TS> \
+    runs/multirun_<DELAY_TS> \
+    runs/multirun_<ABC_AREA_TS> \
+    runs/multirun_<ABC_DELAY_TS> \
     -o pareto_fronts/fpmul_f16_phase2 --separate-dirs
 ```
 

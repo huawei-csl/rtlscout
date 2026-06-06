@@ -1,4 +1,4 @@
-# Multi-Stage Parallel Optimisation
+# Multi-Run Parallel Optimisation
 
 An async elite-pool optimisation loop on top of the single-run agent. Multiple agents run in parallel on the same benchmark. An **elite pool** of the best designs evolves continuously — when an agent finishes, the pool is updated and a new agent is immediately spawned, either seeded from the pool (exploitation) or starting fresh (exploration).
 
@@ -24,7 +24,7 @@ No rounds, no idle time. Agents that finish fast immediately feed the pool and f
 ## Quick start
 
 ```bash
-python run_multistage.py \
+python run_multirun.py \
     --benchmark fpmul_f16 \
     --model deepinfra:MiniMaxAI/MiniMax-M2.5 \
     --total-runs 10 --max-concurrent 4 --max-steps 30 \
@@ -118,7 +118,7 @@ The pool converges toward better designs. Agents that start fresh occasionally f
 ## CLI reference
 
 ```
-python run_multistage.py [options]
+python run_multirun.py [options]
 ```
 
 | Flag | Default | Description |
@@ -136,37 +136,37 @@ python run_multistage.py [options]
 | `--cost-metric` | transistors | Cost metric (`transistors`, `delay`, `area`, `power`) |
 | `--target-delay` | 500 | PPA synthesis target delay (ps) |
 | `--language` | verilog | `verilog`, `spirehdl`, or `amaranth` |
-| `--runs-root` | auto | Output directory (default: `runs/multistage_<timestamp>`) |
-| `--seed-from` | none | Path to a previous `multistage_summary.json` or its directory to seed the elite pool |
+| `--runs-root` | auto | Output directory (default: `runs/multirun_<timestamp>`) |
+| `--seed-from` | none | Path to a previous `multirun_summary.json` or its directory to seed the elite pool |
 | `--flowy-optimize` | off | Enable `@flowy_optimized` decorator guidance in system prompt (SpireHDL only). Requires Flowy/Mockturtle/ABC installed — see `docs/flowy_setup.md` |
 
 ## Resuming from a previous run
 
-Use `--seed-from` to pre-populate the elite pool with passing designs from a prior multistage run. The new run starts with a warm pool, so agents can be seeded immediately instead of all starting fresh.
+Use `--seed-from` to pre-populate the elite pool with passing designs from a prior multirun run. The new run starts with a warm pool, so agents can be seeded immediately instead of all starting fresh.
 
 ```bash
 # Point at the summary JSON
-python run_multistage.py \
+python run_multirun.py \
     --benchmark fpmul_f16 \
     --model deepinfra:MiniMaxAI/MiniMax-M2.5 \
     --total-runs 10 --max-concurrent 4 --max-steps 30 \
     --cost-metric delay --language spirehdl \
-    --seed-from runs/multistage_20260312_163540/multistage_summary.json
+    --seed-from runs/multirun_20260312_163540/multirun_summary.json
 
-# Or point at the directory (auto-finds multistage_summary.json)
-python run_multistage.py \
+# Or point at the directory (auto-finds multirun_summary.json)
+python run_multirun.py \
     --benchmark fpmul_f16 \
     --model deepinfra:MiniMaxAI/MiniMax-M2.5 \
     --total-runs 10 --max-concurrent 4 --max-steps 30 \
     --cost-metric delay --language spirehdl \
-    --seed-from runs/multistage_20260312_163540/
+    --seed-from runs/multirun_20260312_163540/
 ```
 
 You can also seed from the output of `extract_pareto.py` or `extract_best_designs.py`:
 
 ```bash
 # Seed from Pareto-optimal designs
-python run_multistage.py \
+python run_multirun.py \
     --benchmark fpmul_f16 \
     --model deepinfra:MiniMaxAI/MiniMax-M2.5 \
     --total-runs 10 --max-concurrent 4 --max-steps 30 \
@@ -174,11 +174,11 @@ python run_multistage.py \
     --seed-from pareto_front/
 ```
 
-When pointing at a directory, `--seed-from` auto-detects the format by looking for `pareto_front.json`, `best_designs.json`, or `multistage_summary.json` (in that order).
+When pointing at a directory, `--seed-from` auto-detects the format by looking for `pareto_front.json`, `best_designs.json`, or `multirun_summary.json` (in that order).
 
 How it works:
 
-1. The seed file is loaded and its format is auto-detected (multistage summary vs extract manifest).
+1. The seed file is loaded and its format is auto-detected (multirun summary vs extract manifest).
 2. Each passing entry with a valid cost is converted to an elite pool entry.
 3. Entries are inserted into the new pool via the normal `update()` path, respecting `--elite-size`.
 4. The `seed_from` path is saved in `config.json` for traceability.
@@ -188,7 +188,7 @@ How it works:
 ## Output structure
 
 ```
-runs/multistage_<timestamp>/
+runs/multirun_<timestamp>/
   config.json                        # full run configuration
   run_000/<bench>/<model>/<ts>/      # standard run layout per agent
     workspace/
@@ -198,11 +198,11 @@ runs/multistage_<timestamp>/
     summary.txt
   run_001/...
   ...
-  multistage_summary.json            # global results
+  multirun_summary.json            # global results
   best_design/                       # copy of the globally best design
 ```
 
-### multistage_summary.json
+### multirun_summary.json
 
 ```json
 {
@@ -238,20 +238,20 @@ runs/multistage_<timestamp>/
 
 ## Plotting results
 
-Use `plot_multistage.py` to visualise how cost evolves across agent runs.
+Use `plot_multirun.py` to visualise how cost evolves across agent runs.
 
 ```bash
 # Point at the summary JSON directly
-python plot_multistage.py --input runs/multistage_20260312_163540/multistage_summary.json
+python plot_multirun.py --input runs/multirun_20260312_163540/multirun_summary.json
 
-# Or point at the run directory (auto-finds multistage_summary.json)
-python plot_multistage.py --input runs/multistage_20260312_163540/
+# Or point at the run directory (auto-finds multirun_summary.json)
+python plot_multirun.py --input runs/multirun_20260312_163540/
 
 # Custom output directory
-python plot_multistage.py --input runs/multistage_20260312_163540/ --output-dir ./my_plots
+python plot_multirun.py --input runs/multirun_20260312_163540/ --output-dir ./my_plots
 ```
 
-Output is saved to `<input_dir>/plots/multistage_cost_evolution.png` by default.
+Output is saved to `<input_dir>/plots/multirun_cost_evolution.png` by default.
 
 ### What the plot shows
 
@@ -266,14 +266,14 @@ Title shows the benchmark, model, and global best cost. A subtitle shows the con
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--input` | (required) | Path to `multistage_summary.json` or its parent directory |
+| `--input` | (required) | Path to `multirun_summary.json` or its parent directory |
 | `--output-dir` | `<input_dir>/plots` | Output directory for plot PNGs |
 
 ## Implementation
 
-The multistage system is built entirely on top of existing infrastructure with no modifications to core files:
+The multirun system is built entirely on top of existing infrastructure with no modifications to core files:
 
-- **`core/multistage.py`** — `ElitePool` class, selection logic, seed context builder, async orchestration loop
-- **`run_multistage.py`** — CLI entry point
+- **`core/multirun.py`** — `ElitePool` class, selection logic, seed context builder, async orchestration loop
+- **`run_multirun.py`** — CLI entry point
 
 It reuses `run_agent_on_benchmark()` from `runner.py` by constructing augmented `Benchmark` objects with temporary context directories containing seed design files.

@@ -236,7 +236,7 @@ def _measure_design(design_file: Path, top_module: str) -> Dict[str, Optional[in
 
 
 def _enrich_run(run: Dict[str, Any], language: str, top_module: str) -> Dict[str, Any]:
-    """Annotate a multistage outcome with best_wires / best_cells / best_transistors."""
+    """Annotate a multirun outcome with best_wires / best_cells / best_transistors."""
     r = dict(run)  # shallow copy
     workdir = r.get("workdir")
     best_dir = Path(workdir) / "best_design" if workdir else None
@@ -277,19 +277,19 @@ def _phase_stats(runs: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
 
 def _summarize_phase(phase_runs_root: Path, language: str,
                      top_module: str) -> Dict[str, Any]:
-    """Read multistage_summary.json and enrich each run with wires/cells."""
-    summary_path = phase_runs_root / "multistage_summary.json"
+    """Read multirun_summary.json and enrich each run with wires/cells."""
+    summary_path = phase_runs_root / "multirun_summary.json"
     if not summary_path.exists():
         return {
-            "multistage_summary_path": None,
+            "multirun_summary_path": None,
             "runs": [],
             "stats": _phase_stats([]),
-            "error": "no multistage_summary.json on disk",
+            "error": "no multirun_summary.json on disk",
         }
     ms = json.loads(summary_path.read_text())
     enriched = [_enrich_run(r, language, top_module) for r in ms.get("runs", [])]
     return {
-        "multistage_summary_path": str(summary_path),
+        "multirun_summary_path": str(summary_path),
         "total_runs": ms.get("total_runs"),
         "global_best_cost": ms.get("global_best_cost"),
         "global_best_workdir": ms.get("global_best_workdir"),
@@ -303,7 +303,7 @@ def _summarize_phase(phase_runs_root: Path, language: str,
 # Per-task worker — runs phase 1 (+ phase 2) sequentially for one (case, lang)
 # ---------------------------------------------------------------------------
 def _run_one(task: Dict[str, Any]) -> Dict[str, Any]:
-    from core.multistage import run_multistage
+    from core.multirun import run_multirun
 
     case_name = task["case_name"]
     language = task["language"]
@@ -314,7 +314,7 @@ def _run_one(task: Dict[str, Any]) -> Dict[str, Any]:
     bench_path = _benchmark_path(case_name, language)
     top_module = load_benchmark(bench_path).module_name
 
-    bench_name_for_multistage = _benchmark_name(case_name, language)
+    bench_name_for_multirun = _benchmark_name(case_name, language)
 
     common_kwargs = dict(
         model=task["model"],
@@ -342,8 +342,8 @@ def _run_one(task: Dict[str, Any]) -> Dict[str, Any]:
     tag = f"{case_name:<12}/{language:<9}"
     print(f"[START phase1] {tag}", flush=True)
     try:
-        run_multistage(
-            benchmark_name=bench_name_for_multistage,
+        run_multirun(
+            benchmark_name=bench_name_for_multirun,
             runs_root=p1_root,
             **common_kwargs,
             **_phase_flags(language, 1, fsm_optimize=fsm_optimize,
@@ -364,17 +364,17 @@ def _run_one(task: Dict[str, Any]) -> Dict[str, Any]:
     if phases >= 2 and rec["phase1"].get("status") == "ok":
         p2_root = runs_root / "phase2" / language / case_name
         p2_root.mkdir(parents=True, exist_ok=True)
-        p1_summary = rec["phase1"].get("multistage_summary_path")
+        p1_summary = rec["phase1"].get("multirun_summary_path")
         print(f"[START phase2] {tag}  seed_from={p1_summary}", flush=True)
         try:
             # Phase 2 is the exploitation phase: force every agent to seed
             # from the pool (pre-populated from phase 1's summary) by pinning
-            # the fresh-agent probability to 0. This reverses core.multistage's
+            # the fresh-agent probability to 0. This reverses core.multirun's
             # default 0.5 → 0.1 schedule, which is tuned for a cold-start
-            # exploration-then-exploitation run inside a single multistage
+            # exploration-then-exploitation run inside a single multirun
             # call — appropriate for phase 1, wasted budget for phase 2.
-            run_multistage(
-                benchmark_name=bench_name_for_multistage,
+            run_multirun(
+                benchmark_name=bench_name_for_multirun,
                 runs_root=p2_root,
                 seed_from=p1_summary,
                 fresh_base=0.0,
@@ -490,12 +490,12 @@ def main():
                              "Nangate45; the codebase default is 500 ps under "
                              "ASAP7.")
     parser.add_argument("--total-runs", type=int, default=6,
-                        help="Agents per phase (passed to run_multistage)")
+                        help="Agents per phase (passed to run_multirun)")
     parser.add_argument("--max-concurrent", type=int, default=2,
-                        help="Parallel agents INSIDE each run_multistage call")
+                        help="Parallel agents INSIDE each run_multirun call")
     parser.add_argument("--max-steps", type=int, default=20)
     parser.add_argument("--elite-size", type=int, default=5,
-                        help="Elite pool size per run_multistage call")
+                        help="Elite pool size per run_multirun call")
     parser.add_argument("--workers", type=int, default=4,
                         help="Parallel OUTER workers (case × language pairs)")
     parser.add_argument("--runs-root", default=None,
@@ -503,7 +503,7 @@ def main():
     parser.add_argument("--summary-out", default=None,
                         help="Summary JSON path (default: <runs-root>/summary.json)")
     parser.add_argument("--backfill", type=Path, default=None,
-                        help="Re-read each phase's multistage_summary.json and "
+                        help="Re-read each phase's multirun_summary.json and "
                              "rewrite the given summary in place.")
     parser.add_argument("--fsm-optimize", action="store_true",
                         help="Include the spirehdl FSM / state-encoding "
@@ -625,7 +625,7 @@ def main():
                        for lang in LANGUAGES},
         },
         "phase_exploration": {
-            # Phase-1 uses core.multistage's default fresh schedule
+            # Phase-1 uses core.multirun's default fresh schedule
             # (0.5 → 0.1, half-explore / half-exploit). Phase-2 overrides
             # with fresh=0 so every agent seeds from phase-1's elite pool.
             "phase1": {"fresh_base": 0.5, "fresh_min": 0.1, "fresh_first": 0},

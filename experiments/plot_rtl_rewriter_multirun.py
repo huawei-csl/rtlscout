@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """CLI: Plot rtl_rewriter_multirun results.
 
-A multirun summary is just several multistages chained (phase 1 → phase 2
+A multirun summary is just several multiruns chained (phase 1 → phase 2
 seeded from phase 1 → …) for each ``(case × language)`` combination. This
-script re-uses the plot style of ``plot_multistage.py`` but lays phases
+script re-uses the plot style of ``plot_multirun.py`` but lays phases
 end-to-end on one x-axis per plot, so you can see the seed carry-over
 across phases directly.
 
@@ -107,7 +107,7 @@ def _find_seed_x(combined: List[Tuple[str, Dict[str, Any]]],
                  target_idx: int, at_position: int) -> Optional[int]:
     """Find the chronological x-position of the run whose run_index matches
     ``target_idx`` and which completed before ``at_position``. Search
-    backward so the most recent pool entry wins (matches multistage's
+    backward so the most recent pool entry wins (matches multirun's
     most-recent-overwrites-pool semantics)."""
     for j in range(at_position - 1, -1, -1):
         if combined[j][1].get("run_index") == target_idx:
@@ -268,7 +268,7 @@ def plot_case_language(rec: Dict[str, Any], case_id: str, language: str,
         ax.scatter([], [], marker=".", c="#888888", s=16, label="Evals in run")
 
     # NOTE: no separate "initial-cost tick + diagonal line to best" marker.
-    # In the plot_multistage layout, initial and best shared the same
+    # In the plot_multirun layout, initial and best shared the same
     # integer x-position so the connecting line was a clean vertical
     # delta indicator. Here, initial sits at x=n and best at
     # x=n + 1 − 1/npoints — any connector would go diagonal and look odd.

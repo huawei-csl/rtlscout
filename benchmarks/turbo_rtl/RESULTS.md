@@ -360,9 +360,9 @@ It's **not** that SpireHDL generates intrinsically worse RTL. The three losing c
 
 1. **(bcd)** Explicit width-cutpoints in SpireHDL: `m.wire(UInt(16), "v4"); v4 <<= expr` at every arithmetic step. The system prompt mentions this trick but ties it to `cat()`-packing; the agent didn't generalize.
 2. **(gda)** `_maybe_share` creates redundant aliased wires. Low-level library issue — harmless in the abstract but occasionally knocks synth into a worse local optimum. Could be fixed by sharing by expression *value* instead of *reference count*, or by tightening the aliasing in `_create_new_shared_wire`.
-3. **(rgb)** Agent strategy difference. A longer step budget (or an elite-pool seeded run via `run_multistage.py`) would very likely find the bit-pattern rewrite in SpireHDL too.
+3. **(rgb)** Agent strategy difference. A longer step budget (or an elite-pool seeded run via `run_multirun.py`) would very likely find the bit-pattern rewrite in SpireHDL too.
 
-Notably, **SpireHDL already beat the paper's `ppa_opt` on all 5 benchmarks** — it's just losing a rematch vs. its own verilog sibling in 3 of them. A second-stage `run_multistage.py` campaign with `--flowy-optimize` / `--abc-optimize` would probably close the gap further; the current results are from single-run `run_benchmark.py` with no synthesis decorators.
+Notably, **SpireHDL already beat the paper's `ppa_opt` on all 5 benchmarks** — it's just losing a rematch vs. its own verilog sibling in 3 of them. A second-stage `run_multirun.py` campaign with `--flowy-optimize` / `--abc-optimize` would probably close the gap further; the current results are from single-run `run_benchmark.py` with no synthesis decorators.
 
 ## Why is SpireHDL still worse — Round 2 analysis (Opus 30-step)
 

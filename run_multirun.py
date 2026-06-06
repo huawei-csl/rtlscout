@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""CLI: Async elite-pool multi-stage optimisation.
+"""CLI: Async elite-pool multi-run optimisation.
 
 Runs multiple agents in parallel on a single benchmark.  An elite pool
 of the best designs evolves over time — new agents are seeded from the
 pool (exploitation) or start fresh (exploration).
 
 Usage:
-  python run_multistage.py \
+  python run_multirun.py \
       --benchmark fpmul_f16 \
       --model deepinfra:MiniMaxAI/MiniMax-M2.5 \
       --total-runs 6 --max-concurrent 2 --max-steps 15 \
@@ -18,13 +18,13 @@ from pathlib import Path
 from datetime import datetime
 
 from core.cost import COST_METRICS
-from core.multistage import run_multistage
+from core.multirun import run_multirun
 from core.runner import DEFAULT_BENCHMARKS_ROOT
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Async elite-pool multi-stage optimisation",
+        description="Async elite-pool multi-run optimisation",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--benchmark", required=True, help="Benchmark name")
@@ -58,10 +58,10 @@ def main():
     parser.add_argument("--benchmarks-root", default=str(DEFAULT_BENCHMARKS_ROOT),
                         help="Benchmarks directory")
     parser.add_argument("--runs-root", default=None,
-                        help="Output directory (default: runs/multistage_<timestamp>)")
+                        help="Output directory (default: runs/multirun_<timestamp>)")
     parser.add_argument("--seed-from", default=None,
                         help="Seed elite pool from a previous run. Accepts a directory or "
-                             "JSON file: multistage_summary.json, pareto_front.json "
+                             "JSON file: multirun_summary.json, pareto_front.json "
                              "(from extract_pareto.py), or best_designs.json "
                              "(from extract_best_designs.py)")
     parser.add_argument("--flowy-optimize", action="store_true",
@@ -80,7 +80,7 @@ def main():
     if args.runs_root:
         runs_root = Path(args.runs_root)
 
-    run_multistage(
+    run_multirun(
         benchmark_name=args.benchmark,
         model=args.model,
         total_runs=args.total_runs,

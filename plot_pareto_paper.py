@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Paper-quality plots for multistage Pareto front analysis.
+"""Paper-quality plots for multirun Pareto front analysis.
 
 Generates publication-ready figures:
   1. Single-run area vs delay scatter with cost evolution
@@ -7,8 +7,8 @@ Generates publication-ready figures:
   3. Aligned Pareto comparison (two sets overlaid)
 
 Usage:
-    # Single multistage run — all plots
-    python plot_pareto_paper.py runs/multistage_20260318_090431 -o plots/
+    # Single multirun run — all plots
+    python plot_pareto_paper.py runs/multirun_20260318_090431 -o plots/
 
     # Compare two pareto sets (from extract_pareto / align_pareto)
     python plot_pareto_paper.py --compare pareto_fpmul/ pareto_fpmul_no_flowy/ -o plots/
@@ -115,10 +115,10 @@ def _stepify(front):
 
 # ── Data loading ─────────────────────────────────────────────────────────────
 
-def load_multistage(path: Path) -> Dict[str, Any]:
-    """Load a multistage_summary.json (or auto-find in directory)."""
+def load_multirun(path: Path) -> Dict[str, Any]:
+    """Load a multirun_summary.json (or auto-find in directory)."""
     if path.is_dir():
-        path = path / "multistage_summary.json"
+        path = path / "multirun_summary.json"
     return json.loads(path.read_text())
 
 
@@ -241,10 +241,10 @@ def plot_single_run(run_data: dict, config: dict, output_dir: Path,
     return path
 
 
-# ── Plot 2: Multistage overview — Pareto front across all runs ───────────────
+# ── Plot 2: Multirun overview — Pareto front across all runs ───────────────
 
-def plot_multistage_pareto(data: Dict[str, Any], output_dir: Path) -> Path:
-    """Area vs delay for all passing evals across the entire multistage run.
+def plot_multirun_pareto(data: Dict[str, Any], output_dir: Path) -> Path:
+    """Area vs delay for all passing evals across the entire multirun run.
 
     Fresh runs are circles, seeded runs are diamonds. Colour encodes run
     index via a sequential colourmap. The combined Pareto front is overlaid.
@@ -338,7 +338,7 @@ def plot_multistage_pareto(data: Dict[str, Any], output_dir: Path) -> Path:
     ax.legend(handles=handles, loc="best", framealpha=0.9)
 
     fig.tight_layout()
-    path = output_dir / "multistage_pareto_area_delay.png"
+    path = output_dir / "multirun_pareto_area_delay.png"
     fig.savefig(path)
     fig.savefig(path.with_suffix(".pdf"))
     plt.close(fig)
@@ -436,7 +436,7 @@ def plot_cost_evolution(data: Dict[str, Any], output_dir: Path) -> Path:
     ax.legend(handles=handles, loc="best", framealpha=0.9)
 
     fig.tight_layout()
-    path = output_dir / "multistage_cost_evolution.png"
+    path = output_dir / "multirun_cost_evolution.png"
     fig.savefig(path)
     fig.savefig(path.with_suffix(".pdf"))
     plt.close(fig)
@@ -504,16 +504,16 @@ def plot_pareto_comparison(path_a: Path, path_b: Path, output_dir: Path,
     return path
 
 
-# ── Plot 5b: Side-by-side multistage Pareto (area vs delay metric) ────────────
+# ── Plot 5b: Side-by-side multirun Pareto (area vs delay metric) ────────────
 
 def plot_pareto_side_by_side(path_a: Path, path_b: Path, output_dir: Path,
                              label_a: str = "Area target",
                              label_b: str = "Delay target") -> Path:
-    """Two multistage Pareto plots side by side, sharing axes."""
+    """Two multirun Pareto plots side by side, sharing axes."""
     _apply_style()
 
-    data_a = load_multistage(path_a)
-    data_b = load_multistage(path_b)
+    data_a = load_multirun(path_a)
+    data_b = load_multirun(path_b)
 
     fig = plt.figure(figsize=(11, 4.5))
     gs = fig.add_gridspec(1, 3, width_ratios=[1, 1, 0.05], wspace=0.08)
@@ -601,7 +601,7 @@ def plot_pareto_side_by_side_combined(
     label_a: str = "Area target",
     label_b: str = "Delay target",
 ) -> Path:
-    """Overlay two multistage campaigns on a single area-vs-delay plot.
+    """Overlay two multirun campaigns on a single area-vs-delay plot.
 
     Marker shape encodes the campaign (circle vs triangle).
     Marker colour encodes run index within each campaign, using two
@@ -609,8 +609,8 @@ def plot_pareto_side_by_side_combined(
     """
     _apply_style()
 
-    data_a = load_multistage(path_a)
-    data_b = load_multistage(path_b)
+    data_a = load_multirun(path_a)
+    data_b = load_multirun(path_b)
 
     fig = plt.figure(figsize=(5.5, 4))
     gs = fig.add_gridspec(1, 2, width_ratios=[1, 0.03], wspace=0.03)
@@ -818,20 +818,20 @@ def plot_step_cost(run_data: dict, config: dict, output_dir: Path,
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Paper-quality plots for multistage Pareto front analysis.")
+        description="Paper-quality plots for multirun Pareto front analysis.")
     parser.add_argument(
         "input", nargs="?", type=Path, default=None,
-        help="Multistage run directory (contains multistage_summary.json)")
+        help="Multirun run directory (contains multirun_summary.json)")
     parser.add_argument(
         "--compare", nargs=2, type=Path, default=None, metavar=("SET_A", "SET_B"),
         help="Compare two Pareto sets (directories or JSON files)")
     parser.add_argument(
         "--side-by-side", nargs=2, type=Path, default=None, metavar=("RUN_A", "RUN_B"),
-        help="Side-by-side multistage Pareto plots (e.g. area-opt vs delay-opt)")
+        help="Side-by-side multirun Pareto plots (e.g. area-opt vs delay-opt)")
     parser.add_argument(
         "--side-by-side-combined", nargs=2, type=Path, default=None,
         metavar=("RUN_A", "RUN_B"),
-        help="Combined single-plot overlay of two multistage campaigns")
+        help="Combined single-plot overlay of two multirun campaigns")
     parser.add_argument(
         "-o", "--output", type=Path, default=None,
         help="Output directory (default: <input>/plots)")
@@ -851,7 +851,7 @@ def main():
     args = parser.parse_args()
 
     if not args.input and not args.compare and not args.side_by_side and not args.side_by_side_combined:
-        parser.error("Provide a multistage run directory, --compare, --side-by-side, or --side-by-side-combined")
+        parser.error("Provide a multirun run directory, --compare, --side-by-side, or --side-by-side-combined")
 
     saved = []
 
@@ -891,7 +891,7 @@ def main():
         output_dir = args.output or args.input / "plots"
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        data = load_multistage(args.input)
+        data = load_multirun(args.input)
         config_path = (args.input if args.input.is_dir() else args.input.parent) / "config.json"
         config = json.loads(config_path.read_text()) if config_path.exists() else data
 
@@ -918,8 +918,8 @@ def main():
                 if p:
                     saved.append(p)
 
-        # Plot 2: Multistage Pareto overview
-        p = plot_multistage_pareto(data, output_dir)
+        # Plot 2: Multirun Pareto overview
+        p = plot_multirun_pareto(data, output_dir)
         if p:
             saved.append(p)
 

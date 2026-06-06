@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Extract the N best passing designs from a run directory.
 
-Works with both multistage and run_benchmark directory layouts.
+Works with both multirun and run_benchmark directory layouts.
 Scans all eval_*/result.json files, filters to passing evals,
 sorts by cost, and copies the top N design files + a summary JSON
 into the output folder.
 
 Usage:
-    python extract_best_designs.py runs/multistage_20260316_143944 -n 5 -o best_5/
+    python extract_best_designs.py runs/multirun_20260316_143944 -n 5 -o best_5/
     python extract_best_designs.py runs/mult8 -n 3 -o best_mult8/
-    python extract_best_designs.py runs/multistage_... -n 5 --sort-by delay
+    python extract_best_designs.py runs/multirun_... -n 5 --sort-by delay
 """
 
 import argparse
@@ -118,7 +118,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Extract the N best passing designs from a run directory.")
     parser.add_argument("run_dir", type=Path,
-                        help="Root of a multistage or benchmark run")
+                        help="Root of a multirun or benchmark run")
     parser.add_argument("-n", "--top", type=int, default=5,
                         help="Number of best designs to extract (default: 5)")
     parser.add_argument("-o", "--output", type=Path, default=None,

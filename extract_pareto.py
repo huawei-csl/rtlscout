@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Extract designs on the Pareto front over a pair of dimensions.
 
-Works with both multistage and run_benchmark directory layouts.  Scans
+Works with both multirun and run_benchmark directory layouts.  Scans
 ``eval_*/result.json`` files, filters to passing evals that have both
 chosen dimensions, computes the Pareto front, and copies the
 Pareto-optimal design files + a summary JSON into the output folder.
@@ -31,7 +31,7 @@ smaller-or-equal x also had smaller-or-equal y). This gives an
 O(n log n) algorithm.
 
 Usage:
-    python extract_pareto.py runs/multistage_20260316_143944 -o pareto_front/
+    python extract_pareto.py runs/multirun_20260316_143944 -o pareto_front/
     python extract_pareto.py runs/mult8 -o pareto_mult8/
     python extract_pareto.py runs/mult8 --dims size,depth -o pareto_aig/
 """
@@ -314,7 +314,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Extract Pareto-optimal designs over a pair of dimensions.")
     parser.add_argument("run_dirs", nargs="+", type=Path,
-                        help="Root(s) of multistage or benchmark runs (multiple dirs are aggregated)")
+                        help="Root(s) of multirun or benchmark runs (multiple dirs are aggregated)")
     parser.add_argument("-o", "--output", type=Path, default=None,
                         help="Output directory (default: <first_run_dir>/pareto_front)")
     parser.add_argument("--separate-dirs", action="store_true",
