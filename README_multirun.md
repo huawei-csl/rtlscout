@@ -13,8 +13,8 @@ An async elite-pool optimisation loop on top of the single-run agent. Multiple a
          ┌─────────┐ ┌─────────┐ ┌─────────┐
          │ Agent 0 │ │ Agent 1 │ │ Agent 2 │  ... up to W workers
          └────┬────┘ └────┬────┘ └────┬────┘
-              │            │            │
-              v            v            v
+              │           │           │
+              v           v           v
          on completion: update elite pool, spawn next agent
          until total_runs budget exhausted
 ```
@@ -26,7 +26,7 @@ No rounds, no idle time. Agents that finish fast immediately feed the pool and f
 ```bash
 python run_multirun.py \
     --benchmark fpmul_f16 \
-    --model openrouter:qwen/qwen3.7-max \
+    --model deepinfra:MiniMaxAI/MiniMax-M2.5 \
     --total-runs 10 --max-concurrent 4 --max-steps 30 \
     --cost-metric delay --language spirehdl
 ```
@@ -124,7 +124,7 @@ python run_multirun.py [options]
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--benchmark` | (required) | Benchmark name |
-| `--model` | (required) | Provider:model spec (e.g. `openrouter:qwen/qwen3.7-max`) |
+| `--model` | (required) | Provider:model spec (e.g. `deepinfra:MiniMaxAI/MiniMax-M2.5`) |
 | `--total-runs` | 10 | Total agent runs to complete |
 | `--max-concurrent` | 4 | Max parallel agents |
 | `--max-steps` | 30 | Max steps per agent |
@@ -148,7 +148,7 @@ Use `--seed-from` to pre-populate the elite pool with passing designs from a pri
 # Point at the summary JSON
 python run_multirun.py \
     --benchmark fpmul_f16 \
-    --model openrouter:qwen/qwen3.7-max \
+    --model deepinfra:MiniMaxAI/MiniMax-M2.5 \
     --total-runs 10 --max-concurrent 4 --max-steps 30 \
     --cost-metric delay --language spirehdl \
     --seed-from runs/multirun_20260312_163540/multirun_summary.json
@@ -156,7 +156,7 @@ python run_multirun.py \
 # Or point at the directory (auto-finds multirun_summary.json)
 python run_multirun.py \
     --benchmark fpmul_f16 \
-    --model openrouter:qwen/qwen3.7-max \
+    --model deepinfra:MiniMaxAI/MiniMax-M2.5 \
     --total-runs 10 --max-concurrent 4 --max-steps 30 \
     --cost-metric delay --language spirehdl \
     --seed-from runs/multirun_20260312_163540/
@@ -168,7 +168,7 @@ You can also seed from the output of `extract_pareto.py` or `extract_best_design
 # Seed from Pareto-optimal designs
 python run_multirun.py \
     --benchmark fpmul_f16 \
-    --model openrouter:qwen/qwen3.7-max \
+    --model deepinfra:MiniMaxAI/MiniMax-M2.5 \
     --total-runs 10 --max-concurrent 4 --max-steps 30 \
     --cost-metric area --language spirehdl \
     --seed-from pareto_front/
@@ -184,6 +184,25 @@ How it works:
 4. The `seed_from` path is saved in `config.json` for traceability.
 
 > **Note:** The previous run's workdirs must still exist on disk — the pool entries reference design files by path.
+
+## SpireHDL optimize cache propagation
+
+ `@abc_optimized` populates a content-addressed disk cache at `<workspace>/.spirehdl_cache/` (SHA of AIG + decorator kwargs). Cache reuse across the various execution seams is:
+
+| Seam | Cached? |
+|:---|:---:|
+| Step → step (same agent) | ✓ |
+| Seeded agent ← earlier elite best (inside one `run_multirun`) | ✓ |
+| Phase 1 → phase 2 (`rtl_rewriter_multirun.py`'s chained phases) | ✓ |
+| Multirun → multirun via `--seed-from <multirun_summary.json>` | ✓ |
+| Fresh agent (empty elite pool, or `p_fresh` coin flip) | ✗ |
+| Multirun → multirun via `--seed-from <pareto_front.json>` (extract format) | ✗ |
+
+The propagation lives in `core.multirun.build_seed_context`, which whitelists `.spirehdl_cache/` when copying a seeding predecessor's `best_design/` into the seeded agent's context.
+
+**Fresh agents don't inherit any cache** — by design. `core.multirun._make_task` (the fresh/seeded dispatch) skips `build_seed_context` entirely when the pool is empty or the `p_fresh` coin flip fires, so a fresh agent always starts from the benchmark's raw `context/` folder with a cold cache. This is intentional: fresh agents are the exploration arm and should not be biased by prior exploitation work.
+
+**Extract-format seeds don't carry a cache.** `_prepare_extract_seed_dir` (`core/multirun.py:207`) only copies the single extracted `.v`/`.py` file referenced by a `pareto_front.json` / `best_designs.json` entry — it never looks at a sibling `.spirehdl_cache/`. Matters only if you ever run `run_multirun.py --seed-from <pareto_front.json>` (the extract-format seed path). Workaround: convert to `multirun_summary.json` format, or pre-warm by setting `SPIREHDL_CACHE_DIR` via env to a shared location before the run.
 
 ## Output structure
 
@@ -207,7 +226,7 @@ runs/multirun_<timestamp>/
 ```json
 {
   "benchmark": "fpmul_f16",
-  "model": "openrouter:qwen/qwen3.7-max",
+  "model": "deepinfra:MiniMaxAI/MiniMax-M2.5",
   "total_runs": 10,
   "max_concurrent": 4,
   "elite_size": 5,

@@ -6,11 +6,64 @@
 
 # RTL Scout
 
+<p align="center">
+  <a href="https://github.com/huawei-csl/rtlscout/actions/workflows/pytest.yml"><img src="https://github.com/huawei-csl/rtlscout/actions/workflows/pytest.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-BSD--3--Clause--Clear-blue.svg" alt="License: BSD-3-Clause-Clear"></a>
+  <a href="https://arxiv.org/abs/2606.06530"><img src="https://img.shields.io/badge/arXiv-2606.06530-b31b1b.svg" alt="arXiv"></a>
+  <a href="https://github.com/huawei-csl/rtlscout/pkgs/container/rtlscout"><img src="https://img.shields.io/badge/ghcr.io-rtlscout%3Aslim-2496ED?logo=docker&logoColor=white" alt="Docker image"></a>
+  <a href="https://vscode.dev/redirect?url=vscode%3A%2F%2Fms-vscode-remote.remote-containers%2FcloneInVolume%3Furl%3Dhttps%3A%2F%2Fgithub.com%2Fhuawei-csl%2Frtlscout"><img src="https://img.shields.io/static/v1?label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode" alt="Open in Dev Containers"></a>
+</p>
+
 An RTL design agent powered by pluggable LLM backends (DeepInfra, Anthropic) with tool use. The agent iteratively creates and optimizes Verilog/SystemVerilog, Spire or Amaranth designs, targeting **correctness first, then minimal cost** under a configurable cost metric.
 
-## Getting Started
+## What RTL Scout does
 
-### Option A: VS Code Dev Container
+- Generates and optimizes RTL from a specification or a starting design.
+- Runs correctness checking with Verilator-based testbenches.
+- Evaluates cost with Yosys/ABC, OpenROAD, or AIG-based metrics.
+- Supports single-agent runs and multi-run elite-pool optimization.
+- Supports Verilog, SpireHDL, and Amaranth design flows.
+- Provides scripts to extract best designs, Pareto fronts, and plots.
+
+## Quick start
+
+The fastest way to confirm your setup works — it runs an **offline fake model**, so no API key, provider, or long benchmark is involved.
+
+```bash
+git clone --recurse-submodules https://github.com/huawei-csl/rtlscout.git
+cd rtlscout
+bash .devcontainer/pull_image.sh           # pull the prebuilt EDA image (~3 GB)
+bash .devcontainer/start_container.sh      # install deps + drop into the container shell
+
+# inside the container shell:
+
+# smoke test, no API required
+python run_benchmark.py --benchmark simple_adder --model fake:simple_adder_pass
+python run_eval.py benchmarks/fpmul_f16/context/starting_point.py --benchmark benchmarks/fpmul_f16 --language spirehdl --cost-metric area --target-delay 500
+
+# copy .env
+cp .env.template .env
+```
+
+**Expected result for run_benchmark.py:** the run finishes **without an API key** and writes results under `runs/` (look for a `Best: PASS` line near the end of the output).
+
+**Expected result for run_eval.py:** it compiles and evaluates the bundled FP16 reference — also **without an API key** (it only evaluates an existing design, no LLM) — printing an `=== Evaluation Result ===` block with `Correctness: PASS` and the design's `area`.
+
+Next, add real API keys to `.env` and pick a workflow from [Choosing an entry point](#choosing-an-entry-point); for the VS Code flow or build-from-source options, see [Installation](#installation-details).
+
+## Requirements
+
+- **Docker** — the EDA toolchain (OpenROAD, Yosys, Verilator, OpenSTA, sv2v) and the Python environment ship as a prebuilt image, so nothing else needs to be installed on the host.
+- **Git** with submodule support — the `spire-hdl` submodule is required.
+- **~3 GB** of free disk for the prebuilt slim image (~54 GB if you build the full image from source).
+- *(optional)* **VS Code** with the Dev Containers extension, for the devcontainer workflow.
+- *(for real runs only)* an **LLM provider API key** — DeepInfra, Anthropic, or OpenRouter. Not needed for the quick start above.
+
+## Installation Details
+
+Pick the VS Code devcontainer or a manual Docker setup — both use the same prebuilt EDA image.
+
+### VS Code Dev Container
 
 1. Clone this repo with submodules:
    ```bash
@@ -25,7 +78,7 @@ The Dev Container extension will **pull the prebuilt image** (the default) and s
 cp .env.template .env && code .env
 ```
 
-### Option B: Manual setup
+### Manual Docker setup
 
 ```bash
 # 1. Clone this repo with submodules
@@ -47,23 +100,7 @@ bash .devcontainer/pull_image.sh
 bash .devcontainer/start_container.sh
 ```
 
-### First run (after Option A or B)
-
-Once inside the container:
-```bash
-python run_eval.py benchmarks/fpmul_f16/context/starting_point.py \
-    --benchmark benchmarks/fpmul_f16 --language spirehdl \
-    --cost-metric area --target-delay 500
-```
-
-Or run the full agent loop with a **fake (offline) LLM** — no API key needed (the same fake provider the test suite uses):
-```bash
-python run_benchmark.py --benchmark simple_adder --model fake:simple_adder_pass
-```
-
-See the [Usage](#usage) section for further commands to run.
-
-### Docker image: prebuilt pull (default) or self-build
+### Docker image options
 
 The base EDA image (OpenROAD, Yosys, Verilator, OpenSTA, sv2v, …) is large. The easiest path is to **pull the prebuilt slim image**; building from source is fully supported as an alternative.
 
@@ -73,36 +110,47 @@ The base EDA image (OpenROAD, Yosys, Verilator, OpenSTA, sv2v, …) is large. Th
 
 The VS Code devcontainer pulls by default; to self-build instead, edit `initializeCommand` in `.devcontainer/devcontainer.json`.
 
-## Paper Experiments
+## Benchmarks
 
-The paper builds designs with a multi-phase optimization pipeline (up to four phases):
+Each benchmark is a directory under `benchmarks/`, and directories can be nested in subfolders for grouping — for example the RTLRewriter cases under `benchmarks/dr_rtl/` (referenced as `--benchmark dr_rtl/<case>`). A few of the bundled benchmarks:
 
-1. **Multi-run agent campaigns** — a multi-run *elite-pool* optimizer runs many agents, each either *fresh* (from the spec) or *seeded* from the best designs so far, with lessons-learned feedback shared between runs. Area- and delay-targeted campaigns together build a Pareto front.
-2. **Seeded campaigns with synthesis optimization** — re-run seeded from Phase 1's best designs, with the agent additionally placing optimization decorators it controls (e.g. `@abc_optimized`, and `@arithmetic_optimized` for structural arithmetic).
-3. **Arithmetic architecture sweep** *(FP-specialized)* — swaps the core mantissa multiplier / exponent adder for classical structures (Wallace & Dadda trees; Kogge–Stone / Brent–Kung / Sklansky adders; …) across optimization targets.
-4. **High-effort gate-level refinement** *(FP-specialized)* — many parallel, high-budget Mockturtle AIG-rewriting passes over the whole design.
+- `simple_adder`, `simple_mux`, `alu8` — small logic warm-ups
+- `seq_detector`, `fifo_sync4` — sequential designs (FSM, FIFO)
+- `fpmul_f16`, `fpadd_f16` — floating-point (SpireHDL)
+- `mult8`, `mult4` — arithmetic units
 
-**This README focuses on the general, less-specialized workflow — Phases 1–2.** Those two agentic phases apply to arbitrary RTL: in the paper this is exactly how the general (non-floating-point) RTLRewriter benchmarks are handled — the Phase-3 arithmetic sweep is folded into the `@arithmetic_optimized` decorator and Phase 4 is dropped, so the pipeline reduces to Phases 1–2. The runnable version is **[Running benchmarks](#running-benchmarks)** below — `run_pipeline.py` chains both phases (Phase 1 structural, Phase 2 synthesis-aware) over area + delay campaigns.
+When a benchmark ships a starting-point design under `context/` (e.g. `fpmul_f16`'s `starting_point.py`), run it with the `--language` that matches that file: `spirehdl` for a `.py` SpireHDL source, `verilog` for a `.v`, `amaranth` for an Amaranth design.
 
-**For the specialized floating-point pipeline** — the full multi-phase workflow that adds the Phase 3 arithmetic architecture sweep (and, in the paper, the Phase 4 high-effort Mockturtle refinement), as used for `fpmul_f16` / `fpadd_f16` — see **[README_fpmul.md](README_fpmul.md)** (worked end-to-end for `fpmul_f16`).
+Browse `benchmarks/` for the full set; to add your own, see **[README_add_benchmarks.md](README_add_benchmarks.md)**.
 
-> **Note:** This repository currently supports the **ABC** synthesis-optimization backend (`@abc_optimized`). Mockturtle-based optimization — the `@mockturtle_optimized` decorator and the Phase 4 high-effort refinement — is **not installed** here.
+## Choosing an entry point
+
+| Goal | Command | Use when |
+|------|---------|----------|
+| Evaluate an existing design | `run_eval.py` | You already have Verilog/SpireHDL/Amaranth and want correctness + cost |
+| Run one agent | `run_benchmark.py` | Debugging or trying one benchmark/model |
+| Run many agents with an elite pool | `run_multirun.py` | Optimizing one objective more seriously |
+| Build an area-delay Pareto front | `run_pipeline.py` | Best results, but token-heavy and slow |
+| Reproduce FP paper experiments | [`README_fpmul.md`](README_fpmul.md) | Specialized `fpmul_f16` / `fpadd_f16` pipeline |
+
+Each is detailed in [Running benchmarks](#running-benchmarks) below.
 
 ## Running benchmarks
 
-> Every command here drives an LLM provider, so set your API token in `.env` first (`DEEPINFRA_API_KEY`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, …) — see [Getting Started](#getting-started). The `--model` argument always uses **`provider:model`** syntax; providers are `deepinfra`, `anthropic`, `openrouter` (and `fake` for offline testing).
+> Every command here drives an LLM provider, so set your API token in `.env` first (`DEEPINFRA_API_KEY`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, …) — see [Installation](#installation-details). The `--model` argument always uses **`provider:model`** syntax; providers are `deepinfra`, `anthropic`, `openrouter` (and `fake` for offline testing).
 
-RTL Scout has three entry points, from a single agent up to the full optimization pipeline. The examples use `fpmul_f16`, but any directory under `benchmarks/` works — swap the benchmark, model, and cost metric for yours.
+The examples use `fpmul_f16`, but any directory under `benchmarks/` works — swap the benchmark, model, and cost metric for yours.
 
 ### Single run — `run_benchmark.py`
 
-One agent works a single benchmark for a step budget and reports the best design it finds. Good for a first look at a benchmark or for debugging.
+One agent works a single benchmark for a step budget and reports the best design it finds.
 
 ```bash
 python run_benchmark.py \
     --benchmark fpmul_f16 \
     --model openrouter:qwen/qwen3.7-max \
-    --cost-metric transistors
+    --cost-metric transistors \
+    --language spirehdl
 ```
 
 ### Multirun campaign — `run_multirun.py`
@@ -119,7 +167,7 @@ python run_multirun.py \
 
 ### Pipeline — `run_pipeline.py`
 
-The recommended **general workflow**. It chains two phases of multirun campaigns and combines everything into a single Pareto front:
+Chains two phases of multirun campaigns and combines everything into a single Pareto front:
 
 - **Phase 1** — structural exploration, one campaign per cost metric, no synthesis decorators.
 - **Phase 2** — synthesis-aware polish: each campaign is *seeded* from the matching Phase-1 elite pool and run as pure exploitation. For SpireHDL the agent additionally gets `@arithmetic_optimized` and `@abc_optimized`.
@@ -267,19 +315,7 @@ For PPA metrics, the `--target-delay` flag (in ps) controls the synthesis timing
 
 ## Usage
 
-### Run a single benchmark
-
-```bash
-# Default cost metric (transistors) and default model (deepinfra:meta-llama/Llama-3.3-70B-Instruct-Turbo)
-python run_benchmark.py --benchmark simple_adder
-
-# With explicit options
-python run_benchmark.py \
-  --benchmark alu8 \
-  --model openrouter:qwen/qwen3.7-max \
-  --max-steps 15 \
-  --runs-dir runs
-```
+Beyond the three entry points above, these commands cover cost metrics, languages and providers, running across many models, and post-processing of results.
 
 ### Using different cost metrics
 
@@ -316,44 +352,6 @@ python run_benchmark.py \
   --language spirehdl \
   --max-steps 65 \
   --cost-metric delay
-```
-
-### SpireHDL optimize cache propagation
-
- `@abc_optimized` populates a content-addressed disk cache at `<workspace>/.spirehdl_cache/` (SHA of AIG + decorator kwargs). Cache reuse across the various execution seams is:
-
-| Seam | Cached? |
-|:---|:---:|
-| Step → step (same agent) | ✓ |
-| Seeded agent ← earlier elite best (inside one `run_multirun`) | ✓ |
-| Phase 1 → phase 2 (`rtl_rewriter_multirun.py`'s chained phases) | ✓ |
-| Multirun → multirun via `--seed-from <multirun_summary.json>` | ✓ |
-| Fresh agent (empty elite pool, or `p_fresh` coin flip) | ✗ |
-| Multirun → multirun via `--seed-from <pareto_front.json>` (extract format) | ✗ |
-
-The propagation lives in `core.multirun.build_seed_context`, which whitelists `.spirehdl_cache/` when copying a seeding predecessor's `best_design/` into the seeded agent's context.
-
-**Fresh agents don't inherit any cache** — by design. `core.multirun._make_task` (the fresh/seeded dispatch) skips `build_seed_context` entirely when the pool is empty or the `p_fresh` coin flip fires, so a fresh agent always starts from the benchmark's raw `context/` folder with a cold cache. This is intentional: fresh agents are the exploration arm and should not be biased by prior exploitation work.
-
-**Extract-format seeds don't carry a cache.** `_prepare_extract_seed_dir` (`core/multirun.py:207`) only copies the single extracted `.v`/`.py` file referenced by a `pareto_front.json` / `best_designs.json` entry — it never looks at a sibling `.spirehdl_cache/`. Matters only if you ever run `run_multirun.py --seed-from <pareto_front.json>` (the extract-format seed path). Workaround: convert to `multirun_summary.json` format, or pre-warm by setting `SPIREHDL_CACHE_DIR` via env to a shared location before the run.
-
-### Saving evaluation snapshots
-
-A workspace snapshot is saved **by default** before each evaluation — the workspace files, the evaluation result, and a summary. Snapshots are stored as `eval_1/`, `eval_2/`, etc. alongside the run's `best_design/` and `result.json`. Each `eval_{i}/` contains:
-- `workspace/` — copy of the design files at that step
-- `result.json` — full evaluation result (correctness, cost, pass rate)
-- `summary.txt` — human-readable evaluation summary
-
-Pass `--dont-save-workspaces` to skip the snapshots and save disk (note: `extract_pareto.py` / `extract_best_designs.py` rely on them):
-
-```bash
-python run_benchmark.py \
-  --model openrouter:qwen/qwen3.7-max \
-  --benchmark mult8 \
-  --language spirehdl \
-  --max-steps 65 \
-  --cost-metric delay \
-  --dont-save-workspaces
 ```
 
 ### Using different LLM providers
@@ -409,16 +407,23 @@ python run_sweep.py \
   --max-steps 20
 ```
 
-### Multi-run optimisation
+### Saving evaluation snapshots
 
-Run multiple agents in parallel with an evolving elite pool of best designs. See [README_multirun.md](README_multirun.md) for full documentation.
+A workspace snapshot is saved **by default** before each evaluation — the workspace files, the evaluation result, and a summary. Snapshots are stored as `eval_1/`, `eval_2/`, etc. alongside the run's `best_design/` and `result.json`. Each `eval_{i}/` contains:
+- `workspace/` — copy of the design files at that step
+- `result.json` — full evaluation result (correctness, cost, pass rate)
+- `summary.txt` — human-readable evaluation summary
+
+Pass `--dont-save-workspaces` to skip the snapshots and save disk (note: `extract_pareto.py` / `extract_best_designs.py` rely on them):
 
 ```bash
-python run_multirun.py \
-    --benchmark fpmul_f16 \
-    --model openrouter:qwen/qwen3.7-max \
-    --total-runs 10 --max-concurrent 4 --max-steps 30 \
-    --cost-metric delay --language spirehdl
+python run_benchmark.py \
+  --model openrouter:qwen/qwen3.7-max \
+  --benchmark mult8 \
+  --language spirehdl \
+  --max-steps 65 \
+  --cost-metric delay \
+  --dont-save-workspaces
 ```
 
 ### Re-evaluate a design
@@ -507,24 +512,6 @@ Override output directory:
 python plot_results.py --input runs/sweep/all_results.json --output-dir my_plots/
 ```
 
-## Basic Benchmarks
-
-| Benchmark | Module | Description |
-|-----------|--------|-------------|
-| `simple_adder` | `adder` | 8-bit addition (mod 256) |
-| `simple_mux` | `mux2` | 2-to-1 8-bit multiplexer |
-| `parity_even` | `parity8` | Even parity detection |
-| `alu8` | `alu8` | 8-bit ALU with 8 operations |
-| `register_enable` | `reg_en` | 8-bit register with enable + sync reset |
-| `seq_detector` | `seq_det` | 1011 sequence detector |
-| `fifo_sync4` | `fifo_sync4` | 4-entry synchronous FIFO |
-
-These are the basic examples — the suite also ships floating-point (`fpmul_f16`, `fpadd_f16`), arithmetic (`mult8`, `mult4`, …), and RTLRewriter benchmarks; browse `benchmarks/` for the full set. Each benchmark lives in `benchmarks/<name>/`, with the files described in **[README_add_benchmarks.md](README_add_benchmarks.md)**.
-
-## Adding a benchmark
-
-To add your own benchmark — generated from the spire-hdl arithmetic generators (`add_benchmark.py`) or authored by hand (directory layout, `description.txt`, `metadata.json`, `tb.sv`, `context/`) — see **[README_add_benchmarks.md](README_add_benchmarks.md)**.
-
 ## Output format
 
 Results are stored as JSON in the `runs/` directory:
@@ -534,6 +521,18 @@ Results are stored as JSON in the `runs/` directory:
 - **Sweep level** (`all_results.json`): all model results combined
 
 The best design from each benchmark run is saved in `best_design/` within the run directory, with a `_best_meta.json` file recording the step, cost value, and metric used.
+
+## Adding a benchmark
+
+To add your own benchmark — generated from the spire-hdl arithmetic generators (`add_benchmark.py`) or authored by hand (directory layout, `description.txt`, `metadata.json`, `tb.sv`, `context/`) — see **[README_add_benchmarks.md](README_add_benchmarks.md)**.
+
+**Using Claude Code?** This repo ships an `add-benchmark` skill ([`.claude/skills/add-benchmark/SKILL.md`](.claude/skills/add-benchmark/SKILL.md)) that walks Claude through the process — choosing scope (single design vs. suite) and target language, porting an existing Verilog/SpireHDL design, the testbench contract, and offline + (optional, cost-gated) live verification. Open Claude Code in the repo and invoke it explicitly, passing your design, e.g.:
+
+```text
+/add-benchmark Add foo.v as a new benchmark named "foo" (target language: spirehdl)
+```
+
+The leading `/add-benchmark` loads the skill explicitly; everything after it is your instruction. (Simply describing the task without the slash also works — Claude picks the skill up automatically.)
 
 ## Adding a custom cost metric
 
@@ -553,3 +552,39 @@ class MyCost(CostMetric):
 ```
 
 Then register it in `COST_METRICS` and `make_cost_metric()`, or pass it directly to `RTLAgent(cost_metric=MyCost())`.
+
+## Paper Experiments
+
+The paper builds designs with a multi-phase optimization pipeline (up to four phases):
+
+1. **Multi-run agent campaigns** — a multi-run *elite-pool* optimizer runs many agents, each either *fresh* (from the spec) or *seeded* from the best designs so far, with lessons-learned feedback shared between runs. Area- and delay-targeted campaigns together build a Pareto front.
+2. **Seeded campaigns with synthesis optimization** — re-run seeded from Phase 1's best designs, with the agent additionally placing optimization decorators it controls (e.g. `@abc_optimized`, and `@arithmetic_optimized` for structural arithmetic).
+3. **Arithmetic architecture sweep** *(FP-specialized)* — swaps the core mantissa multiplier / exponent adder for classical structures (Wallace & Dadda trees; Kogge–Stone / Brent–Kung / Sklansky adders; …) across optimization targets.
+4. **High-effort gate-level refinement** *(FP-specialized)* — many parallel, high-budget Mockturtle AIG-rewriting passes over the whole design.
+
+**This README focuses on the general, less-specialized workflow — Phases 1–2.** Those two agentic phases apply to arbitrary RTL: in the paper this is exactly how the general (non-floating-point) RTLRewriter benchmarks are handled — the Phase-3 arithmetic sweep is folded into the `@arithmetic_optimized` decorator and Phase 4 is dropped, so the pipeline reduces to Phases 1–2. The runnable version is **[Running benchmarks](#running-benchmarks)** below — `run_pipeline.py` chains both phases (Phase 1 structural, Phase 2 synthesis-aware) over area + delay campaigns.
+
+**For the specialized floating-point pipeline** — the full multi-phase workflow that adds the Phase 3 arithmetic architecture sweep (and, in the paper, the Phase 4 high-effort Mockturtle refinement), as used for `fpmul_f16` / `fpadd_f16` — see **[README_fpmul.md](README_fpmul.md)** (worked end-to-end for `fpmul_f16`).
+
+> **Note:** This repository currently supports the **ABC** synthesis-optimization backend (`@abc_optimized`). Mockturtle-based optimization — the `@mockturtle_optimized` decorator and the Phase 4 high-effort refinement — is **not installed** here.
+
+## Citation
+
+If you use RTL Scout in your research, please cite:
+
+```bibtex
+@misc{arnold2026rtlscout,
+  title         = {RTLScout: Joint Agentic Code and Synthesis Optimization for Efficient Digital Circuits},
+  author        = {Felix Arnold and Ryan Amaudruz and Dimitrios Tsaras and Renzo Andri and Lukas Cavigelli},
+  year          = {2026},
+  eprint        = {2606.06530},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.AR},
+  doi           = {10.48550/arXiv.2606.06530}
+}
+```
+
+## License
+
+<!-- TODO: choose a license, add a LICENSE file, and state it here (e.g. "Released under the MIT License — see [LICENSE](LICENSE).") -->
+P
