@@ -15,3 +15,8 @@ requires_yosys = pytest.mark.skipif(
     shutil.which("yosys") is None,
     reason="Yosys not installed",
 )
+
+requires_yosys_abc = pytest.mark.skipif(
+    shutil.which("yosys-abc") is None,
+    reason="yosys-abc not installed",
+)

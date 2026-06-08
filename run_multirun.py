@@ -74,6 +74,10 @@ def main():
                         help="Tell agent to not modify core multiplier/adder configs (for later-stage arithmetic sweeps)")
     parser.add_argument("--fsm-optimize", action="store_true",
                         help="Enable FSM / state-encoding optimization guidance (optimized_fsm / optimized_encoding) in the system prompt (SpireHDL only)")
+    parser.add_argument("--skip-cec", action="store_true",
+                        help="Skip the combinational equivalence check (yosys-abc cec). "
+                             "CEC runs by default against the benchmark's golden_reference "
+                             "(if any) and gates pass/fail on it")
     args = parser.parse_args()
 
     runs_root = None
@@ -103,6 +107,7 @@ def main():
         arith_autoconfig=args.arith_autoconfig,
         dont_touch_main_arith=args.dont_touch_main_arith,
         fsm_optimize=args.fsm_optimize,
+        run_cec=not args.skip_cec,
     )
 
 

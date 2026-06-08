@@ -39,6 +39,10 @@ def main():
                         help="Enable replace_arithmetic_ops() guidance in system prompt (SpireHDL only)")
     parser.add_argument("--dont-touch-main-arith", action="store_true",
                         help="Tell agent to not modify core multiplier/adder configs (for later-stage arithmetic sweeps)")
+    parser.add_argument("--skip-cec", action="store_true",
+                        help="Skip the combinational equivalence check (yosys-abc cec). "
+                             "CEC runs by default against the benchmark's golden_reference "
+                             "(if any) and gates pass/fail on it")
     args = parser.parse_args()
 
     model_provider, model = parse_model_spec(args.model)
@@ -65,6 +69,7 @@ def main():
         abc_optimize=args.abc_optimize,
         arith_autoconfig=args.arith_autoconfig,
         dont_touch_main_arith=args.dont_touch_main_arith,
+        run_cec=not args.skip_cec,
     )
 
     if result.passed:

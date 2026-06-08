@@ -21,6 +21,7 @@ COMPILE_TIMEOUT = int(os.environ.get("SPIREHDL_TIMEOUT", "60"))
 
 from core.correctness import CorrectnessResult, evaluate_correctness
 from core.cost import COST_METRICS, CostMetric, CostResult, YosysTransistorCost
+from core.equivalence import CECResult
 
 
 def _is_scalar(v: Any) -> bool:
@@ -57,6 +58,7 @@ class EvaluationResult:
     pass_rate: float
 
     python_run_output: str = ""
+    cec: Optional[CECResult] = None
 
     MAX_OUTPUT_CHARS: int = 400
     MAX_JSON_CHARS: int = 1_000
@@ -117,6 +119,13 @@ class EvaluationResult:
                     lines.append(f"    {path_line}")
         else:
             lines.append(f"  Cost error: {self.cost.error}")
+        if self.cec is not None and self.cec.ran:
+            if self.cec.equivalent is True:
+                lines.append("CEC: EQUIVALENT")
+            elif self.cec.equivalent is False:
+                lines.append("CEC: NOT EQUIVALENT (design differs from golden reference)")
+            else:
+                lines.append(f"CEC: ERROR ({_truncate(self.cec.error, limit)})")
         return "\n".join(lines)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -149,6 +158,13 @@ class EvaluationResult:
                 "lint_stderr": _truncate(self.correctness.lint_stderr, lim),
             },
             "cost": {"ok": self.cost.ok, "value": self.cost.value, "error": self.cost.error},
+            "cec": (None if self.cec is None else {
+                "ran": self.cec.ran,
+                "equivalent": self.cec.equivalent,
+                "tool_ok": self.cec.tool_ok,
+                "error": _truncate(self.cec.error, lim),
+                "log": _truncate(self.cec.log, lim),
+            }),
         }
 
 
@@ -281,6 +297,8 @@ def evaluate(
     cost_metric: Optional[CostMetric] = None,
     language: str = "verilog",
     design_file: Optional[str] = None,
+    run_cec: bool = True,
+    cec_reference: Optional[Path] = None,
 ) -> EvaluationResult:
     """Run full evaluation: correctness (verilator) + cost (pluggable metric).
 
@@ -294,6 +312,11 @@ def evaluate(
                      For SpireHDL, only this file is compiled. For Verilog,
                      all .sv/.v files are still used for simulation but this
                      identifies the primary design.
+        run_cec: If True (the default) and cec_reference is given, run a
+                 combinational equivalence check of the design against
+                 cec_reference and gate `passed` on it. Only runs when
+                 correctness already passed. Pass False to skip the check.
+        cec_reference: Absolute path to the golden reference Verilog (.v/.sv).
     """
     if cost_metric is None:
         cost_metric = YosysTransistorCost()
@@ -345,12 +368,30 @@ def evaluate(
     correctness = evaluate_correctness(workdir, design_file=verilog_file)
     cost = cost_metric.evaluate(workdir, design_top_module, design_file=verilog_file)
 
+    # Optional combinational equivalence check vs a golden reference.
+    # Only run when correctness already passed — a design that fails simulation
+    # is already failed, so there is no point synthesizing it twice for CEC.
+    cec_result = None
+    if run_cec and cec_reference is not None and verilog_file is not None and correctness.passed:
+        from core.equivalence import run_cec as _run_cec
+        cec_result = _run_cec(
+            design_file=Path(verilog_file),
+            reference_file=Path(cec_reference),
+            workdir=workdir,
+            design_top_module=design_top_module,
+        )
+
+    passed = correctness.passed and (
+        cec_result is None or not cec_result.ran or cec_result.equivalent is True
+    )
+
     return EvaluationResult(
         correctness=correctness,
         cost=cost,
-        passed=correctness.passed,
+        passed=passed,
         cost_value=cost.value if cost.ok else None,
         cost_metric_name=cost_metric.metric_name,
         pass_rate=correctness.pass_rate,
         python_run_output=python_run_output,
+        cec=cec_result,
     )

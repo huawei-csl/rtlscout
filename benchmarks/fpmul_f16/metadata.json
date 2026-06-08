@@ -2,6 +2,8 @@
   "name": "fpmul_f16",
   "module_name": "fp_mul_e5f10",
   "tb_module": "tb",
+  "golden_reference": "context/design.v",
+  "golden_reference_language": "verilog",
   "generator": {
     "type": "fpmul",
     "module_name": "fp_mul_e5f10",

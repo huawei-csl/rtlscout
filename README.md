@@ -293,6 +293,24 @@ The `run_evaluation` tool returns both:
 
 The agent is instructed to get 100% correctness first with a simple design, then iterate to reduce cost. The **best result** is the lowest cost among fully correct designs. The best design's workspace is automatically saved to `best_design/` for later use.
 
+### Equivalence checking (CEC)
+
+Simulation only checks the testbench vectors. For a stronger guarantee, a combinational equivalence check (CEC) verifies that the produced design is *logically* equivalent to a golden reference. It synthesizes both designs to BLIF with Yosys and compares them with `yosys-abc`'s `cec`. When the designs are **not** equivalent, the evaluation is gated to FAIL even if simulation passed.
+
+CEC is **on by default**. The reference comes from a `golden_reference` key in the benchmark's `metadata.json` (a `.v`/`.sv` used directly, or a `.py` compiled to Verilog); benchmarks without that key simply skip the check. Pass `--skip-cec` on any `run_*` entry point to disable it.
+
+```bash
+# Re-evaluate the bundled FP16 reference; CEC runs against its golden_reference
+python run_eval.py benchmarks/fpmul_f16/context/design.v \
+    --benchmark benchmarks/fpmul_f16 --language verilog
+# ... prints "CEC: EQUIVALENT" in the result block (~2.5s for this design)
+
+# Disable the check
+python run_eval.py ... --skip-cec
+```
+
+CEC runs only when correctness already passed, and is fast for the bundled combinational designs — e.g. `fpmul_f16` (16-bit, ~1.9k cells) checks in a couple of seconds.
+
 ## Cost metrics
 
 The cost metric is configurable via `--cost-metric`. All metrics follow the same interface (`CostMetric` ABC) and the metric name propagates automatically into system prompts, JSON output, and plot labels.
@@ -574,7 +592,7 @@ If you use RTL Scout in your research, please cite:
 
 ```bibtex
 @misc{arnold2026rtlscout,
-  title         = {RTLScout: Joint Agentic Code and Synthesis Optimization for Efficient Digital Circuits},
+  title         = {{RTLScout}: Joint Agentic Code and Synthesis Optimization for Efficient Digital Circuits},
   author        = {Felix Arnold and Ryan Amaudruz and Dimitrios Tsaras and Renzo Andri and Lukas Cavigelli},
   year          = {2026},
   eprint        = {2606.06530},

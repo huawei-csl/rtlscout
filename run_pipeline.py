@@ -156,6 +156,10 @@ def main():
     parser.add_argument("--dont-touch-main-arith", action="store_true",
                         help="Tell the agent not to modify core multiplier/adder configs "
                              "(MultiplierConfig / AdderConfig)")
+    parser.add_argument("--skip-cec", action="store_true",
+                        help="Skip the combinational equivalence check (yosys-abc cec). "
+                             "CEC runs by default against the benchmark's golden_reference "
+                             "(if any) and gates pass/fail on it (all phases)")
     parser.add_argument("--benchmarks-root", default=None, help="Benchmarks directory")
     parser.add_argument("--runs-root", default="runs",
                         help="Base directory for campaign outputs (default: runs/)")
@@ -207,6 +211,7 @@ def main():
             runs_root=c["runs_root"],
             seed_from=c["seed_from"],
             dont_touch_main_arith=args.dont_touch_main_arith,
+            run_cec=not args.skip_cec,
             **c["flags"],
         )
         if c["fresh"]:

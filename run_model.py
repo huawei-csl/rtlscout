@@ -18,6 +18,10 @@ def main():
     parser.add_argument("--runs-dir", default=None, help="Output directory for runs")
     parser.add_argument("--max-steps", type=int, default=20, help="Max agent steps")
     parser.add_argument("--api-key", default=None, help="API key (provider-specific)")
+    parser.add_argument("--skip-cec", action="store_true",
+                        help="Skip the combinational equivalence check (yosys-abc cec). "
+                             "CEC runs by default against each benchmark's golden_reference "
+                             "(if any) and gates pass/fail on it")
     args = parser.parse_args()
 
     provider, model = parse_model_spec(args.model)
@@ -30,6 +34,7 @@ def main():
         max_steps=args.max_steps,
         api_key=args.api_key,
         provider=provider,
+        run_cec=not args.skip_cec,
     )
 
     print(f"\nSummary: {summary['passed']}/{summary['total']} passed "

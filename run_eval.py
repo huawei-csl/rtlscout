@@ -62,6 +62,10 @@ def main():
                         help="Workspace directory (default: parent of the design file)")
     parser.add_argument("--benchmark", default=None,
                         help="Benchmark directory to use tb.sv/vectors.dat from (e.g. benchmarks/fpmul_f16)")
+    parser.add_argument("--skip-cec", action="store_true",
+                        help="Skip the combinational equivalence check (yosys-abc cec). "
+                             "CEC runs by default when --benchmark has a golden_reference "
+                             "in metadata.json, and gates pass/fail on it")
     parser.add_argument("--json", action="store_true", help="Output result as JSON")
     parser.add_argument("--save-to", default=None, type=Path,
                         help="Save result.json + workspace/ to this directory "
@@ -138,6 +142,15 @@ def main():
         print(f"Top:      {top_module}")
     print()
 
+    # Resolve golden reference for the equivalence check (on by default).
+    # CEC needs a benchmark with a golden_reference; otherwise it is skipped.
+    cec_reference = None
+    if not args.skip_cec and args.benchmark:
+        from core.benchmarks import load_benchmark
+        from core.equivalence import resolve_golden_reference
+        bench = load_benchmark(Path(args.benchmark).resolve())
+        cec_reference = resolve_golden_reference(bench, workdir / "_golden")
+
     import time
     t0 = time.monotonic()
     result = evaluate(
@@ -146,6 +159,8 @@ def main():
         cost_metric=cost_metric,
         language=language,
         design_file=design_filename,
+        run_cec=cec_reference is not None,
+        cec_reference=cec_reference,
     )
     duration = time.monotonic() - t0
 

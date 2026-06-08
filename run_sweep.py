@@ -37,6 +37,10 @@ def main():
                              "evaluation (by default snapshots ARE saved)")
     parser.add_argument("--workers", type=int, default=1,
                         help="Max parallel workers. >1 runs models in parallel (default: 1 = sequential)")
+    parser.add_argument("--skip-cec", action="store_true",
+                        help="Skip the combinational equivalence check (yosys-abc cec). "
+                             "CEC runs by default against each benchmark's golden_reference "
+                             "(if any) and gates pass/fail on it")
     args = parser.parse_args()
 
     from datetime import datetime
@@ -63,6 +67,7 @@ def main():
             language=args.language,
             save_workspaces=not args.dont_save_workspaces,
             workers=args.workers,
+            run_cec=not args.skip_cec,
         )
 
         print(f"\nSweep complete ({metric_name}): {len(all_results['model_results'])} models, "

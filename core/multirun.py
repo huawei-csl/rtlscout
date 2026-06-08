@@ -371,6 +371,7 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
     arith_autoconfig = task.get("arith_autoconfig", False)
     dont_touch_main_arith = task.get("dont_touch_main_arith", False)
     fsm_optimize = task.get("fsm_optimize", False)
+    run_cec = task.get("run_cec", True)
     technology = task.get("technology", "asap7")
 
     provider, model = parse_model_spec(model_spec)
@@ -387,6 +388,8 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
             testbench=bench.testbench,
             module_name=bench.module_name,
             context_dir=Path(seed_context_dir),
+            golden_reference=bench.golden_reference,
+            golden_reference_language=bench.golden_reference_language,
         )
 
     run_dir = runs_root / f"run_{run_index:03d}"
@@ -409,6 +412,7 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
             arith_autoconfig=arith_autoconfig,
             dont_touch_main_arith=dont_touch_main_arith,
             fsm_optimize=fsm_optimize,
+            run_cec=run_cec,
         )
         result_dict = result.to_dict()
         result_dict["status"] = "ok"
@@ -479,6 +483,7 @@ def run_multirun(
     arith_autoconfig: bool = False,
     dont_touch_main_arith: bool = False,
     fsm_optimize: bool = False,
+    run_cec: bool = True,
 ) -> Dict[str, Any]:
     """Run the async elite-pool multi-run optimization."""
     from datetime import datetime
@@ -567,6 +572,7 @@ def run_multirun(
         "arith_autoconfig": arith_autoconfig,
         "dont_touch_main_arith": dont_touch_main_arith,
         "fsm_optimize": fsm_optimize,
+        "run_cec": run_cec,
     }
     (runs_root / "config.json").write_text(json.dumps(config, indent=2))
 
@@ -628,6 +634,7 @@ def run_multirun(
             "arith_autoconfig": arith_autoconfig,
             "dont_touch_main_arith": dont_touch_main_arith,
             "fsm_optimize": fsm_optimize,
+            "run_cec": run_cec,
         }
 
     with ProcessPoolExecutor(max_workers=max_concurrent) as executor:

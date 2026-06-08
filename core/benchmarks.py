@@ -14,6 +14,8 @@ class Benchmark:
     testbench: Path
     module_name: str
     context_dir: Optional[Path] = None
+    golden_reference: Optional[Path] = None # Optional golden reference for combinational equivalence checking (CEC).
+    golden_reference_language: str = "spirehdl" ## A .v/.sv used directly, or a .py compiled to Verilog
 
 
 def load_benchmark(benchmark_root: Path) -> Benchmark:
@@ -21,6 +23,8 @@ def load_benchmark(benchmark_root: Path) -> Benchmark:
     testbench = benchmark_root / "tb.sv"
     metadata = json.loads((benchmark_root / "metadata.json").read_text())
     context_dir = benchmark_root / "context"
+    gr = metadata.get("golden_reference")
+    golden_reference = (benchmark_root / gr).resolve() if gr else None
     return Benchmark(
         name=metadata["name"],
         root=benchmark_root,
@@ -28,6 +32,8 @@ def load_benchmark(benchmark_root: Path) -> Benchmark:
         testbench=testbench,
         module_name=metadata.get("module_name", metadata["name"]),
         context_dir=context_dir if context_dir.is_dir() else None,
+        golden_reference=golden_reference,
+        golden_reference_language=metadata.get("golden_reference_language", "spirehdl"),
     )
 
 

@@ -206,6 +206,8 @@ class RTLAgent:
         arith_autoconfig: bool = False,
         dont_touch_main_arith: bool = False,
         fsm_optimize: bool = False,
+        run_cec: bool = True,
+        cec_reference: Optional[Path] = None,
     ):
         self.client = client
         self.model = client.model
@@ -220,6 +222,8 @@ class RTLAgent:
         self.arith_autoconfig = arith_autoconfig
         self.dont_touch_main_arith = dont_touch_main_arith
         self.fsm_optimize = fsm_optimize
+        self.run_cec = run_cec
+        self.cec_reference = cec_reference
         self.target_delay_is_settable = hasattr(self.cost_metric, "target_delay")
         self._tools = _build_tools(self.target_delay_is_settable)
 
@@ -505,7 +509,7 @@ class RTLAgent:
         # Copy workspace
         shutil.copytree(
             self.workspace, eval_dir / "workspace",
-            ignore=shutil.ignore_patterns("obj_dir"),
+            ignore=shutil.ignore_patterns("obj_dir", "_cec"),
         )
         # Save evaluation result and summary
         (eval_dir / "result.json").write_text(json.dumps(eval_dict, indent=2))
@@ -533,7 +537,8 @@ class RTLAgent:
             self.cost_metric.target_delay = target_delay if target_delay is not None else self._default_target_delay
         result = evaluate(self.workspace, self.design_top_module,
                           cost_metric=self.cost_metric, language=self.language,
-                          design_file=design_file or None)
+                          design_file=design_file or None,
+                          run_cec=self.run_cec, cec_reference=self.cec_reference)
         eval_dict = result.to_dict()
         eval_dict["eval_index"] = eval_index
         eval_dict["design_file"] = design_file or None

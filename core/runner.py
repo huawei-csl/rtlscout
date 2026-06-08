@@ -153,11 +153,20 @@ def run_agent_on_benchmark(
     arith_autoconfig: bool = False,
     dont_touch_main_arith: bool = False,
     fsm_optimize: bool = False,
+    run_cec: bool = True,
 ) -> AgentResult:
     """Execute the agent on a single benchmark and return the result."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     workdir = runs_dir / benchmark.name / model.replace("/", "_") / timestamp
     workdir.mkdir(parents=True, exist_ok=True)
+
+    # Resolve the golden reference once (compiles a .py reference if needed).
+    # CEC is on by default but only runs when the benchmark ships a golden
+    # reference — benchmarks without one simply skip the check.
+    cec_reference = None
+    if run_cec and benchmark.golden_reference is not None:
+        from core.equivalence import resolve_golden_reference
+        cec_reference = resolve_golden_reference(benchmark, workdir / "_golden")
 
     client = build_client(provider, model, api_key)
     agent = RTLAgent(
@@ -173,6 +182,8 @@ def run_agent_on_benchmark(
         arith_autoconfig=arith_autoconfig,
         dont_touch_main_arith=dont_touch_main_arith,
         fsm_optimize=fsm_optimize,
+        run_cec=run_cec and cec_reference is not None,
+        cec_reference=cec_reference,
     )
 
     # Copy testbench into the agent's workspace subdirectory
@@ -257,6 +268,7 @@ def run_agent_across_benchmarks(
     cost_metric: Optional[CostMetric] = None,
     language: str = "verilog",
     save_workspaces: bool = True,
+    run_cec: bool = True,
 ) -> Dict[str, Any]:
     """Execute the agent across multiple benchmarks for a single model."""
     if runs_dir is None:
@@ -274,6 +286,7 @@ def run_agent_across_benchmarks(
                 max_steps=max_steps, api_key=api_key,
                 provider=provider, cost_metric=cost_metric,
                 language=language, save_workspaces=save_workspaces,
+                run_cec=run_cec,
             )
             result_dict = result.to_dict()
             result_dict["status"] = "ok"
@@ -319,6 +332,7 @@ def _run_model_benchmarks(task: dict) -> Dict[str, Any]:
     cost_metric_cfg = task["cost_metric_cfg"]
     language = task["language"]
     save_workspaces = task["save_workspaces"]
+    run_cec = task.get("run_cec", True)
 
     # Reconstruct cost metric in worker process
     if cost_metric_cfg:
@@ -339,7 +353,7 @@ def _run_model_benchmarks(task: dict) -> Dict[str, Any]:
             runs_dir=runs_dir, max_steps=max_steps,
             api_key=api_key, provider=model_provider,
             cost_metric=cost_metric, language=language,
-            save_workspaces=save_workspaces,
+            save_workspaces=save_workspaces, run_cec=run_cec,
         )
         summary["status"] = "ok"
         return summary
@@ -363,6 +377,7 @@ def run_agent_across_models_and_benchmarks(
     language: str = "verilog",
     save_workspaces: bool = True,
     workers: int = 1,
+    run_cec: bool = True,
 ) -> Dict[str, Any]:
     """Execute the agent across multiple models and benchmarks.
 
@@ -403,6 +418,7 @@ def run_agent_across_models_and_benchmarks(
                 "cost_metric_cfg": cost_metric_cfg,
                 "language": language,
                 "save_workspaces": save_workspaces,
+                "run_cec": run_cec,
             }
             for mp, m in parsed
         ]
@@ -433,7 +449,7 @@ def run_agent_across_models_and_benchmarks(
                     runs_dir=runs_dir, max_steps=max_steps,
                     api_key=api_key, provider=model_provider,
                     cost_metric=cost_metric, language=language,
-                    save_workspaces=save_workspaces,
+                    save_workspaces=save_workspaces, run_cec=run_cec,
                 )
                 summary["status"] = "ok"
                 model_results.append(summary)
