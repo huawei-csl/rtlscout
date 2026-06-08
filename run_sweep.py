@@ -10,23 +10,20 @@ from core.runner import DEFAULT_BENCHMARKS_ROOT, run_agent_across_models_and_ben
 
 
 DEFAULT_MODELS = [
-    "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+    "deepinfra:meta-llama/Llama-3.3-70B-Instruct-Turbo",
 ]
 
 
 def main():
     parser = argparse.ArgumentParser(description="Run RTL agent across models and benchmarks")
     parser.add_argument("--models", nargs="+", default=DEFAULT_MODELS,
-                        help="Model specs. Use 'provider:model' to set per-model providers, "
-                             "e.g. 'claude:claude-sonnet-4-5-20250929 deepinfra:meta-llama/Llama-3.3-70B-Instruct-Turbo'. "
-                             "Without prefix, uses --provider default.")
+                        help="Model specs as '<provider>:<model>' (provider prefix required), e.g. "
+                             "'anthropic:claude-sonnet-4-5-20250929 deepinfra:meta-llama/Llama-3.3-70B-Instruct-Turbo'.")
     parser.add_argument("--benchmarks", nargs="*", default=None, help="Specific benchmarks (default: all)")
     parser.add_argument("--benchmarks-root", default=str(DEFAULT_BENCHMARKS_ROOT), help="Benchmarks directory")
     parser.add_argument("--runs-dir", default=None, help="Output directory for runs")
     parser.add_argument("--max-steps", type=int, default=20, help="Max agent steps")
     parser.add_argument("--api-key", default=None, help="API key (provider-specific)")
-    parser.add_argument("--provider", default="deepinfra", choices=["deepinfra", "claude"],
-                        help="Default LLM provider for models without a prefix (default: deepinfra)")
     parser.add_argument("--cost-metric", nargs="+", default=["transistors"],
                         choices=sorted(COST_METRICS),
                         help="Cost metric(s) to optimize. Multiple values run in parallel "
@@ -62,7 +59,6 @@ def main():
             runs_dir=runs_dir,
             max_steps=args.max_steps,
             api_key=args.api_key,
-            provider=args.provider,
             cost_metric=cost_metric,
             language=args.language,
             save_workspaces=not args.dont_save_workspaces,

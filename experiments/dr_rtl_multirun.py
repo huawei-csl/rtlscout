@@ -476,7 +476,7 @@ def main():
     parser.add_argument("--phases", type=int, default=2, choices=[1, 2],
                         help="1 = single multirun phase, 2 = two phases "
                              "(phase 2 seeds from phase 1)")
-    parser.add_argument("--model", default="claude:claude-opus-4-6")
+    parser.add_argument("--model", default="anthropic:claude-opus-4-6")
     parser.add_argument("--cost-metric", default="yosys_cells",
                         choices=sorted(COST_METRICS))
     parser.add_argument("--technology", default="asap7",

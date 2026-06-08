@@ -43,7 +43,7 @@ MODELS = [
 
 # MODELS = [
 #     "deepinfra:moonshotai/Kimi-K2.5",
-#     "claude:claude-opus-4-6"
+#     "anthropic:claude-opus-4-6"
 # ]
 
 #BENCHMARKS = ["fifo_sync4", "mult8", "mult16", "alu8"]

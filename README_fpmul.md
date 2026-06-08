@@ -39,7 +39,7 @@ targeting **delay**, and the resulting Pareto-optimal designs are pooled.
 ```bash
 python run_multirun.py \
     --benchmark fpmul_f16 \
-    --model claude:claude-sonnet-4-6 \
+    --model openrouter:qwen/qwen3.7-max \
     --total-runs 12 --max-concurrent 4 --max-steps 30 \
     --cost-metric area --target-delay 500 \
     --language spirehdl \
@@ -54,7 +54,7 @@ Output: `runs/multirun_<AREA_TS>/` (note the timestamp for later steps).
 ```bash
 python run_multirun.py \
     --benchmark fpmul_f16 \
-    --model claude:claude-opus-4-6 \
+    --model openrouter:qwen/qwen3.7-max \
     --total-runs 6 --max-concurrent 2 --max-steps 30 \
     --cost-metric delay --target-delay 500 \
     --language spirehdl \
@@ -110,7 +110,7 @@ Flowy/Mockturtle backend is installed (see the paper for parameters; default 50 
 ```bash
 python run_multirun.py \
     --benchmark fpmul_f16 \
-    --model claude:claude-opus-4-6 \
+    --model openrouter:qwen/qwen3.7-max \
     --total-runs 6 --max-concurrent 2 --max-steps 30 \
     --cost-metric area --target-delay 500 \
     --language spirehdl \
@@ -127,7 +127,7 @@ Output: `runs/multirun_<ABC_AREA_TS>/`.
 ```bash
 python run_multirun.py \
     --benchmark fpmul_f16 \
-    --model claude:claude-opus-4-6 \
+    --model openrouter:qwen/qwen3.7-max \
     --total-runs 4 --max-concurrent 1 --max-steps 30 \
     --cost-metric delay --target-delay 500 \
     --language spirehdl \

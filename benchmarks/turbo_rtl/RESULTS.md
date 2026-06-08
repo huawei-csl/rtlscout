@@ -103,8 +103,8 @@ Two rounds were run, both with `--cost-metric sky130_adp` and one campaign per (
 
 | Round | Model | Steps | Benchmarks | Runs dir |
 |---|---|---:|---|---|
-| Round 1 | `claude:claude-sonnet-4-5` | 20 | 5 combinational | `runs/turbo_rtl_sky130_adp/` |
-| Round 2 | `claude:claude-opus-4-6`   | 30 | 5 combinational + 2 sequential | `runs/turbo_rtl_30/` |
+| Round 1 | `anthropic:claude-sonnet-4-5` | 20 | 5 combinational | `runs/turbo_rtl_sky130_adp/` |
+| Round 2 | `anthropic:claude-opus-4-6`   | 30 | 5 combinational + 2 sequential | `runs/turbo_rtl_30/` |
 
 Round-2 sweep (the current canonical one) was launched as a smoke run on `adder_4bit_reg` verilog (foreground), then two parallel waves: 6 verilog campaigns, then 7 spirehdl campaigns. Each wave ran fully concurrently — `Sky130ADPCost` is concurrency-safe (each call uses its own `tempfile.mkdtemp`, verified with a 4-thread test).
 
@@ -112,7 +112,7 @@ Round-2 sweep (the current canonical one) was launched as a smoke run on `adder_
 # Round 2: smoke run (foreground)
 ~/pyenv_eda/bin/python run_benchmark.py \
     --benchmark turbo_rtl/adder_4bit_reg \
-    --model claude:claude-opus-4-6 \
+    --model anthropic:claude-opus-4-6 \
     --max-steps 30 --cost-metric sky130_adp --language verilog \
     --runs-dir runs/turbo_rtl_30
 
@@ -121,7 +121,7 @@ for b in encoder_8b10b gda_adder_n8m8p2 bcd_to_bin_16b const_mult_3853 \
          rgb_diff_check avg4_reg; do
   ~/pyenv_eda/bin/python run_benchmark.py \
       --benchmark turbo_rtl/$b \
-      --model claude:claude-opus-4-6 --max-steps 30 \
+      --model anthropic:claude-opus-4-6 --max-steps 30 \
       --cost-metric sky130_adp --language verilog \
       --runs-dir runs/turbo_rtl_30 &
 done; wait
@@ -129,7 +129,7 @@ for b in encoder_8b10b gda_adder_n8m8p2 bcd_to_bin_16b const_mult_3853 \
          rgb_diff_check adder_4bit_reg avg4_reg; do
   ~/pyenv_eda/bin/python run_benchmark.py \
       --benchmark turbo_rtl_spirehdl/$b \
-      --model claude:claude-opus-4-6 --max-steps 30 \
+      --model anthropic:claude-opus-4-6 --max-steps 30 \
       --cost-metric sky130_adp --language spirehdl \
       --runs-dir runs/turbo_rtl_30 &
 done; wait
@@ -208,7 +208,7 @@ for bench in encoder_8b10b gda_adder_n8m8p2; do
       lang=$(echo $lang_pair | cut -d' ' -f1); root=$(echo $lang_pair | cut -d' ' -f2)
       ~/pyenv_eda/bin/python run_benchmark.py \
           --benchmark $root/$bench \
-          --model claude:claude-opus-4-6 --max-steps 30 \
+          --model anthropic:claude-opus-4-6 --max-steps 30 \
           --cost-metric $metric --language $lang \
           --runs-dir runs/turbo_rtl_30_pp &
     done

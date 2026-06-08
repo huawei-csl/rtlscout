@@ -58,3 +58,16 @@ jobs:
           . /home/vscode/pyenv_eda/bin/activate
           python run_benchmark.py --benchmark simple_adder --model fake:simple_adder_pass --runs-dir /tmp/runs | tee /tmp/bench.log
           grep -q 'Best: PASS' /tmp/bench.log   # fail the job if the agent loop didn't produce a passing design
+
+      - name: Pipeline smoke — run_pipeline.py end-to-end with a fake (offline) LLM, no API key
+        run: |
+          . /home/vscode/pyenv_eda/bin/activate
+          # 1) plan only (no execution, no provider) — catches argparse / plan-building regressions
+          python run_pipeline.py --benchmark simple_adder --model fake:simple_adder_pass \
+              --metrics transistors --pareto-dims cells,transistors --dry-run
+          # 2) real end-to-end on the fake provider: Phase 1 -> seeded Phase 2 -> combined Pareto
+          python run_pipeline.py --benchmark simple_adder --model fake:simple_adder_pass \
+              --metrics transistors --pareto-dims cells,transistors \
+              --total-runs 1 --max-concurrent 1 --max-steps 5 \
+              --runs-root /tmp/pipe --out /tmp/pipe_pareto | tee /tmp/pipe.log
+          grep -q 'Combined .*Pareto front' /tmp/pipe.log   # both phases ran and the extract step was reached

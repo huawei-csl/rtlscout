@@ -13,14 +13,13 @@ from core.runner import DEFAULT_BENCHMARKS_ROOT, parse_model_spec, run_agent_on_
 def main():
     parser = argparse.ArgumentParser(description="Run RTL agent on a single benchmark")
     parser.add_argument("--benchmark", required=True, help="Benchmark name (directory name)")
-    parser.add_argument("--model", default="meta-llama/Llama-3.3-70B-Instruct-Turbo",
-                        help="Model spec, optionally with provider prefix (e.g. 'claude:claude-sonnet-4-5-20250929')")
+    parser.add_argument("--model", default="deepinfra:meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                        help="Model spec as '<provider>:<model>' (e.g. 'anthropic:claude-sonnet-4-5-20250929'). "
+                             "Provider prefix is required (deepinfra, anthropic, openrouter, fake)")
     parser.add_argument("--benchmarks-root", default=str(DEFAULT_BENCHMARKS_ROOT), help="Benchmarks directory")
     parser.add_argument("--runs-dir", default="runs", help="Output directory for runs")
     parser.add_argument("--max-steps", type=int, default=20, help="Max agent steps")
     parser.add_argument("--api-key", default=None, help="API key (provider-specific)")
-    parser.add_argument("--provider", default="deepinfra", choices=["deepinfra", "openrouter", "claude"],
-                        help="Default LLM provider if not specified in --model (default: deepinfra)")
     parser.add_argument("--cost-metric", default="transistors", choices=sorted(COST_METRICS),
                         help="Cost metric to optimize (default: transistors)")
     parser.add_argument("--target-delay", type=float, default=500.0,
@@ -42,7 +41,7 @@ def main():
                         help="Tell agent to not modify core multiplier/adder configs (for later-stage arithmetic sweeps)")
     args = parser.parse_args()
 
-    model_provider, model = parse_model_spec(args.model, default_provider=args.provider)
+    model_provider, model = parse_model_spec(args.model)
     cost_metric = make_cost_metric(args.cost_metric, target_delay=args.target_delay,
                                    technology=args.technology)
 

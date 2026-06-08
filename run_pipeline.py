@@ -123,7 +123,7 @@ def main():
     parser.add_argument("--benchmark", required=True, help="Benchmark name under benchmarks/")
     parser.add_argument("--model", required=True,
                         help="Model spec with provider prefix (e.g. 'deepinfra:MiniMaxAI/MiniMax-M2.5'). "
-                             "Providers: deepinfra, claude, openrouter, fake")
+                             "Providers: deepinfra, anthropic, openrouter, fake")
     parser.add_argument("--metrics", default="area,delay",
                         help="Comma-separated cost metrics — one multirun campaign each, per phase "
                              "(default: area,delay, i.e. the area+speed workflow). For a single "

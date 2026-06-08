@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 from core.agent import AgentResult, RTLAgent
 from core.benchmarks import Benchmark, load_benchmark, load_benchmarks
 from core.cost import CostMetric, YosysTransistorCost
-from core.llm_client import ClaudeClient, DeepInfraClient, OpenRouterClient, LLMClient
+from core.llm_client import AnthropicClient, DeepInfraClient, OpenRouterClient, LLMClient
 
 # Load .env for API keys
 _ENV_PATHS = [
@@ -88,22 +88,25 @@ def _write_chat_log(result: "AgentResult", path: Path) -> None:
     path.write_text("\n".join(lines))
 
 
-KNOWN_PROVIDERS = {"deepinfra", "claude", "openrouter", "fake"}
+KNOWN_PROVIDERS = {"deepinfra", "anthropic", "openrouter", "fake"}
 
 
-def parse_model_spec(spec: str, default_provider: str = "deepinfra") -> tuple:
-    """Parse a 'provider:model' spec into (provider, model).
+def parse_model_spec(spec: str) -> tuple:
+    """Parse a '<provider>:<model>' spec into (provider, model).
 
-    If no provider prefix, uses default_provider.
-    Examples:
-        'claude:claude-sonnet-4-5-20250929' -> ('claude', 'claude-sonnet-4-5-20250929')
-        'meta-llama/Llama-3.3-70B-Instruct-Turbo' -> ('deepinfra', 'meta-llama/Llama-3.3-70B-Instruct-Turbo')
+    The provider prefix is required — there is no default provider. Examples:
+        'anthropic:claude-sonnet-4-5-20250929' -> ('anthropic', 'claude-sonnet-4-5-20250929')
         'deepinfra:meta-llama/Llama-3.3-70B-Instruct-Turbo' -> ('deepinfra', 'meta-llama/Llama-3.3-70B-Instruct-Turbo')
+
+    Raises ValueError if the spec has no recognised '<provider>:' prefix.
     """
     parts = spec.split(":", 1)
     if len(parts) == 2 and parts[0] in KNOWN_PROVIDERS:
         return parts[0], parts[1]
-    return default_provider, spec
+    raise ValueError(
+        f"--model must be specified as '<provider>:<model>' with provider one of "
+        f"{sorted(KNOWN_PROVIDERS)}; got {spec!r}"
+    )
 
 
 def build_client(
@@ -122,16 +125,16 @@ def build_client(
         if not key:
             raise ValueError("OPENROUTER_API_KEY not set")
         return OpenRouterClient(model=model, api_key=key)
-    elif provider == "claude":
+    elif provider == "anthropic":
         key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not key:
             raise ValueError("ANTHROPIC_API_KEY not set")
-        return ClaudeClient(model=model, api_key=key)
+        return AnthropicClient(model=model, api_key=key)
     elif provider == "fake":
         from core.fake_provider import build_fake_client
         return build_fake_client(model)
     else:
-        raise ValueError(f"Unknown provider: {provider}. Use 'deepinfra', 'openrouter', 'claude', or 'fake'.")
+        raise ValueError(f"Unknown provider: {provider}. Use 'deepinfra', 'openrouter', 'anthropic', or 'fake'.")
 
 
 def run_agent_on_benchmark(
@@ -356,7 +359,6 @@ def run_agent_across_models_and_benchmarks(
     runs_dir: Optional[Path] = None,
     max_steps: int = 20,
     api_key: Optional[str] = None,
-    provider: str = "deepinfra",
     cost_metric: Optional[CostMetric] = None,
     language: str = "verilog",
     save_workspaces: bool = True,
@@ -364,8 +366,8 @@ def run_agent_across_models_and_benchmarks(
 ) -> Dict[str, Any]:
     """Execute the agent across multiple models and benchmarks.
 
-    Models can include a provider prefix (e.g. 'claude:claude-sonnet-4-5-20250929').
-    If no prefix, falls back to the ``provider`` argument.
+    Each model must be a '<provider>:<model>' spec (e.g.
+    'anthropic:claude-sonnet-4-5-20250929') — there is no default provider.
 
     When *workers* > 1, models run in parallel using ProcessPoolExecutor.
     """
@@ -374,7 +376,7 @@ def run_agent_across_models_and_benchmarks(
     runs_dir.mkdir(parents=True, exist_ok=True)
 
     # Parse provider:model specs
-    parsed = [parse_model_spec(m, default_provider=provider) for m in models]
+    parsed = [parse_model_spec(m) for m in models]
 
     # Serialisable cost-metric config (CostMetric objects can't be pickled)
     cost_metric_cfg = None

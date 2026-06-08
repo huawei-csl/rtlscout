@@ -167,7 +167,7 @@ class OpenRouterClient(LLMClient):
         return ChatResponse(content=msg.content, tool_calls=tool_calls, usage=usage)
 
 
-class ClaudeClient(LLMClient):
+class AnthropicClient(LLMClient):
     """Anthropic Claude client with OpenAI-to-Claude message translation and prompt caching."""
 
     def __init__(self, model: str, api_key: str, prompt_caching: bool = True):
@@ -177,7 +177,7 @@ class ClaudeClient(LLMClient):
             import anthropic
         except ImportError:
             raise ImportError(
-                "anthropic package is required for ClaudeClient. "
+                "anthropic package is required for AnthropicClient. "
                 "Install it with: pip install anthropic"
             )
         self._client = anthropic.Anthropic(api_key=api_key)

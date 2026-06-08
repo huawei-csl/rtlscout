@@ -24,7 +24,7 @@ Launches `core.runner.run_agent_on_benchmark` for each `(case × language)` comb
 | `--cases N [N ...]` | all 10 | Integer case numbers, subset of `[1, 2, 3, 4, 6, 7, 9, 10, 11, 13]`. Rejects unknown numbers with an explicit message. |
 | `--languages {verilog,spirehdl}` | both | Which variants to run. |
 | `--workers N` | `8` | Max parallel workers in the process pool. |
-| `--model SPEC` | `claude:claude-opus-4-6` | Model spec as accepted by `core.runner.parse_model_spec`, e.g. `claude:claude-opus-4-6`, `deepinfra:moonshotai/Kimi-K2.5`. |
+| `--model SPEC` | `anthropic:claude-opus-4-6` | Model spec as accepted by `core.runner.parse_model_spec`, e.g. `anthropic:claude-opus-4-6`, `deepinfra:moonshotai/Kimi-K2.5`. |
 | `--cost-metric NAME` | `yosys_cells` | Cost metric the agent is told to optimise. Any name registered in `core.cost.COST_METRICS` works (`yosys_cells`, `yosys_wires`, `area`, `delay`, `sky130_adp`, …). |
 | `--max-steps N` | `20` | Agent budget per task. |
 | `--runs-root PATH` | `runs/rtl_rewriter_<timestamp>` | Output directory. |
@@ -55,7 +55,7 @@ The two language sub-roots keep `caseN` from colliding between variants.
 ```jsonc
 {
   "timestamp": "20260421_120000",
-  "model": "claude:claude-opus-4-6",
+  "model": "anthropic:claude-opus-4-6",
   "cost_metric": "yosys_cells",
   "max_steps": 20,
   "workers": 8,
@@ -180,7 +180,7 @@ Verilog runs carry none of those spirehdl-only flags; for verilog, phase 2 is ef
 | `--cases N [N ...]` | all 10 | Same subset convention as `run_rtl_rewriter.py`. |
 | `--languages {verilog,spirehdl}` | both | |
 | `--phases {1,2}` | `2` | `1` skips phase 2; `2` runs both with phase 2 seeded from phase 1. |
-| `--model SPEC` | `claude:claude-opus-4-6` | |
+| `--model SPEC` | `anthropic:claude-opus-4-6` | |
 | `--cost-metric NAME` | `yosys_cells` | |
 | `--total-runs N` | `6` | Agents inside **each** phase. |
 | `--max-concurrent N` | `2` | Parallel agents inside one `run_multirun` call. |

@@ -254,7 +254,7 @@ finite `yosys_cells`.
 python run_benchmark.py \
     --benchmark dr_rtl/<name> \
     --language verilog --cost-metric yosys_cells \
-    --model claude:claude-opus-4-7 \
+    --model anthropic:claude-opus-4-7 \
     --max-steps 20
 ```
 

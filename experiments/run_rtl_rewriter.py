@@ -18,7 +18,7 @@ Usage:
     python experiments/run_rtl_rewriter.py                    # all 10 cases, both languages
     python experiments/run_rtl_rewriter.py --cases 1 7 13     # only case1, case7, case13
     python experiments/run_rtl_rewriter.py --workers 4 \\
-        --model claude:claude-opus-4-6 --cost-metric yosys_cells
+        --model anthropic:claude-opus-4-6 --cost-metric yosys_cells
 """
 
 import argparse
@@ -323,8 +323,8 @@ def main():
                         help="Which language variants to run")
     parser.add_argument("--workers", type=int, default=8,
                         help="Max parallel workers")
-    parser.add_argument("--model", default="claude:claude-opus-4-6",
-                        help="Model spec (e.g. 'claude:claude-opus-4-6', "
+    parser.add_argument("--model", default="anthropic:claude-opus-4-6",
+                        help="Model spec (e.g. 'anthropic:claude-opus-4-6', "
                              "'deepinfra:moonshotai/Kimi-K2.5')")
     parser.add_argument("--cost-metric", default="yosys_cells",
                         choices=sorted(COST_METRICS),
