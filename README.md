@@ -10,7 +10,7 @@
   <a href="https://github.com/huawei-csl/rtlscout/actions/workflows/pytest.yml"><img src="https://github.com/huawei-csl/rtlscout/actions/workflows/pytest.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-BSD--3--Clause--Clear-blue.svg" alt="License: BSD-3-Clause-Clear"></a>
   <a href="https://arxiv.org/abs/2606.06530"><img src="https://img.shields.io/badge/arXiv-2606.06530-b31b1b.svg" alt="arXiv"></a>
-  <a href="https://github.com/huawei-csl/rtlscout/pkgs/container/rtlscout"><img src="https://img.shields.io/badge/ghcr.io-rtlscout%3Aslim-2496ED?logo=docker&logoColor=white" alt="Docker image"></a>
+  <a href="https://github.com/orgs/huawei-csl/packages/container/package/rtlscout"><img src="https://img.shields.io/badge/ghcr.io-rtlscout%3Aslim-2496ED?logo=docker&logoColor=white" alt="Docker image"></a>
   <a href="https://vscode.dev/redirect?url=vscode%3A%2F%2Fms-vscode-remote.remote-containers%2FcloneInVolume%3Furl%3Dhttps%3A%2F%2Fgithub.com%2Fhuawei-csl%2Frtlscout"><img src="https://img.shields.io/static/v1?label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode" alt="Open in Dev Containers"></a>
 </p>
 
