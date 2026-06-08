@@ -26,7 +26,8 @@ Signal flow (matches verilog router_top instantiations):
   - top.read_enb_<i> → router_fifo[i].read_enb
 """
 from spirehdl.spirehdl_module import Module
-from spirehdl.spirehdl import UInt, Register, Wire, Const, Memory, mux, cat
+from spirehdl.spirehdl import UInt, Register, Wire, Const, mux, cat
+from spirehdl.primitives import MemoryPrimitive
 
 m = Module("router_top", with_clock=True, with_reset=False)
 
@@ -395,8 +396,8 @@ def make_router_fifo(idx, write_enb, read_enb):
     instead of the bit-tree cascade that 16 separate registers force.
     The pre-Memory cascade form is preserved in ``starting_point_lutarray.py``.
     """
-    # 16 × 9-bit memory array
-    fifo = Memory(UInt(9), depth=16, name=f"fifo_{idx}")
+    # 16 × 9-bit memory array (MemoryPrimitive: O(1) sim store + custom_verilog array idiom)
+    fifo = MemoryPrimitive(UInt(9), depth=16, with_reset_arm=True, name=f"fifo_{idx}").make_internal()
     read_ptr     = Register(UInt(4), name=f"read_ptr_{idx}")
     write_ptr    = Register(UInt(4), name=f"write_ptr_{idx}")
     count_r      = Register(UInt(6), name=f"count_{idx}")
@@ -474,15 +475,15 @@ def make_router_fifo(idx, write_enb, read_enb):
 
     # --- fifo array writes (use PRE-increment write_ptr = current register value) ---
     written_word = cat(dout[0:8], temp_reg)  # cat is LSB-first → emits {temp_reg, dout[7:0]}
-    fifo.write_addr   <<= write_ptr
-    fifo.write_data   <<= written_word
-    fifo.write_enable <<= can_write
-    fifo.reset_enable <<= fifo_rst     # reset_value defaults to Const(0)
+    fifo.io.write_addr   <<= write_ptr
+    fifo.io.write_data   <<= written_word
+    fifo.io.write_enable <<= can_write
+    fifo.io.reset_enable <<= fifo_rst     # reset_value defaults to Const(0)
 
     # --- fifo read (use PRE-increment read_ptr = current register value) ---
-    fifo.read_addr <<= read_ptr
+    fifo.io.read_addr <<= read_ptr
     fifo_read_word = Wire(UInt(9), name=f"fifo_read_word_{idx}")
-    fifo_read_word <<= fifo.read_data
+    fifo_read_word <<= fifo.io.read_data
 
     # count logic:
     # if(read_enb && !empty) {

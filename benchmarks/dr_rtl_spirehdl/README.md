@@ -496,8 +496,10 @@ Dr.RTL) deviates from it. Reading downwards:
 
 ### Memory primitive: array storage for yosys memory inference
 
-Router's FIFO storage motivated a new spirehdl `Memory` primitive
-(`from spirehdl.spirehdl import Memory`). The verilog router declares
+Router's FIFO storage uses spirehdl's `MemoryPrimitive`
+(`from spirehdl.primitives import MemoryPrimitive`), instantiated as
+`MemoryPrimitive(UInt(9), depth=16, with_reset_arm=True).make_internal()`.
+The verilog router declares
 each FIFO as `reg [8:0] fifo[0:15];` — a memory array yosys's `memory`
 pass (`memory_dff`, `memory_share`, `memory_bmux2rom`) recognises and
 optimises. The original spirehdl port used `[Register(...) for _ in
