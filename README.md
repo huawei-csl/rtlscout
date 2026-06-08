@@ -583,8 +583,3 @@ If you use RTL Scout in your research, please cite:
   doi           = {10.48550/arXiv.2606.06530}
 }
 ```
-
-## License
-
-<!-- TODO: choose a license, add a LICENSE file, and state it here (e.g. "Released under the MIT License — see [LICENSE](LICENSE).") -->
-P
