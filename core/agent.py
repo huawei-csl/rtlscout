@@ -770,6 +770,7 @@ class RTLAgent:
                 "2. What optimizations had the most impact?\n"
                 "3. What didn't work or caused regressions?\n"
                 "4. Lessons learned and what you would do differently next time.\n\n"
+                "Your design files are carried over to the next agent, so refer to them by filename where useful.\n"
                 "Be concise and specific."
             ),
         })

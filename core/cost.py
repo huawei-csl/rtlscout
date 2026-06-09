@@ -742,17 +742,43 @@ class _AigCost(CostMetric):
                 )
 
             aig = read_aag_into_aig(aag_path)
-            size_pre = aig.size()
-            depth_pre = DepthAig(aig).num_levels()
+            pre_core = {
+                "size": aig.size(),
+                "num_gates": len(aig.gates()),
+                "depth": DepthAig(aig).num_levels(),
+            }
 
             best_aig, best_stats = optimize_aig_elaborate(
                 aig, n_iter_optimizations=self.n_iter_optimizations,
             )
+            post_core = {
+                "size": best_stats["size"],
+                "num_gates": best_stats["num_gates"],
+                "depth": best_stats["depth"],
+            }
+
+            # optimize_aig_elaborate picks its best iteration by num_gates (depth
+            # only as a tiebreaker), so for the depth objective — or any case
+            # where the pass trades the scored metric away — the post-opt AIG can
+            # be WORSE on (primary, tiebreaker) than its own input. Keep whichever
+            # of {pre-opt, post-opt} ranks better (lower is better) so the
+            # optimization can never make the reported cost worse than the
+            # unoptimized AIG. `pre_opt_used` records which state was scored.
+            def _rank(core: dict) -> tuple:
+                prim = core[self.primary_key]
+                tie = core.get(self.tiebreaker_key) if self.tiebreaker_key else None
+                return (prim, tie if tie is not None else 0)
+
+            pre_opt_used = _rank(pre_core) < _rank(post_core)
+            chosen = pre_core if pre_opt_used else post_core
 
             stats = {
                 **best_stats,
-                "size_pre_opt": size_pre,
-                "depth_pre_opt": depth_pre,
+                **chosen,  # size/num_gates/depth aligned to the scored state
+                "size_pre_opt": pre_core["size"],
+                "num_gates_pre_opt": pre_core["num_gates"],
+                "depth_pre_opt": pre_core["depth"],
+                "pre_opt_used": int(pre_opt_used),
             }
             return CostResult(ok=True, value=float(stats[self.primary_key]), stats=stats)
 
@@ -771,9 +797,17 @@ class _AigCost(CostMetric):
 
 
 class AigCountCost(_AigCost):
-    """Cost metric: post-optimization AIG AND-node count (``aig.size()``)."""
+    """Cost metric: post-optimization AIG AND-node count (``len(aig.gates())``).
+
+    Uses ``num_gates`` — the count of AND nodes only — *not* ``aig.size()``,
+    which also includes the constant-0 node and the primary-input nodes
+    (``size == 1 + num_pis + num_gates``). Those structural I/O nodes are fixed
+    by the design's port list and aren't optimizable logic, so counting them
+    would only add a constant offset. This also matches the ABC-based family
+    (``_AigAbcCost``), whose ``and =`` figure is likewise AND-nodes only.
+    """
     _name = "aig_count"
-    primary_key = "size"
+    primary_key = "num_gates"
     tiebreaker_key = "depth"
 
 
@@ -781,7 +815,7 @@ class AigDepthCost(_AigCost):
     """Cost metric: post-optimization AIG logic depth (``DepthAig.num_levels()``)."""
     _name = "aig_depth"
     primary_key = "depth"
-    tiebreaker_key = "size"
+    tiebreaker_key = "num_gates"
 
 
 # ---------------------------------------------------------------------------

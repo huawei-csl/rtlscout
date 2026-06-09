@@ -37,6 +37,9 @@ def main():
                         help="Enable @abc_optimized decorator guidance in system prompt (SpireHDL only)")
     parser.add_argument("--arith-autoconfig", action="store_true",
                         help="Enable replace_arithmetic_ops() guidance in system prompt (SpireHDL only)")
+    parser.add_argument("--fsm-optimize", action="store_true",
+                        help="Enable FSM / state-encoding optimization guidance "
+                             "(optimized_fsm / optimized_encoding) in system prompt (SpireHDL only)")
     parser.add_argument("--dont-touch-main-arith", action="store_true",
                         help="Tell agent to not modify core multiplier/adder configs (for later-stage arithmetic sweeps)")
     parser.add_argument("--skip-cec", action="store_true",
@@ -68,6 +71,7 @@ def main():
         flowy_optimize=args.flowy_optimize,
         abc_optimize=args.abc_optimize,
         arith_autoconfig=args.arith_autoconfig,
+        fsm_optimize=args.fsm_optimize,
         dont_touch_main_arith=args.dont_touch_main_arith,
         run_cec=not args.skip_cec,
     )

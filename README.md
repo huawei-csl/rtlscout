@@ -153,6 +153,16 @@ python run_benchmark.py \
     --language spirehdl
 ```
 
+#### SpireHDL optimization-guidance flags
+
+These flags (all **SpireHDL-only** — Verilog/Amaranth runs ignore them) opt the agent into extra synthesis-aware guidance in its system prompt. They're off by default; turn them on for later-stage polishing once a correct structural design exists. The same flags are accepted by `run_multirun.py` and (via the phase machinery) `run_pipeline.py`.
+
+- `--abc-optimize` — adds **`@abc_optimized`** guidance: the agent may wrap combinational logic with the decorator that runs an ABC logic-synthesis script over it.
+- `--arith-autoconfig` — adds **`replace_arithmetic_ops()` / `@arithmetic_optimized`** guidance: the agent may reconfigure how `*`/`+`/etc. are implemented (multiplier/adder architecture) instead of leaving them to the default operator mapping.
+- `--fsm-optimize` — adds **FSM / state-encoding** guidance (the `State` API plus the `optimized_fsm` / `optimized_encoding` wrappers), letting the agent explore alternative state encodings for sequential designs.
+- `--dont-touch-main-arith` — the inverse guard: tells the agent **not** to modify the core `MultiplierConfig` / `AdderConfig`, useful when you want to sweep everything *except* the main arithmetic blocks.
+- `--flowy-optimize` — adds `@flowy_optimized` (Mockturtle) guidance; note Mockturtle is not installed in the default image, so this is only useful in a flowy-enabled environment.
+
 ### Multirun campaign — `run_multirun.py`
 
 Many agents run in parallel sharing an **elite pool**: some start fresh (exploration), the rest are seeded from the best designs found so far (exploitation). This is the core optimizer and reliably beats single runs on a given objective. See **[README_multirun.md](README_multirun.md)** for the full set of knobs — elite-pool sizing, the fresh schedule, seeding formats, and per-campaign plotting.
@@ -324,7 +334,7 @@ The cost metric is configurable via `--cost-metric`. All metrics follow the same
 | Delay | `delay` | Yosys + OpenROAD STA | Critical-path delay (ps) |
 | Area | `area` | Yosys + OpenROAD STA | Design area (um^2) |
 | Power | `power` | Yosys + OpenROAD STA | Total power (W) |
-| AIG count | `aig_count` | Yosys + spirehdl/aigverse | Post-optimization AIG AND-node count (`aig.size()`), combinational designs only |
+| AIG count | `aig_count` | Yosys + spirehdl/aigverse | Post-optimization AIG AND-node count (`num_gates` = `len(aig.gates())`, i.e. AND nodes only — excludes the constant and primary-input nodes), combinational designs only |
 | AIG depth | `aig_depth` | Yosys + spirehdl/aigverse | Post-optimization AIG logic depth (`DepthAig.num_levels()`), combinational designs only |
 
 **Transistors / yosys_cells / yosys_wires / yosys_transistors** use fast Yosys-only flows (technology-independent). The `yosys_cells` / `yosys_wires` / `yosys_transistors` variants skip ABC and instead run `synth; clean -purge; stat` — `clean -purge` drops public-alias buffers that `opt_clean` preserves for debuggability, giving counts that more faithfully reflect the netlist. **Delay/area/power** use the `tech_eval` package which synthesizes against a standard cell library (nangate45) and runs OpenROAD static timing analysis. PPA metrics require designs with a `clk` port. **aig_count / aig_depth** measure the And-Inverter Graph after spirehdl's aigverse optimization (yosys `aigmap` → aigverse); combinational designs only.
