@@ -60,19 +60,28 @@ Plain text. The whole file is embedded verbatim into the LLM system prompt as `#
 
 ### `metadata.json`
 
-Minimal schema:
+Schema:
 
 ```json
 {
   "name": "fpmul_f16",
   "module_name": "my_dut",
-  "tb_module": "tb"
+  "tb_module": "tb",
+  "golden_reference": "golden.v",
+  "golden_reference_language": "verilog"
 }
 ```
 
 - `name` — benchmark identifier (must equal the directory name).
 - `module_name` — the **RTL module under test**. The agent reads this via `Benchmark.module_name` and uses it as `design_top_module`. It must match what `tb.sv` instantiates as `dut`. If the RTL module name happens to equal the benchmark id, set both to the same value.
 - `tb_module` — the testbench top (almost always `"tb"`).
+- `golden_reference` *(optional)* — path (relative to the benchmark dir) to a known-correct reference that the candidate design is checked against by **combinational equivalence checking (CEC)** via `yosys-abc cec`. CEC is **on by default** (disable per-run with `--skip-cec`) but only fires when this field is present; without it, correctness is gated by `tb.sv` alone. CEC runs *after* the testbench passes — it's an additional formal gate, not a replacement — so it proves equivalence across **all** inputs rather than the testbench's sampled vectors. Omit the field for benchmarks with no trustworthy reference.
+- `golden_reference_language` *(optional, default `"spirehdl"`)* — how to turn `golden_reference` into Verilog for CEC:
+  - **`.v` / `.sv`** — used directly; the `_language` value is ignored. **The reference's module must be named `module_name`** (CEC synthesizes the golden with the *design's* top name — there is no separate reference-top field), so rename it if the source module differs.
+  - **`.py`** — compiled to Verilog at run setup by the SpireHDL (default) or Amaranth compiler, selected by this field (`"spirehdl"` / `"amaranth"`). Use this to point `golden_reference` straight at a SpireHDL/Amaranth design — e.g. the same `context/starting_point.py` you ship as the starting point (its `to_verilog_file("design.v")` produces a module named `module_name`, so no rename is needed). A compile failure raises a clear error rather than silently skipping the gate.
+
+  **`.v`/`.sv` vs `.py`:** prefer a `.v`/`.sv` golden when you have an **independent** oracle in a *different* source than the target language (e.g. adding a Verilog design as a SpireHDL benchmark — the original Verilog is the authoritative spec, independent of the SpireHDL implementation, so CEC cross-checks the translation). Reach for a `.py` golden when your only trustworthy reference *is* the target-language design itself: pointing at `starting_point.py` avoids a duplicated hand-maintained `.v` and keeps a single source of truth, at the cost that CEC then verifies *optimizations preserve the starting point's behavior* rather than cross-checking the starting point itself (a bug already in the starting point would pass CEC, though the independent `tb.sv` oracle would still catch it).
+- other keys may be added when fit 
 
 Generators may add an extra `"generator": { ... }` block for provenance — that's optional and ignored at runtime.
 
@@ -86,7 +95,7 @@ A self-checking SystemVerilog testbench that:
 
 For data-driven testbenches, place the vectors in `vectors.dat` next to `tb.sv` (one test case per line). For self-contained testbenches with hard-coded patterns, `vectors.dat` is unnecessary — see `benchmarks/mult4/tb.sv` for an example.
 
-**Make the stimuli thorough.** The testbench is the agent's *only* **correctness oracle** — the source of truth for *correct* behavior, i.e. the expected outputs each candidate design is checked against. Weak stimuli let a subtly wrong design pass and get rewarded during optimization. Drive a diverse mix of **directed corner cases** (zero, min/max, overflow / carry, all-zeros / all-ones, sign and rounding boundaries, and reset / enable edges for sequential designs) **and** a large batch of **randomized inputs** (typically hundreds to thousands of cases). The more your vectors distinguish correct from incorrect behavior, the more reliable the PASS/FAIL signal — and the harder it is for the agent to "pass" with a broken simplification.
+**Make the stimuli thorough.** The testbench is the agent's *only* **correctness oracle** — the source of truth for *correct* behavior, i.e. the expected outputs each candidate design is checked against. Weak stimuli let a subtly wrong design pass and get rewarded during optimization. Drive a diverse mix of **directed corner cases** (zero, min/max, overflow / carry, all-zeros / all-ones, sign and rounding boundaries, and reset / enable edges for sequential designs) **and** a large batch of **randomized inputs** (typically hundreds to thousands of cases). The more your vectors distinguish correct from incorrect behavior, the more reliable the PASS/FAIL signal — and the harder it is for the agent to "pass" with a broken simplification. (Shipping a `golden_reference` adds an exhaustive CEC gate on top — but it runs *only after* the testbench passes, so thorough stimuli still matter; see `metadata.json` above.)
 
 **Where the expected values come from.** A self-checking testbench needs a known-correct oracle. If you have a reference design, use it directly (instantiate it alongside `dut` and compare, or pre-compute outputs from it). If you're starting from only a *specification*, derive the golden behavior yourself: compute it inline for simple/derivable logic, or write a behavioral / Python reference model that emits `vectors.dat` (inputs + expected outputs). No reference is required to author a benchmark — but the expected behavior must come from *somewhere* trustworthy.
 
