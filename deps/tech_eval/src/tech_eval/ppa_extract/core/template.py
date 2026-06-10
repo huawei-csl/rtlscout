@@ -257,6 +257,9 @@ synth -top {top_module_name}
 {fa_ha_inference_cmds}
 
 dfflibmap {liberty_args}
+# Give registers RTL-derived public names (from their connectivity) BEFORE abc,
+# so the OpenROAD worst-path report shows e.g. `acc_..._Q_15` instead of `_1916_`.
+autoname
 abc -D {target_delay} -constr {constr_path} {liberty_args}
 write_verilog {netlist_path}
 """
