@@ -13,8 +13,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_DIR"
 
-echo "Initializing spire-hdl submodule..."
-git submodule update --init deps/spire-hdl
+# Only initialize on first startup. Skipping when already checked out avoids
+# clobbering a development branch back to the committed commit (detached HEAD).
+if git submodule status deps/spire-hdl 2>/dev/null | grep -q '^-'; then
+  echo "Initializing spire-hdl submodule..."
+  git submodule update --init deps/spire-hdl
+else
+  echo "spire-hdl submodule already initialized; leaving it as-is."
+fi
 
 echo ""
 echo "Workspace ready."
