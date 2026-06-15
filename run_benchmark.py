@@ -26,6 +26,9 @@ def main():
                         help="Target delay in ps for PPA metrics (default: 500)")
     parser.add_argument("--technology", default="asap7",
                         help="Process technology for PPA metrics: asap7, nangate45, freepdk45 (default: asap7)")
+    parser.add_argument("--energy-exp", type=float, default=1.0,
+                        help="For --cost-metric edap: exponent k in edap = energy**k * runtime * area. "
+                             "k=1 balanced EDAP, k>1 weights data-movement/reuse harder, k=0 == adp (default: 1.0)")
     parser.add_argument("--language", default="verilog", choices=["verilog", "spirehdl", "amaranth"],
                         help="Source language: verilog (direct RTL), spirehdl (Python EDSL → Verilog), or amaranth (Amaranth HDL → Verilog)")
     parser.add_argument("--dont-save-workspaces", action="store_true",
@@ -46,11 +49,18 @@ def main():
                         help="Skip the combinational equivalence check (yosys-abc cec). "
                              "CEC runs by default against the benchmark's golden_reference "
                              "(if any) and gates pass/fail on it")
+    parser.add_argument("--skip-netlist-sim", action="store_true",
+                        help="For PPA metrics (area/delay/power/runtime/adp/area_delay_product), "
+                             "skip re-simulating the synthesized gate-level netlist against tb.sv. "
+                             "This is the slow step for large designs; skipping it makes synthesis+STA "
+                             "run in seconds. Only safe when RTL correctness already covers the design.")
     args = parser.parse_args()
 
     model_provider, model = parse_model_spec(args.model)
     cost_metric = make_cost_metric(args.cost_metric, target_delay=args.target_delay,
-                                   technology=args.technology)
+                                   technology=args.technology,
+                                   run_netlist_sim=not args.skip_netlist_sim,
+                                   energy_exp=args.energy_exp)
 
     benchmarks_root = Path(args.benchmarks_root)
     benchmarks = load_benchmarks(benchmarks_root, [args.benchmark])

@@ -36,6 +36,16 @@ deps/mockturtle/
 abc.history
 .devcontainer/git_base_url.env
 
+# Local git worktrees (e.g. spire-hdl submodule worktrees) live here; not part of this repo
+.claude/worktrees/
+
 # Keep benchmark metadata/inputs tracked (override broad ignores if you add any)
 !benchmarks/**/*.json
 !benchmarks/**/*.txt
+
+runs_*/
+logs_*/
+plots/
+*.blif
+method_collection/
+obsolete/

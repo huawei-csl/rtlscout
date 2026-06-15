@@ -1,3 +1,4 @@
+import importlib.util
 import shutil
 import sys
 from pathlib import Path
@@ -19,4 +20,14 @@ requires_yosys = pytest.mark.skipif(
 requires_yosys_abc = pytest.mark.skipif(
     shutil.which("yosys-abc") is None,
     reason="yosys-abc not installed",
+)
+
+requires_openroad = pytest.mark.skipif(
+    shutil.which("openroad") is None,
+    reason="OpenROAD not installed (needed for PPA / runtime / adp metrics)",
+)
+
+requires_spirehdl = pytest.mark.skipif(
+    importlib.util.find_spec("spirehdl") is None,
+    reason="spirehdl not installed",
 )

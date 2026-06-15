@@ -81,6 +81,10 @@ _METRIC_LABELS = {
     "area": r"Area ($\mathrm{\mu m^2}$)",
     "delay": "Delay (ps)",
     "transistors": "Transistors",
+    "power": "Power (mW)",
+    "cycles": "Cycles",
+    "runtime": "Runtime (ps)",
+    "adp": r"ADP ($\mathrm{\mu m^2 \cdot ps}$)",
 }
 
 def _metric_label(metric: str) -> str:
@@ -243,9 +247,12 @@ def plot_single_run(run_data: dict, config: dict, output_dir: Path,
 
 # ── Plot 2: Multirun overview — Pareto front across all runs ───────────────
 
-def plot_multirun_pareto(data: Dict[str, Any], output_dir: Path) -> Path:
-    """Area vs delay for all passing evals across the entire multirun run.
+def plot_multirun_pareto(data: Dict[str, Any], output_dir: Path,
+                         dim_x: str = "area", dim_y: str = "delay") -> Path:
+    """*dim_x* vs *dim_y* for all passing evals across the entire multirun run.
 
+    Both must be present in each eval's ``metrics`` dict (e.g. area/delay, or
+    area/runtime for the matmul benchmark). Lower is better on both axes.
     Fresh runs are circles, seeded runs are diamonds. Colour encodes run
     index via a sequential colourmap. The combined Pareto front is overlaid.
     """
@@ -275,7 +282,7 @@ def plot_multirun_pareto(data: Dict[str, Any], output_dir: Path) -> Path:
             if not ev.get("passed"):
                 continue
             ppa = ev.get("metrics") or {}
-            a, d = ppa.get("area"), ppa.get("delay")
+            a, d = ppa.get(dim_x), ppa.get(dim_y)
             if a is None or d is None:
                 continue
             all_passing.append((a, d))
@@ -322,8 +329,8 @@ def plot_multirun_pareto(data: Dict[str, Any], output_dir: Path) -> Path:
         xs, ys = _stepify(front)
         ax.plot(xs, ys, color=_PARETO_COLOR, linewidth=2.0, zorder=5)
 
-    ax.set_xlabel(r"Area ($\mathrm{\mu m^2}$)")
-    ax.set_ylabel("Delay (ps)")
+    ax.set_xlabel(_metric_label(dim_x))
+    ax.set_ylabel(_metric_label(dim_y))
 
     # No title — use figure caption instead
 
@@ -338,7 +345,7 @@ def plot_multirun_pareto(data: Dict[str, Any], output_dir: Path) -> Path:
     ax.legend(handles=handles, loc="best", framealpha=0.9)
 
     fig.tight_layout()
-    path = output_dir / "multirun_pareto_area_delay.png"
+    path = output_dir / f"multirun_pareto_{dim_x}_{dim_y}.png"
     fig.savefig(path)
     fig.savefig(path.with_suffix(".pdf"))
     plt.close(fig)
@@ -848,6 +855,13 @@ def main():
         "--starting-point", nargs=2, type=float, default=None,
         metavar=("AREA", "DELAY"),
         help="Plot a starting-point star at the given area and delay")
+    parser.add_argument(
+        "--dim-x", default="area",
+        help="X-axis metric for the multirun Pareto overview (default: area). "
+             "Any key in each eval's metrics dict, e.g. area, runtime, cycles, adp.")
+    parser.add_argument(
+        "--dim-y", default="delay",
+        help="Y-axis metric for the multirun Pareto overview (default: delay).")
     args = parser.parse_args()
 
     if not args.input and not args.compare and not args.side_by_side and not args.side_by_side_combined:
@@ -919,7 +933,7 @@ def main():
                     saved.append(p)
 
         # Plot 2: Multirun Pareto overview
-        p = plot_multirun_pareto(data, output_dir)
+        p = plot_multirun_pareto(data, output_dir, dim_x=args.dim_x, dim_y=args.dim_y)
         if p:
             saved.append(p)
 

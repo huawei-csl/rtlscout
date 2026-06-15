@@ -374,8 +374,10 @@ _REFERENCES_HEADER = (
 
 def build_system_prompt(description: str, cost_metric_name: str, extra: str = "",
                         target_delay_is_settable: bool = False,
-                        max_steps: int = 20) -> str:
+                        max_steps: int = 20, cost_metric_note: str = "") -> str:
     references_block = _build_references_block(VERILOG_REFERENCES)
+    cost_note_block = (f"\n\n**Cost metric `{cost_metric_name}`:** {cost_metric_note}"
+                       if cost_metric_note else "")
 
     run_eval_line = (
         f"- run_evaluation(filename[, target_delay]): Run evaluation on the given design file. "
@@ -393,7 +395,7 @@ def build_system_prompt(description: str, cost_metric_name: str, extra: str = ""
     creativity_block = _CREATIVITY_AND_EVAL_BLOCK.format(cost_metric_name=cost_metric_name)
     important_common = _IMPORTANT_COMMON.format(max_steps=max_steps)
 
-    return f"""You are an RTL (Register Transfer Level) design agent. Your task is to create a Verilog/SystemVerilog design that satisfies the given specification, is functionally correct, and has minimal cost ({cost_metric_name}).
+    return f"""You are an RTL (Register Transfer Level) design agent. Your task is to create a Verilog/SystemVerilog design that satisfies the given specification, is functionally correct, and has minimal cost ({cost_metric_name}).{cost_note_block}
 
 ## Specification
 {description}
@@ -429,8 +431,11 @@ def build_spirehdl_system_prompt(description: str, cost_metric_name: str, extra:
                                   abc_optimize: bool = False,
                                   arith_autoconfig: bool = False,
                                   dont_touch_main_arith: bool = False,
-                                  fsm_optimize: bool = False) -> str:
+                                  fsm_optimize: bool = False,
+                                  cost_metric_note: str = "") -> str:
     references_block = _build_references_block(SPIREHDL_REFERENCES)
+    cost_note_block = (f"\n\n**Cost metric `{cost_metric_name}`:** {cost_metric_note}"
+                       if cost_metric_note else "")
 
     run_eval_line = (
         f"- run_evaluation(filename[, target_delay]): Run the given SpireHDL .py file "
@@ -450,7 +455,7 @@ def build_spirehdl_system_prompt(description: str, cost_metric_name: str, extra:
     creativity_block = _CREATIVITY_AND_EVAL_BLOCK.format(cost_metric_name=cost_metric_name)
     important_common = _IMPORTANT_COMMON.format(max_steps=max_steps)
 
-    return f"""You are an RTL design agent using SpireHDL, a Python EDSL for hardware description. Your task is to create a design that satisfies the given specification, is functionally correct, and has minimal cost ({cost_metric_name}).
+    return f"""You are an RTL design agent using SpireHDL, a Python EDSL for hardware description. Your task is to create a design that satisfies the given specification, is functionally correct, and has minimal cost ({cost_metric_name}).{cost_note_block}
 
 ## Specification
 {description}
@@ -588,8 +593,10 @@ AMARANTH_REFERENCES = [
 
 def build_amaranth_system_prompt(description: str, cost_metric_name: str, extra: str = "",
                                   target_delay_is_settable: bool = False,
-                                  max_steps: int = 20) -> str:
+                                  max_steps: int = 20, cost_metric_note: str = "") -> str:
     references_block = _build_references_block(AMARANTH_REFERENCES)
+    cost_note_block = (f"\n\n**Cost metric `{cost_metric_name}`:** {cost_metric_note}"
+                       if cost_metric_note else "")
 
     run_eval_line = (
         f"- run_evaluation(filename[, target_delay]): Run the given Amaranth .py file "
@@ -609,7 +616,7 @@ def build_amaranth_system_prompt(description: str, cost_metric_name: str, extra:
     creativity_block = _CREATIVITY_AND_EVAL_BLOCK.format(cost_metric_name=cost_metric_name)
     important_common = _IMPORTANT_COMMON.format(max_steps=max_steps)
 
-    return f"""You are an RTL design agent using Amaranth HDL, a Python library for hardware description. Your task is to create a design that satisfies the given specification, is functionally correct, and has minimal cost ({cost_metric_name}).
+    return f"""You are an RTL design agent using Amaranth HDL, a Python library for hardware description. Your task is to create a design that satisfies the given specification, is functionally correct, and has minimal cost ({cost_metric_name}).{cost_note_block}
 
 ## Specification
 {description}

@@ -366,7 +366,8 @@ def evaluate(
         verilog_file = (workdir / design_file) if design_file else None
 
     correctness = evaluate_correctness(workdir, design_file=verilog_file)
-    cost = cost_metric.evaluate(workdir, design_top_module, design_file=verilog_file)
+    cost = cost_metric.evaluate(workdir, design_top_module, design_file=verilog_file,
+                                sim_stats=correctness.sim_stats)
 
     # Optional combinational equivalence check vs a golden reference.
     # Only run when correctness already passed — a design that fails simulation

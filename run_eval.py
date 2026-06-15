@@ -56,6 +56,9 @@ def main():
                         help="Target delay in ps for PPA metrics (default: 500)")
     parser.add_argument("--technology", default="asap7",
                         help="Process technology for PPA metrics: asap7, nangate45, freepdk45 (default: asap7)")
+    parser.add_argument("--energy-exp", type=float, default=1.0,
+                        help="For --cost-metric edap: exponent k in edap = energy**k * runtime * area. "
+                             "k=1 balanced EDAP, k>1 weights data-movement/reuse harder, k=0 == adp (default: 1.0)")
     parser.add_argument("--top-module", default=None,
                         help="Design top module name (default: auto-detect from description)")
     parser.add_argument("--workdir", default=None,
@@ -66,6 +69,11 @@ def main():
                         help="Skip the combinational equivalence check (yosys-abc cec). "
                              "CEC runs by default when --benchmark has a golden_reference "
                              "in metadata.json, and gates pass/fail on it")
+    parser.add_argument("--skip-netlist-sim", action="store_true",
+                        help="For PPA metrics (area/delay/power/runtime/adp/area_delay_product), "
+                             "skip re-simulating the synthesized gate-level netlist against tb.sv. "
+                             "This is the slow step for large designs; skipping it makes synthesis+STA "
+                             "run in seconds. Only safe when RTL correctness already covers the design.")
     parser.add_argument("--json", action="store_true", help="Output result as JSON")
     parser.add_argument("--save-to", default=None, type=Path,
                         help="Save result.json + workspace/ to this directory "
@@ -106,7 +114,9 @@ def main():
         sys.exit(1)
 
     cost_metric = make_cost_metric(args.cost_metric, target_delay=args.target_delay,
-                                   technology=args.technology)
+                                   technology=args.technology,
+                                   run_netlist_sim=not args.skip_netlist_sim,
+                                   energy_exp=args.energy_exp)
 
     # Auto-detect top module if not specified
     top_module = args.top_module
