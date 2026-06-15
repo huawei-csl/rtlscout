@@ -308,8 +308,6 @@ def get_ppa(
     )
     with open(yosys_script_path, "w") as f:
         f.write(yosys_script)
-    os.system(f"cp {yosys_script_path} /tmp/dbg_yosys.ys")
-    print(f"=== DBG top_module_name={top_module_name!r} verilog_files={verilog_files!r}")
     sta_script = sta_script_template.format(
         lef_paths_subst=_lef_paths_subst,
         lib_paths_subst=_lib_paths_subst,

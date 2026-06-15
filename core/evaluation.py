@@ -50,7 +50,7 @@ def _truncate(text: str, limit: int) -> str:
 
 @dataclass
 class EvaluationResult:
-    correctness: CorrectnessResult
+    correctness: Optional[CorrectnessResult]   # None -> RTL correctness sim was skipped
     cost: CostResult
     passed: bool
     cost_value: Optional[float]
@@ -88,18 +88,21 @@ class EvaluationResult:
         limit = self.MAX_OUTPUT_CHARS
         lines = []
         lines.append("=== Evaluation Result ===")
-        lines.append(f"Correctness: {'PASS' if self.correctness.passed else 'FAIL'}")
-        lines.append(f"  Lint: {'OK' if self.correctness.lint_ok else 'FAIL'}")
-        lines.append(f"  Sim:  {'OK' if self.correctness.sim_ok else 'FAIL'}")
-        lines.append(f"  Checks (ok/tot): {self.correctness.passed_checks}/{self.correctness.total_checks}")
-        if not self.correctness.lint_ok:
-            lines.append(f"  Lint errors: {_truncate(self.correctness.lint_stderr, limit)}")
-        if not self.correctness.sim_ok:
-            sim_err = _truncate(self.correctness.sim_stderr, limit)
-            sim_out = _truncate(self.correctness.sim_stdout, limit)
-            lines.append(f"  Sim output: {sim_out}")
-            if sim_err:
-                lines.append(f"  Sim errors: {sim_err}")
+        if self.correctness is None:
+            lines.append("Correctness: SKIPPED (RTL sim not run)")
+        else:
+            lines.append(f"Correctness: {'PASS' if self.correctness.passed else 'FAIL'}")
+            lines.append(f"  Lint: {'OK' if self.correctness.lint_ok else 'FAIL'}")
+            lines.append(f"  Sim:  {'OK' if self.correctness.sim_ok else 'FAIL'}")
+            lines.append(f"  Checks (ok/tot): {self.correctness.passed_checks}/{self.correctness.total_checks}")
+            if not self.correctness.lint_ok:
+                lines.append(f"  Lint errors: {_truncate(self.correctness.lint_stderr, limit)}")
+            if not self.correctness.sim_ok:
+                sim_err = _truncate(self.correctness.sim_stderr, limit)
+                sim_out = _truncate(self.correctness.sim_stdout, limit)
+                lines.append(f"  Sim output: {sim_out}")
+                if sim_err:
+                    lines.append(f"  Sim errors: {sim_err}")
         lines.append(f"Cost: {'OK' if self.cost.ok else 'FAIL'}")
         if self.cost.ok:
             lines.append(f"  {self.cost_metric_name}: {self.cost_value}")
@@ -146,7 +149,7 @@ class EvaluationResult:
             "worst_slack": self.cost.stats.get("worst_slack"),
             "worst_timing_path": worst_path,
             "python_run_output": _truncate(self.python_run_output, lim) if self.python_run_output else None,
-            "correctness": {
+            "correctness": None if self.correctness is None else {
                 "passed": self.correctness.passed,
                 "lint_ok": self.correctness.lint_ok,
                 "sim_ok": self.correctness.sim_ok,
@@ -299,6 +302,7 @@ def evaluate(
     design_file: Optional[str] = None,
     run_cec: bool = True,
     cec_reference: Optional[Path] = None,
+    run_rtl_sim: bool = True,
 ) -> EvaluationResult:
     """Run full evaluation: correctness (verilator) + cost (pluggable metric).
 
@@ -317,6 +321,10 @@ def evaluate(
                  cec_reference and gate `passed` on it. Only runs when
                  correctness already passed. Pass False to skip the check.
         cec_reference: Absolute path to the golden reference Verilog (.v/.sv).
+        run_rtl_sim: If True (the default) run the verilator RTL correctness simulation.
+                     Pass False to skip it — cost still runs, and CEC still runs if a
+                     cec_reference is given (a formal check without simulation). The
+                     spire/amaranth compile always runs (cost needs the generated Verilog).
     """
     if cost_metric is None:
         cost_metric = YosysTransistorCost()
@@ -365,15 +373,16 @@ def evaluate(
     else:
         verilog_file = (workdir / design_file) if design_file else None
 
-    correctness = evaluate_correctness(workdir, design_file=verilog_file)
+    # RTL correctness simulation (verilator) for every language, after the spire/amaranth
+    # compile above. run_rtl_sim=False skips it -> correctness is None
+    correctness = evaluate_correctness(workdir, design_file=verilog_file) if run_rtl_sim else None
     cost = cost_metric.evaluate(workdir, design_top_module, design_file=verilog_file,
-                                sim_stats=correctness.sim_stats)
+                                sim_stats=correctness.sim_stats if correctness else None)
 
-    # Optional combinational equivalence check vs a golden reference.
-    # Only run when correctness already passed — a design that fails simulation
-    # is already failed, so there is no point synthesizing it twice for CEC.
+    # Combinational equivalence check vs a golden reference.
+    sim_failed = correctness is not None and not correctness.passed
     cec_result = None
-    if run_cec and cec_reference is not None and verilog_file is not None and correctness.passed:
+    if run_cec and cec_reference is not None and verilog_file is not None and not sim_failed:
         from core.equivalence import run_cec as _run_cec
         cec_result = _run_cec(
             design_file=Path(verilog_file),
@@ -382,9 +391,11 @@ def evaluate(
             design_top_module=design_top_module,
         )
 
-    passed = correctness.passed and (
-        cec_result is None or not cec_result.ran or cec_result.equivalent is True
-    )
+    cec_ok = cec_result is None or not cec_result.ran or cec_result.equivalent is True
+    if correctness is not None:                  # sim ran: pass needs sim-pass (+ CEC if any)
+        passed = correctness.passed and cec_ok
+    else:                                        # sim skipped: rely on CEC's verdict, if any
+        passed = cec_result is not None and cec_result.ran and cec_result.equivalent is True
 
     return EvaluationResult(
         correctness=correctness,
@@ -392,7 +403,7 @@ def evaluate(
         passed=passed,
         cost_value=cost.value if cost.ok else None,
         cost_metric_name=cost_metric.metric_name,
-        pass_rate=correctness.pass_rate,
+        pass_rate=correctness.pass_rate if correctness else 0.0,
         python_run_output=python_run_output,
         cec=cec_result,
     )
