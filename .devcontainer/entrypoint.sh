@@ -4,8 +4,8 @@
 set -eu
 
 # Remap vscode UID/GID to match host user
-usermod -u "$HOST_UID" vscode 2>/dev/null
-groupmod -g "$HOST_GID" vscode 2>/dev/null
+usermod -u "$HOST_UID" vscode >/dev/null 2>&1
+groupmod -g "$HOST_GID" vscode >/dev/null 2>&1
 chown -R "$HOST_UID":"$HOST_GID" /home/vscode 2>/dev/null || true
 
 # Write the vscode startup commands to a temp script (runs as vscode)
@@ -19,8 +19,9 @@ echo "============================================================"
 echo "  Environment ready!"
 echo ""
 echo "  Quick start (evaluate a design — no LLM needed):"
-echo "    python run_eval.py <design.sv> --benchmark benchmarks/simple_adder \\"
-echo "        --top-module adder --cost-metric transistors"
+echo "    python run_eval.py benchmarks/fpmul_f16/context/starting_point.py \\"
+echo "        --benchmark benchmarks/fpmul_f16 --language spirehdl \\"
+echo "        --cost-metric area --target-delay 500"
 echo ""
 echo "  Run the agent on a benchmark (needs API keys in .env):"
 echo "    python run_benchmark.py --benchmark simple_adder \\"
@@ -32,4 +33,9 @@ echo ""
 exec bash
 EOF
 chmod +x /tmp/start_vscode.sh
-exec su -s /bin/bash vscode -c /tmp/start_vscode.sh
+
+#exec su -s /bin/bash vscode -c /tmp/start_vscode.sh
+# insted of su use setpriv (not su): su forks a child that isn't the terminal's session leader,
+# so the interactive bash loses job control ("cannot set terminal process group"). setpriv execs in place, keeping the controlling TTY.
+exec setpriv --reuid=vscode --regid=vscode --init-groups \
+    env HOME=/home/vscode USER=vscode LOGNAME=vscode bash /tmp/start_vscode.sh
