@@ -1,0 +1,21 @@
+{
+  "case": "case4",
+  "module": "multi_constant_multiplication2",
+  "language": "spirehdl",
+  "top_module": "example",
+  "type": "combinational",
+  "metric": "transistors",
+  "best_phase": "phase2",
+  "metric_value": 4642,
+  "cec_status": "EQUIVALENT",
+  "cec_method": "equiv_induct",
+  "cec_detail": "equiv flow: all 96 $equiv cells proven",
+  "files": {
+    "starting_point": "starting_point.v",
+    "starting_point_source": "starting_point.py",
+    "tb.sv": "tb.sv",
+    "vectors.dat": "vectors.dat",
+    "design_source": "best.py",
+    "best_netlist": "best.v"
+  }
+}

@@ -1,0 +1,38 @@
+% Best-per-phase table for the primary metric, for \input{} into a larger document.
+% Required packages in the host preamble:
+%   \usepackage{booktabs}     % \toprule / \midrule / \bottomrule
+%   \usepackage{graphicx}     % \resizebox
+%   \usepackage{amsmath,amssymb}  % \Delta, \to
+
+\begin{table*}[!t]
+\centering
+\caption{Best per-phase Yosys cell count on the 14 RTLRewriter cases. \textbf{Base}: shipped baseline; \textbf{RTLR}: paper target; \textbf{P1} uses \texttt{@arithmetic\_optimized}, \textbf{P2} adds \texttt{@abc\_optimized}/\texttt{@mockturtle\_optimized} and seeds from P1. $\Delta_{1\!\to\!2}$ within-language P1$\to$P2; $\Delta_\text{vs R}$ vs.\ RTLR; $\Delta_\text{S/V}$ Spire P2 vs.\ Verilog P2 (cross-language, same pipeline). Negative $=$ reduction; \textbf{bold} $=$ strict row minimum, \underline{underline} $=$ tied for minimum.}
+\label{tab:best-cells}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llrrrrrrrrrrrr}
+\toprule
+ &  &  & \multicolumn{5}{c}{\textbf{RTLScout (Verilog)}} & \multicolumn{5}{c}{\textbf{RTLScout (Spire)}} &  \\
+\cmidrule(lr){4-8} \cmidrule(lr){9-13}
+Case & Module & RTLR & Base & P1 & P2 & $\Delta_{1\!\to\!2}$ & $\Delta_\text{vs R}$ & Base & P1 & P2 & $\Delta_{1\!\to\!2}$ & $\Delta_\text{vs R}$ & $\Delta_\text{S/V}$ \\
+\midrule
+case1 & \texttt{add3} & 14 & 18 & \underline{10} & \underline{10} & +0.0\% & -28.6\% & 18 & \underline{10} & \underline{10} & +0.0\% & -28.6\% & +0.0\% \\
+case2 & \texttt{commutativity\_subexpression} & 11475 & 11824 & 11272 & 11272 & +0.0\% & -1.8\% & 18105 & 8838 & \textbf{8702} & -1.5\% & -24.2\% & -22.8\% \\
+case3 & \texttt{multi\_constant\_multiplication} & 974 & 1220 & 661 & 655 & -0.9\% & -32.8\% & 1220 & 474 & \textbf{438} & -7.6\% & -55.0\% & -33.1\% \\
+case4 & \texttt{multi\_constant\_multiplication2} & 1213 & 1462 & 828 & 827 & -0.1\% & -31.8\% & 1462 & 583 & \textbf{558} & -4.3\% & -54.0\% & -32.5\% \\
+case5 & \texttt{adder\_bit\_width} & 49 & 49 & 49 & \underline{37} & -24.5\% & -24.5\% & 49 & \underline{37} & \underline{37} & +0.0\% & -24.5\% & +0.0\% \\
+case6 & \texttt{adder\_subexpression} & 129 & 129 & 129 & 128 & -0.8\% & -0.8\% & 129 & 120 & \textbf{117} & -2.5\% & -9.3\% & -8.6\% \\
+case7 & \texttt{alu\_subexpression} & 354 & 403 & 303 & 272 & -10.2\% & -23.2\% & 351 & 254 & \textbf{249} & -2.0\% & -29.7\% & -8.5\% \\
+case8 & \texttt{multiplier\_bitwidth} & 370 & 370 & 370 & 370 & +0.0\% & +0.0\% & 370 & \underline{343} & \underline{343} & +0.0\% & -7.3\% & -7.3\% \\
+case9 & \texttt{example1} & 32 & 40 & 40 & 40 & +0.0\% & +25.0\% & 54 & \underline{25} & \underline{25} & +0.0\% & -21.9\% & -37.5\% \\
+case10 & \texttt{example3} & 42 & 56 & \underline{6} & \underline{6} & +0.0\% & -85.7\% & 30 & 18 & 10 & -44.4\% & -76.2\% & +66.7\% \\
+case11 & \texttt{mux\_dead\_code} & \underline{24} & \underline{24} & \underline{24} & \underline{24} & +0.0\% & +0.0\% & \underline{24} & \underline{24} & \underline{24} & +0.0\% & +0.0\% & +0.0\% \\
+case12 & \texttt{communtativity\_subpexpression2} & 14674 & 14960 & 14448 & 14448 & +0.0\% & -1.5\% & 19664 & 11242 & \textbf{11032} & -1.9\% & -24.8\% & -23.6\% \\
+case13 & \texttt{mux\_type3} & \underline{1} & \underline{1} & \underline{1} & \underline{1} & +0.0\% & +0.0\% & \underline{1} & \underline{1} & \underline{1} & +0.0\% & +0.0\% & +0.0\% \\
+case14 & \texttt{mux\_type4} & \underline{2} & 3 & \underline{2} & \underline{2} & +0.0\% & +0.0\% & 3 & \underline{2} & \underline{2} & +0.0\% & +0.0\% & +0.0\% \\
+\midrule
+\textbf{sum} &  & 29353 & 30559 & 28143 & 28092 & -0.2\% & -4.3\% & 41480 & 21971 & \textbf{21548} & -1.9\% & -26.6\% & -23.3\% \\
+\textbf{mean $\Delta$} &  &  &  &  &  & -2.6\% & -14.7\% &  &  &  & -4.6\% & -25.4\% & -7.7\% \\
+\bottomrule
+\end{tabular}%
+}
+\end{table*}

@@ -1,0 +1,20 @@
+{
+  "case": "case9",
+  "module": "example1",
+  "language": "verilog",
+  "top_module": "example",
+  "type": "sequential",
+  "metric": "transistors",
+  "best_phase": "base",
+  "metric_value": 196,
+  "cec_status": "IDENTITY",
+  "cec_method": null,
+  "cec_detail": "best = shipped baseline (identical to the reference)",
+  "files": {
+    "starting_point": "starting_point.v",
+    "tb.sv": "tb.sv",
+    "vectors.dat": "vectors.dat",
+    "best_netlist": "best.v"
+  },
+  "note": "best = shipped baseline (identical to reference)"
+}

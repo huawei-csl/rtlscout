@@ -1,0 +1,21 @@
+{
+  "case": "case14",
+  "module": "mux_type4",
+  "language": "spirehdl",
+  "top_module": "mux_tree",
+  "type": "combinational",
+  "metric": "cells",
+  "best_phase": "phase1",
+  "metric_value": 2,
+  "cec_status": "EQUIVALENT",
+  "cec_method": "miter+SAT",
+  "cec_detail": "miter+SAT UNSAT \u2014 no input distinguishes the designs",
+  "files": {
+    "starting_point": "starting_point.v",
+    "starting_point_source": "starting_point.py",
+    "tb.sv": "tb.sv",
+    "vectors.dat": "vectors.dat",
+    "design_source": "best.py",
+    "best_netlist": "best.v"
+  }
+}

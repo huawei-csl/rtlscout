@@ -1,0 +1,19 @@
+{
+  "case": "case11",
+  "module": "mux_dead_code",
+  "language": "verilog",
+  "top_module": "example",
+  "type": "combinational",
+  "metric": "cells",
+  "best_phase": "phase1",
+  "metric_value": 24,
+  "cec_status": "EQUIVALENT",
+  "cec_method": "equiv_induct",
+  "cec_detail": "equiv flow: all 8 $equiv cells proven",
+  "files": {
+    "starting_point": "starting_point.v",
+    "tb.sv": "tb.sv",
+    "vectors.dat": "vectors.dat",
+    "best_netlist": "best.sv"
+  }
+}

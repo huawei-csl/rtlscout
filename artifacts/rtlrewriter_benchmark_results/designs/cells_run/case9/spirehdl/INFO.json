@@ -1,0 +1,21 @@
+{
+  "case": "case9",
+  "module": "example1",
+  "language": "spirehdl",
+  "top_module": "example",
+  "type": "sequential",
+  "metric": "cells",
+  "best_phase": "phase1",
+  "metric_value": 25,
+  "cec_status": "EQUIVALENT",
+  "cec_method": "tempinduct",
+  "cec_detail": "reset-anchored temporal induction \u2014 complete proof",
+  "files": {
+    "starting_point": "starting_point.v",
+    "starting_point_source": "starting_point.py",
+    "tb.sv": "tb.sv",
+    "vectors.dat": "vectors.dat",
+    "design_source": "best.py",
+    "best_netlist": "best.v"
+  }
+}
