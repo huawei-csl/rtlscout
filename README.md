@@ -4,8 +4,6 @@
 
 <br>
 
-# RTL Scout
-
 <p align="center">
   <a href="https://github.com/huawei-csl/rtlscout/actions/workflows/pytest.yml"><img src="https://github.com/huawei-csl/rtlscout/actions/workflows/pytest.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-BSD--3--Clause--Clear-blue.svg" alt="License: BSD-3-Clause-Clear"></a>
@@ -13,6 +11,8 @@
   <a href="https://github.com/orgs/huawei-csl/packages/container/package/rtlscout"><img src="https://img.shields.io/badge/ghcr.io-rtlscout%3Aslim-2496ED?logo=docker&logoColor=white" alt="Docker image"></a>
   <a href="https://vscode.dev/redirect?url=vscode%3A%2F%2Fms-vscode-remote.remote-containers%2FcloneInVolume%3Furl%3Dhttps%3A%2F%2Fgithub.com%2Fhuawei-csl%2Frtlscout"><img src="https://img.shields.io/static/v1?label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode" alt="Open in Dev Containers"></a>
 </p>
+
+# RTL Scout
 
 An RTL design agent powered by selectable LLM backends (DeepInfra, Anthropic, OpenRouter) with tool use. The agent iteratively creates and optimizes Verilog/SystemVerilog, [Spire HDL](https://github.com/huawei-csl/spire-hdl) or Amaranth designs, targeting **correctness first, then minimal cost** under a configurable cost metric.
 
