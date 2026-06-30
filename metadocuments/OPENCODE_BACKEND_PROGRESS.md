@@ -46,6 +46,12 @@ overwrite `rtlscout:latest`; all managed-container selectors are label-based, ne
 
 ## Status
 
+**ALL PHASES COMPLETE (0–3), live-validated with GLM 5.2.** Branch `feat/opencode-backend`,
+6 commits (baseline + per phase). react path byte-identical; opencode single-container + orchestrated
+both PASS with authoritative re-eval; container management devcontainer-safe. Phase 4
+(MCP/extra hardening) intentionally out of scope. `nervous_elbakyan` ran throughout; `rtlscout:latest`
+never modified.
+
 ### Step 0 — Clone + baseline — ✅ DONE
 - `rsync -a` clone into `/scratch/farnold/eda_package/rtl_scout_opencode` (147 MB; heavy dirs
   excluded). `.git`, `.env`, `deps/` (submodule + vendored tech_eval) preserved.
@@ -159,6 +165,40 @@ overwrite `rtlscout:latest`; all managed-container selectors are label-based, ne
   hardening lever.
 
 ---
+
+## Runbook (how to use the new backend)
+
+All commands run inside a container with the EDA toolchain + deps (+ opencode for the
+opencode backend). The four mode combinations:
+
+```bash
+# 0) Offline smoke / default react (no API) — unchanged from upstream:
+python run_benchmark.py --benchmark simple_adder --model fake:simple_adder_pass
+
+# 1) react backend, single-container, with authoritative re-eval (A/B parity):
+python run_multirun.py --benchmark simple_adder --model openrouter:z-ai/glm-5.2 \
+    --total-runs 1 --reeval --skip-cec
+
+# 2) opencode backend, single-container (re-eval always on) — run INSIDE rtlscout-opencode:
+python run_multirun.py --benchmark simple_adder --model openrouter:z-ai/glm-5.2 \
+    --agent-backend opencode --total-runs 1 --wall-clock-min 8 --max-evals 3 --skip-cec
+
+# 3) opencode backend, ORCHESTRATED (fresh --rm container per agent run + per judge).
+#    The harness itself must run in an IDENTITY-mounted container with the docker socket:
+docker run --rm -v "$PWD:$PWD" -v /usr/bin/docker:/usr/bin/docker:ro \
+  -v /var/run/docker.sock:/var/run/docker.sock --group-add "$(getent group docker | cut -d: -f3)" \
+  --user "$(id -u):$(id -g)" -e HOME=/tmp -w "$PWD" rtlscout-opencode:latest \
+  bash -c 'export PATH=/home/vscode/pyenv_eda/bin:/usr/local/bin:$PATH; \
+    python run_multirun.py --benchmark simple_adder --model openrouter:z-ai/glm-5.2 \
+      --agent-backend opencode --mode orchestrated --total-runs 1 \
+      --wall-clock-min 8 --max-evals 3 --skip-cec --runs-root "'"$PWD"'/runs/orch"'
+
+# Cleanup orchestrated containers (label-scoped; never touches the devcontainer):
+python rtlscout_cli.py list
+python rtlscout_cli.py cleanup [--session <id>] [--kill]
+```
+
+Build the image once: `docker build -f .devcontainer/Dockerfile.opencode -t rtlscout-opencode:latest .`
 
 ## Issues & deviations
 
