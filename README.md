@@ -14,7 +14,9 @@
   <a href="https://vscode.dev/redirect?url=vscode%3A%2F%2Fms-vscode-remote.remote-containers%2FcloneInVolume%3Furl%3Dhttps%3A%2F%2Fgithub.com%2Fhuawei-csl%2Frtlscout"><img src="https://img.shields.io/static/v1?label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode" alt="Open in Dev Containers"></a>
 </p>
 
-An RTL design agent powered by pluggable LLM backends (DeepInfra, Anthropic) with tool use. The agent iteratively creates and optimizes Verilog/SystemVerilog, Spire or Amaranth designs, targeting **correctness first, then minimal cost** under a configurable cost metric.
+An RTL design agent powered by pluggable LLM backends (DeepInfra, Anthropic) with tool use. The agent iteratively creates and optimizes Verilog/SystemVerilog, Spire or Amaranth designs, targeting **correctness first, then minimal cost** under a configurable cost metric. The agent
+can run as the built-in in-process loop or as an external **OpenCode** agent in a sandboxed,
+per-run container — see [Agent backends & sandboxing](#agent-backends--sandboxing-opencode).
 
 ## What RTL Scout does
 
@@ -202,6 +204,45 @@ python run_pipeline.py \
 > **Note:** This is the *general* (less specialized) workflow. The FP-specialized **4-phase** pipeline (arithmetic-architecture sweep + high-effort Mockturtle refinement) is documented separately in **[README_fpmul.md](README_fpmul.md)**.
 
 See the [Usage](#usage) section for more command examples.
+
+## Agent backends & sandboxing (OpenCode)
+
+By default RTLScout runs an **in-process ReAct agent** in the current container. Two opt-in,
+orthogonal seams let an **external [OpenCode](https://opencode.ai) agent** run in its own
+sandbox while keeping recorded scores trustworthy:
+
+- `--agent-backend react|opencode` — *how* the agent runs (the in-process loop vs an external
+  `opencode run` with a real shell).
+- `--mode single-container|orchestrated` — *where* it runs (here, or a fresh `docker run --rm`
+  container per agent run **and** per scored candidate).
+
+The recorded score is always re-derived by the harness against the **benchmark's own inputs**
+(a clean-room re-eval), never trusted from the agent's container — so even a shelled agent
+cannot fake its score. Orchestrated containers are managed purely by label (never by image),
+so a co-running VS Code devcontainer on the same `rtlscout:latest` image is never touched.
+
+```mermaid
+flowchart LR
+  A["agent<br/>react / opencode<br/>(advisory eval)"] --> R["authoritative re-eval<br/>vs benchmark's own inputs"]
+  R --> P["elite pool + Pareto"]
+```
+
+```bash
+# external OpenCode agent, fully isolated: fresh container per run + per judge
+python run_multirun.py --benchmark fpmul_f16 --model openrouter:z-ai/glm-5.2 --language spirehdl \
+    --agent-backend opencode --mode orchestrated --wall-clock-min 10 --max-evals 12
+```
+
+Extra flags: `--reeval` (force the authoritative re-score on the react path too, for A/B
+parity), `--wall-clock-min` (hard per-run budget for the opencode agent), `--max-evals` (soft
+eval cap). Build the agent image once with
+`docker build -f .devcontainer/Dockerfile.opencode -t rtlscout-opencode:latest .`, and clean
+up orchestrated containers with `python rtlscout_cli.py cleanup`.
+
+See **[README_orchestration.md](README_orchestration.md)** for the full picture: the two
+seams, the single-container vs orchestrated **assurance model**, the advisory/authoritative
+**integrity split** (with diagrams), OpenCode permissions/launch quirks, the
+`rtlscout-opencode` image, and label-based container cleanup.
 
 ## Agent flow
 
