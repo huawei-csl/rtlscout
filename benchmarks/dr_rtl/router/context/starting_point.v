@@ -116,7 +116,10 @@ assign vld_out_2 = !empty_2;
 always@(posedge clk)
 	begin
 		if(!resetn)
-			count0<=5'b0;
+			begin
+				count0<=5'b0;
+				soft_reset_0<=1'b0;   // reset so gate-level flop inits to 0 (matches SpireHDL port)
+			end
 		else if(vld_out_0)
 			begin
 				if(!read_enb_0)
@@ -140,7 +143,10 @@ always@(posedge clk)
 always@(posedge clk)
 	begin
 		if(!resetn)
-			count1<=5'b0;
+			begin
+				count1<=5'b0;
+				soft_reset_1<=1'b0;   // reset so gate-level flop inits to 0 (matches SpireHDL port)
+			end
 		else if(vld_out_1)
 			begin
 				if(!read_enb_1)
@@ -164,7 +170,10 @@ always@(posedge clk)
 always@(posedge clk)
 	begin
 		if(!resetn)
-			count2<=5'b0;
+			begin
+				count2<=5'b0;
+				soft_reset_2<=1'b0;   // reset so gate-level flop inits to 0 (matches SpireHDL port)
+			end
 		else if(vld_out_2)
 			begin
 				if(!read_enb_2)
@@ -203,7 +212,7 @@ module router_fsm(input clk,resetn,packet_valid,
 			load_after_full		=	4'b0111,
 			check_parity_error	=	4'b1000;
 			
-reg [3:0] present_state, next_state;
+(* fsm_encoding = "none" *) reg [3:0] present_state, next_state;
 reg [1:0] temp;
 //-------------------------------------------------------------------------------------------------------------------------------------------
 //temp logic
@@ -442,18 +451,20 @@ always@(posedge clk)
 //counter logic
 always@(posedge clk)
 	begin
-		
-		 if(read_enb && !empty)
+		if(!resetn)
+			count<=6'd0;            // reset count so gate-level flops init to 0 (matches SpireHDL port)
+
+		 else if(read_enb && !empty)
 			begin
 				if(fifo[read_ptr[3:0]][8])                          //a header byte is read, an internal counter is loaded with the payload
-                                                               //length of the packet plus(parity byte) and starts decrementing every clock till it reached 
+                                                               //length of the packet plus(parity byte) and starts decrementing every clock till it reached
 					count<=fifo[read_ptr[3:0]][7:2]+1'b1;
 
 				else if(count!=6'd0)
 					count<=count-1'b1;
-				
+
 			end
-	
+
 	end
 //---------------------------------------------------------------------------------------------------------------
 //pointer logic

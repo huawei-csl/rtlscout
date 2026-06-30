@@ -335,8 +335,8 @@ def make_bit_ctrl():
     sda_pad_o_out    <<= Const(0, UInt(1))
     scl_padoen_vis = Register(UInt(1), init=1, name="scl_padoen_vis")
     sda_padoen_vis = Register(UInt(1), init=1, name="sda_padoen_vis")
-    scl_padoen_vis <<= scl_oen_r
-    sda_padoen_vis <<= sda_oen_r
+    scl_padoen_vis <<= mux(rst_active, Const(1, UInt(1)), scl_oen_r)
+    sda_padoen_vis <<= mux(rst_active, Const(1, UInt(1)), sda_oen_r)
     scl_padoen_o_out <<= scl_padoen_vis
     sda_padoen_o_out <<= sda_padoen_vis
 
@@ -512,13 +512,15 @@ def make_wb_top():
     # Wishbone signals
     wb_wacc = wb_cyc_i_in & wb_stb_i_in & wb_we_i_in
     wb_ack_next = wb_cyc_i_in & wb_stb_i_in & (~wb_ack_o_r)
-    # NB: verilog has NO reset clause for wb_ack_o. Let it alternate naturally.
-    wb_ack_o_r <<= wb_ack_next
+    # Reset the WB-output pipeline to 0 (matches Verilator/spire 2-state 0-init,
+    # which the golden encodes). Without it these flops are X in the synthesized
+    # netlist and the ASAP7 re-sim diverges on wb_ack_o/wb_dat_o at startup.
+    wb_ack_o_r <<= mux(rst_active, Const(0, UInt(1)), wb_ack_next)
     # Verilog uses `<= #1` everywhere → Verilator's TB sees a 1-cycle-delayed
     # visibility of the register at the `@(posedge); #1; sample` point.
     # Add a 1-cycle visibility delay on the output.
     wb_ack_o_vis = Register(UInt(1), name="wb_ack_o_vis")
-    wb_ack_o_vis <<= wb_ack_o_r
+    wb_ack_o_vis <<= mux(rst_active, Const(0, UInt(1)), wb_ack_o_r)
     wb_ack_o_out <<= wb_ack_o_vis
 
     # Status register sr[7..0]:
@@ -526,7 +528,8 @@ def make_wb_top():
     sr_byte = cat(irq_flag_r, tip_r, Const(0, UInt(3)), al_r, i2c_busy_w, rxack_r)
 
     # wb_dat_o decode based on wb_adr_i.
-    # Verilog case has NO default → wb_dat_o HOLDS when wb_adr_i=7 (3'b111).
+    # Verilog case explicitly drives `3'b111: wb_dat_o <= 0` (reserved) — it is
+    # NOT a hold; wb_dat_o reads back 0 at wb_adr_i=7.
     addr_eq = lambda v: wb_adr_i_in == Const(v, UInt(3))
     wb_dat_o_next = mux(addr_eq(0), prer_r[0:8],
                     mux(addr_eq(1), prer_r[8:16],
@@ -535,11 +538,11 @@ def make_wb_top():
                     mux(addr_eq(4), sr_byte,
                     mux(addr_eq(5), txr_r,
                     mux(addr_eq(6), cr_r,
-                                    wb_dat_o_r)))))))   # adr=7: hold
-    wb_dat_o_r <<= wb_dat_o_next
+                                    Const(0, UInt(8)))))))))   # adr=7: reserved → 0
+    wb_dat_o_r <<= mux(rst_active, Const(0, UInt(8)), wb_dat_o_next)
     # 1-cycle visibility delay (see wb_ack_o_vis above).
     wb_dat_o_vis = Register(UInt(8), name="wb_dat_o_vis")
-    wb_dat_o_vis <<= wb_dat_o_r
+    wb_dat_o_vis <<= mux(rst_active, Const(0, UInt(8)), wb_dat_o_r)
     wb_dat_o_out <<= wb_dat_o_vis
 
     # Register writes for prer, ctr, txr
@@ -606,7 +609,7 @@ def make_wb_top():
     wb_inta_r <<= mux(rst_active, Const(0, UInt(1)), irq_flag_r & ien)
     # 1-cycle visibility delay
     wb_inta_o_vis = Register(UInt(1), name="wb_inta_o_vis")
-    wb_inta_o_vis <<= wb_inta_r
+    wb_inta_o_vis <<= mux(rst_active, Const(0, UInt(1)), wb_inta_r)
     wb_inta_o_out <<= wb_inta_o_vis
 
 

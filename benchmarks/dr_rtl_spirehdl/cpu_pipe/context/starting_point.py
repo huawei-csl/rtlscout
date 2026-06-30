@@ -453,12 +453,16 @@ regB_r <<= mux(rst, Const(0, UInt(16)), mux(ena_w, regB_next, regB_r))
 # === REG FILE ===
 # ============================================================================
 # rwd = regR (per alu)
+# The register file is given an explicit synchronous reset to 0 (matching the
+# Verilog sibling). Without it `rf` is uninitialized: Verilator-RTL 0-inits it,
+# but synthesis treats the unreset bits as X don't-cares and folds the X through
+# the async read (rrd -> nwr -> ec -> ea/eb/regSP/regPC), collapsing the
+# address/PC/SP counters to constant 0 in the gate netlist. Resetting removes the
+# X so RTL and the synthesized netlist stay bit-identical under the ASAP7 re-sim.
 rwd_w = regR_r
 for i in range(8):
     match = (rwa_w == Const(i, UInt(3))) & rwe_w
-    rf[i] <<= mux(ena_w & match, rwd_w, rf[i])
-    # Note: verilog `always @(posedge clk) if (ena) ...` — no rst clause on rf
-    # So rf doesn't reset. Spirehdl default init is 0 which matches 2-state startup.
+    rf[i] <<= mux(rst, Const(0, UInt(16)), mux(ena_w & match, rwd_w, rf[i]))
 
 # ============================================================================
 # === Output assignments ===

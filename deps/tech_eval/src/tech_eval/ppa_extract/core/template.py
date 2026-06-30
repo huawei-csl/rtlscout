@@ -256,6 +256,10 @@ synth -top {top_module_name}
 
 {fa_ha_inference_cmds}
 
+# Convert async resets to sync + stamp FF init so the gate-level netlist
+# resets correctly under the (specify-less) Verilator re-sim while the RTL
+# keeps its async reset. Mirrors the AIG path's async2sync.
+async2sync
 dfflibmap {liberty_args}
 # Give registers RTL-derived public names (from their connectivity) BEFORE abc,
 # so the OpenROAD worst-path report shows e.g. `acc_..._Q_15` instead of `_1916_`.

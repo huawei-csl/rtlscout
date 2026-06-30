@@ -325,11 +325,15 @@ def _build_optimization_guidance(abc_optimize: bool, flowy_optimize: bool,
             parts.append(arith_dec)
 
     # --- Stacking decorators ---
-    # Only relevant when the agent has a *partner* decorator to stack with —
-    # i.e. `--abc-optimize` or `--flowy-optimize`. With just `--arith-autoconfig`,
-    # `@arithmetic_optimized` stands alone (no outer decorator to wrap it with),
-    # so the stacking section would be noise.
-    if abc_optimize or flowy_optimize:
+    # This subsection is entirely about wrapping the inner @arithmetic_optimized
+    # decorator with an outer one (@abc_optimized / @flowy_optimized) — its code
+    # example and benchmark numbers all reference @arithmetic_optimized. So it is
+    # only meaningful when BOTH sides are documented: an outer decorator
+    # (--abc-optimize / --flowy-optimize) AND the inner one (--arith-autoconfig).
+    # Without --arith-autoconfig it would leak @arithmetic_optimized (its name and
+    # a usage example) into the prompt without that decorator's own guidance, so
+    # the whole subsection is suppressed in that case.
+    if (abc_optimize or flowy_optimize) and arith_autoconfig:
         stacking = _extract_md_section(_OPTIMIZATION_DECORATORS_MD, "Stacking decorators")
         if stacking:
             # The README's stacking example uses @abc_optimized as the outer
