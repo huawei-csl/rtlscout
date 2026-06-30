@@ -65,7 +65,28 @@ overwrite `rtlscout:latest`; all managed-container selectors are label-based, ne
   result.json differs only in run-dir path + Verilator's nondeterministic walltime — run-to-run
   noise, not refactor-induced); `pytest -q tests/` → **41 passed**; new unit tests → **5 passed**.
 
-### Phase 1 — Eval split + Sandbox seam + post-run re-score — ⬜ TODO
+### Phase 1 — Eval split + Sandbox seam + post-run re-score — ✅ DONE
+- New `core/eval_store.py`: `run_eval_and_store` (advisory shim + `python -m core.eval_store` CLI)
+  plus shared snapshot helpers (`snapshot_best`, `snapshot_eval`, `select_best_eval`, `read_evals`)
+  reused by reeval so advisory/authoritative write identical trees.
+- New `core/sandbox.py`: `SandboxSpec`, `Sandbox` Protocol, `LocalSandbox` (run_callable in-process,
+  run_command via subprocess+timeout). `ContainerSandbox` lands in Phase 3.
+- New `core/reeval.py`: `reeval_run` — authoritative clean-room re-eval of every `eval_{i}/` (fresh
+  workspace from `provision_workspace`; agent **design source** overlaid; benchmark's `tb.sv`/`*.dat`
+  always win), overwrites `eval_{i}/result.json` + run-level `result.json` + rebuilds `best_design/`
+  from authoritative numbers; **agreement gate** flags pass/fail mismatch or best-cost divergence,
+  plus a session-log tamper-signature scan.
+- Wired into `core/multirun.py::_run_one_agent` (post-run re-score; mandatory on opencode, `--reeval`
+  opt-in on react); `_make_judge_sandbox(deploy_mode)`; new flags `--agent-backend`/`--mode`/`--reeval`
+  on `run_multirun.py`, `--agent-backend` on `run_benchmark.py`.
+- New `tests/test_reeval.py` (4 integrity tests).
+- **Verified:** tamper-pass (wrong design + faked testbench) → authoritative **downgrades to FAIL** +
+  gate flags it; fabricated low cost → flagged; honest run agrees + `best_design/` rebuilt; advisory
+  shim emits the standard tree. E2E `run_multirun --reeval` (react+fake) applies the re-score
+  (`reeval.applied=True`, not diverged). `pytest -q tests/` → **50 passed** (41 + 9 new).
+- **Bug found & fixed by the e2e check:** a pre-existing local `mode` ("fresh"/"seed…") in
+  `_make_task` shadowed the new deployment mode in the task dict; renamed the param to
+  `deploy_mode`.
 
 ### Phase 2 — OpenCodeBackend (single-container) — ⬜ TODO
 

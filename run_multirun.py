@@ -78,6 +78,16 @@ def main():
                         help="Skip the combinational equivalence check (yosys-abc cec). "
                              "CEC runs by default against the benchmark's golden_reference "
                              "(if any) and gates pass/fail on it")
+    parser.add_argument("--agent-backend", default="react", choices=["react", "opencode"],
+                        help="Agent backend: 'react' (default, in-process loop) or 'opencode' "
+                             "(external shell agent; authoritative re-eval always applied)")
+    parser.add_argument("--mode", default="single-container",
+                        choices=["single-container", "orchestrated"],
+                        help="Deployment mode: 'single-container' (default, run here) or "
+                             "'orchestrated' (fresh --rm container per agent run + per judge)")
+    parser.add_argument("--reeval", action="store_true",
+                        help="Force the authoritative post-run re-score on the react path too "
+                             "(always on for opencode) — for apples-to-apples A/B parity")
     args = parser.parse_args()
 
     runs_root = None
@@ -108,6 +118,9 @@ def main():
         dont_touch_main_arith=args.dont_touch_main_arith,
         fsm_optimize=args.fsm_optimize,
         run_cec=not args.skip_cec,
+        agent_backend=args.agent_backend,
+        deploy_mode=args.mode,
+        reeval=args.reeval,
     )
 
 

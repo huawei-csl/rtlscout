@@ -54,6 +54,10 @@ def main():
                              "skip re-simulating the synthesized gate-level netlist against tb.sv. "
                              "This is the slow step for large designs; skipping it makes synthesis+STA "
                              "run in seconds. Only safe when RTL correctness already covers the design.")
+    parser.add_argument("--agent-backend", default="react", choices=["react", "opencode"],
+                        help="Agent backend: 'react' (default, in-process loop) or 'opencode' "
+                             "(external shell agent). NOTE: this single-run path produces ADVISORY "
+                             "numbers only; for authoritative re-eval use run_multirun.py --total-runs 1")
     args = parser.parse_args()
 
     model_provider, model = parse_model_spec(args.model)
@@ -84,6 +88,7 @@ def main():
         fsm_optimize=args.fsm_optimize,
         dont_touch_main_arith=args.dont_touch_main_arith,
         run_cec=not args.skip_cec,
+        agent_backend=args.agent_backend,
     )
 
     if result.passed:

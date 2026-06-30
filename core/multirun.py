@@ -349,6 +349,17 @@ def build_seed_prompt(
 
 # ── worker function (module-level for pickling) ─────────────────────────────
 
+def _make_judge_sandbox(mode: str):
+    """Build the judge-role Sandbox for the deployment mode (handover §3.1)."""
+    from core.sandbox import LocalSandbox
+    if mode == "single-container":
+        return LocalSandbox()
+    if mode == "orchestrated":
+        from core.sandbox import ContainerSandbox  # added in Phase 3
+        return ContainerSandbox(role="judge")
+    raise ValueError(f"Unknown mode: {mode!r}. Use 'single-container' or 'orchestrated'.")
+
+
 def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
     """Execute a single agent run.  Runs in a subprocess."""
     from core.benchmarks import Benchmark, load_benchmark
@@ -373,6 +384,11 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
     fsm_optimize = task.get("fsm_optimize", False)
     run_cec = task.get("run_cec", True)
     technology = task.get("technology", "asap7")
+    agent_backend = task.get("agent_backend", "react")
+    deploy_mode = task.get("mode", "single-container")
+    # Authoritative re-eval is mandatory on the opencode path (its container is
+    # untrusted); on react it is opt-in via --reeval purely for A/B parity.
+    do_reeval = bool(task.get("reeval", False)) or agent_backend == "opencode"
 
     provider, model = parse_model_spec(model_spec)
     cost_metric = make_cost_metric(cost_metric_name, target_delay=target_delay,
@@ -413,6 +429,7 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
             dont_touch_main_arith=dont_touch_main_arith,
             fsm_optimize=fsm_optimize,
             run_cec=run_cec,
+            agent_backend=agent_backend,
         )
         result_dict = result.to_dict()
         result_dict["status"] = "ok"
@@ -442,6 +459,29 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
             result_dict["workdir"] = str(candidates[0].parent)
         else:
             result_dict["workdir"] = str(run_dir)
+
+    # Authoritative re-evaluation (handover §4.4/§5.3): recorded numbers come from the
+    # judge re-scoring the candidate set against the benchmark's own inputs, never the
+    # agent's container. Adopt the authoritative numbers for pool/Pareto selection.
+    if do_reeval and result_dict.get("status") == "ok" and result_dict.get("workdir"):
+        try:
+            from core.reeval import reeval_run
+            workdir = Path(result_dict["workdir"])
+            judge_sandbox = _make_judge_sandbox(deploy_mode)
+            session_logs = [workdir / "chat_log.txt", workdir / "opencode_session.log"]
+            report = reeval_run(workdir, bench, judge_sandbox, cost_metric=cost_metric,
+                                language=language, run_cec=run_cec, session_logs=session_logs)
+            auth = json.loads((workdir / "result.json").read_text())
+            for k in ("passed", "best_cost", "best_metrics", "best_eval", "all_evals", "cost_metric"):
+                if k in auth:
+                    result_dict[k] = auth[k]
+            result_dict["reeval_report"] = report
+            if report.get("diverged"):
+                print(f"[REEVAL] run_{run_index:03d}: DIVERGENCE flagged: {report.get('flags')}",
+                      flush=True)
+        except Exception as e:
+            traceback.print_exc()
+            result_dict["reeval_error"] = str(e)
 
     tag = f"run_{run_index:03d}"
     cost = result_dict.get("best_cost", "N/A")
@@ -484,8 +524,17 @@ def run_multirun(
     dont_touch_main_arith: bool = False,
     fsm_optimize: bool = False,
     run_cec: bool = True,
+    agent_backend: str = "react",
+    deploy_mode: str = "single-container",
+    reeval: bool = False,
 ) -> Dict[str, Any]:
-    """Run the async elite-pool multi-run optimization."""
+    """Run the async elite-pool multi-run optimization.
+
+    ``agent_backend`` ('react'|'opencode') selects the per-run agent; ``deploy_mode``
+    ('single-container'|'orchestrated') selects the Sandbox impl for both the agent and
+    the judge. ``reeval`` forces the authoritative post-run re-score on the react path
+    too (it is always on for opencode) — used for apples-to-apples A/B parity.
+    """
     from datetime import datetime
 
     if runs_root is None:
@@ -635,6 +684,9 @@ def run_multirun(
             "dont_touch_main_arith": dont_touch_main_arith,
             "fsm_optimize": fsm_optimize,
             "run_cec": run_cec,
+            "agent_backend": agent_backend,
+            "mode": deploy_mode,
+            "reeval": reeval,
         }
 
     with ProcessPoolExecutor(max_workers=max_concurrent) as executor:
