@@ -57,6 +57,18 @@ def test_render_agents_md_overrides_react_mechanics(tmp_path):
     assert "summary.txt" in md
     assert "What optimizations had the most impact?" in md
     assert "design.sv" in md  # verilog design filename
+    assert "./remaining_time" in md  # agent is told how to check its time budget
+    assert "Time budget" in md
+
+
+def test_write_remaining_time_wrapper(tmp_path):
+    from core.opencode_backend import write_remaining_time_wrapper
+    req = _make_req(tmp_path, wall_clock_s=300)
+    (req.workdir / "_deadline_epoch").write_text("9999999999")
+    w = write_remaining_time_wrapper(req)
+    assert w == req.workspace / "remaining_time"
+    assert os.access(w, os.X_OK), "remaining_time must be executable"
+    assert "_deadline_epoch" in w.read_text()
 
 
 def test_render_agents_md_spirehdl_design_py(tmp_path):

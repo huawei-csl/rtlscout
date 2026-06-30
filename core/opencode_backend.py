@@ -21,6 +21,7 @@ import json
 import os
 import shutil
 import sys
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict
 
@@ -96,6 +97,8 @@ def _opencode_execution_section(req: "BackendRequest", metric_name: str) -> str:
     design_file = _DESIGN_FILE_BY_LANG.get(req.language, "design.sv")
     budget_line = (f"You have an evaluation budget of ~{req.limits.max_evals} scored evaluations"
                    if req.limits.max_evals else "Use evaluations judiciously")
+    secs = req.limits.wall_clock_s
+    budget_min = f"~{secs // 60} minutes" if secs else "a fixed wall-clock budget"
     return f"""
 ## OpenCode execution environment (AUTHORITATIVE — overrides any tool notes above)
 
@@ -115,8 +118,16 @@ harness. Here you simply read, write and edit files directly and run shell comma
 This runs the project's evaluator on your design, prints correctness (lint/sim/CEC) and
 the `{metric_name}` cost, and snapshots the result. Use it to iterate: get a correct
 design first, then minimize `{metric_name}` cost without breaking correctness. {budget_line}.
-There is **no step limit** — you have a wall-clock budget; when you see a `[BUDGET]`
-message from the evaluator, finalize promptly.
+
+**Time budget — keep going until it runs out.** You have {budget_min} of wall-clock time and
+there is **no step/turn limit**. Check how much is left at any point by running:
+
+    ./remaining_time
+
+Do **NOT** stop after one or two evaluations. Keep trying genuinely different designs /
+micro-architectures (e.g. different multiplier/adder configurations, pipelining, sharing) and
+re-evaluating each with `./evaluate_design`, keeping the best result, until `./remaining_time`
+is near zero (or you see a `[BUDGET]` message). Only then do the required final steps below.
 
 **REQUIRED final steps before you stop (do these in order):**
 1. Make sure your best design is in `{design_file}` and run `./evaluate_design {design_file}`
@@ -128,12 +139,32 @@ Your design files carry over to the next agent, so refer to them by filename whe
 """
 
 
-def render_opencode_config(req: "BackendRequest") -> Dict:
-    """Render opencode.json. Plan/ask modes are not used; the custom 'rtl' agent gets
-    edit+bash so non-interactive runs apply edits (handover §4.8). Network tools off;
-    the provider key is supplied via env, never in this file (O4)."""
+# All opencode permission categories (v1.17.11 schema). The critical fix (handover §4.8):
+# in non-interactive `opencode run`, any permission left at the default "ask" is
+# AUTO-REJECTED and that aborts the run — which is exactly what killed a run mid-optimization
+# when the agent tried to read the SpireHDL package source (an `external_directory` access).
+# So we never leave a key at "ask": everything is "allow" or "deny".
+_ALL_PERMS = ["read", "edit", "glob", "grep", "list", "bash", "task", "external_directory",
+              "todowrite", "question", "webfetch", "websearch", "lsp", "doom_loop", "skill"]
+
+
+def _permissions(yolo: bool) -> Dict[str, str]:
+    """yolo=True → allow everything (safe only in an isolated sandbox). yolo=False → allow
+    everything needed to iterate, INCLUDING reading outside the workspace
+    (``external_directory``), but deny network (webfetch/websearch). No key is left at
+    "ask", so a denied tool simply returns 'denied' and the agent keeps going rather than
+    the run being aborted."""
+    if yolo:
+        return {k: "allow" for k in _ALL_PERMS}
+    return {k: ("deny" if k in ("webfetch", "websearch") else "allow") for k in _ALL_PERMS}
+
+
+def render_opencode_config(req: "BackendRequest", yolo: bool = False) -> Dict:
+    """Render opencode.json. The custom 'rtl' agent gets full local tool permissions so
+    non-interactive runs apply edits AND can read the SpireHDL package source to explore
+    architectures (handover §4.8). The provider key is supplied via env, never here (O4)."""
     model_arg = f"{req.provider}/{req.model}"
-    perms = {"edit": "allow", "bash": "allow", "webfetch": "deny"}
+    perms = _permissions(yolo)
     return {
         "$schema": "https://opencode.ai/config.json",
         "model": model_arg,
@@ -149,6 +180,17 @@ def render_opencode_config(req: "BackendRequest") -> Dict:
             },
         },
     }
+
+
+def _is_yolo(req: "BackendRequest") -> bool:
+    """YOLO (skip all permission prompts) when the agent runs in its OWN isolated container
+    (orchestrated ContainerSandbox) — safe because it can't reach the host/judge. Forceable
+    anywhere via RTLSCOUT_OPENCODE_YOLO=1 (e.g. when the whole harness runs in a throwaway
+    container). Single-container default is NOT yolo (the agent shares the container)."""
+    if os.environ.get("RTLSCOUT_OPENCODE_YOLO") == "1":
+        return True
+    sb = req.agent_sandbox
+    return sb is not None and not getattr(sb, "runs_in_process", True)
 
 
 def write_eval_config(req: "BackendRequest") -> Path:
@@ -183,6 +225,25 @@ def write_eval_wrapper(req: "BackendRequest") -> Path:
         "set -e\n"
         f'cd "{repo}" >/dev/null 2>&1\n'
         f'exec "{py}" -m core.eval_store --workspace "{ws}" --run-root "{rr}" "$@"\n'
+    )
+    wrapper.chmod(0o755)
+    return wrapper
+
+
+def write_remaining_time_wrapper(req: "BackendRequest") -> Path:
+    """Write an executable `remaining_time` command into the workspace so the agent can check
+    how much wall-clock budget is left. It reads the deadline file the backend stamps at
+    launch (an absolute path, so it works from any cwd and in a fresh container)."""
+    deadline_file = (req.workdir / "_deadline_epoch").resolve()
+    wrapper = req.workspace / "remaining_time"
+    wrapper.write_text(
+        "#!/usr/bin/env bash\n"
+        "# Remaining wall-clock budget for this optimization run.\n"
+        f'deadline=$(cat "{deadline_file}" 2>/dev/null || echo 0)\n'
+        'if ! [ "$deadline" -gt 0 ] 2>/dev/null; then echo "No wall-clock limit set."; exit 0; fi\n'
+        'rem=$(( deadline - $(date +%s) )); [ "$rem" -lt 0 ] && rem=0\n'
+        'printf "Remaining wall-clock budget: %dm %02ds (%ds total). Keep optimizing until near '
+        'zero; do not stop early.\\n" $((rem/60)) $((rem%60)) "$rem"\n'
     )
     wrapper.chmod(0o755)
     return wrapper
@@ -270,12 +331,16 @@ class OpenCodeBackend:
         workspace = req.workspace
         metric_name = _metric_name(req)
 
-        # Render + write the agent's instructions, config, and eval shim.
+        # Render + write the agent's instructions, config, and eval shim. The permission
+        # policy is decided + written PER RUN into the (mounted) workspace, so it applies to
+        # every freshly-spun orchestrated agent container — no image baking needed.
+        yolo = _is_yolo(req)
         (workspace / "AGENTS.md").write_text(render_agents_md(req))
-        opencode_cfg = render_opencode_config(req)
+        opencode_cfg = render_opencode_config(req, yolo)
         (workspace / "opencode.json").write_text(json.dumps(opencode_cfg, indent=2))
         write_eval_config(req)
         write_eval_wrapper(req)
+        write_remaining_time_wrapper(req)
 
         # Provider key via env (never in opencode.json).
         env: Dict[str, str] = {}
@@ -306,11 +371,22 @@ class OpenCodeBackend:
         # it via a shell (bash -c) reliably fixes it (env is identical either way — it's the
         # process/session context opencode's server-spawn needs). The kickoff is passed as $1 to
         # avoid any shell-quoting hazards; model_arg is a safe provider/model slug.
-        inner = f'exec opencode run --format json -m {model_arg} --agent rtl "$1"'
+        # YOLO (isolated sandbox): also auto-approve any not-explicitly-denied permission so a
+        # fresh container never stalls on a prompt. This flag is part of the per-run launch
+        # command, so it applies in every spawned agent container too.
+        skip_perm = " --dangerously-skip-permissions" if yolo else ""
+        inner = f'exec opencode run{skip_perm} --format json -m {model_arg} --agent rtl "$1"'
         argv = ["bash", "-c", inner, "opencode-rtl", kickoff]
 
         sandbox = req.agent_sandbox or LocalSandbox()
         spec = SandboxSpec(workdir=workspace, network="provider", limits=req.limits, env=env)
+
+        # Stamp the wall-clock deadline as close to launch as possible so the agent's
+        # ./remaining_time reflects the real budget (0 = no limit).
+        wall_s = req.limits.wall_clock_s
+        (req.workdir / "_deadline_epoch").write_text(
+            str(int(time.time()) + wall_s) if wall_s else "0")
+
         cmd_result = sandbox.run_command(argv, spec)
 
         # Persist the session for provenance + the agreement-gate tamper scan.
@@ -319,6 +395,7 @@ class OpenCodeBackend:
         (req.workdir / "_opencode_provenance.json").write_text(json.dumps({
             "opencode_pinned_version": OPENCODE_PINNED_VERSION,
             "model": model_arg,
+            "yolo": yolo,
             "argv": argv[:-1] + ["<kickoff>"],
             "returncode": cmd_result.returncode,
             "timed_out": cmd_result.timed_out,
