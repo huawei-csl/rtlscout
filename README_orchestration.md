@@ -263,13 +263,29 @@ flowchart TD
   DC["devcontainer (no rtlscout.* label)"] -. never matched .-> L3
 ```
 
-### Docker-in-docker note
+### Where to run the harness (and the docker-out-of-docker model)
 
-Orchestrated mode launches sibling containers via the host daemon, so the harness must run
-with the **docker socket** (`-v /var/run/docker.sock:…` + `--group-add <docker gid>`) and an
-**identity mount** of the repo (host path == container path) so generated wrappers/configs
-resolve in both the harness and the spawned containers. Agent containers use the default
-`bridge` network (egress to the model provider); judge containers use `--network none`.
+- **single-container:** the harness runs the agent + judge **in its own process**, so launch
+  it **inside a container that already has the toolchain + deps** (`rtlscout` /
+  `rtlscout-opencode`), or any environment with them installed. It can't run on the bare host
+  (it imports `tech_eval`/`spirehdl`).
+- **orchestrated:** the harness launches the agent + judge as **sibling containers on a real
+  docker daemon**, so it needs that daemon's socket plus paths that resolve on it. This is
+  **docker-*out*-of-docker** (siblings on the host daemon) — **not** a nested daemon
+  (docker-in-docker), which is deliberately avoided. So run the harness either:
+  - **on the host**, if the host has the Python deps installed; **or**
+  - **in a container** that bind-mounts the host **docker socket** (`-v
+    /var/run/docker.sock:…` + `--group-add <docker gid>`) and the host `docker` CLI, and
+    **identity-mounts** the repo (host path == container path) so the host daemon can mount
+    the right paths and generated wrappers/configs resolve in both the harness and the spawned
+    containers. **This is what the runbook below does** — the harness is itself a container,
+    and the agent/judge containers are its *siblings*, not children.
+
+  (So "you must be on the host" isn't strictly true — you must be able to **drive the host's
+  daemon**; a socket-mounted container does that fine, which is how it was validated.)
+
+Agent containers use the default `bridge` network (egress to the model provider); judge
+containers use `--network none`.
 
 ---
 

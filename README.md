@@ -216,16 +216,10 @@ sandbox while keeping recorded scores trustworthy:
 - `--mode single-container|orchestrated` — *where* it runs (here, or a fresh `docker run --rm`
   container per agent run **and** per scored candidate).
 
-On the **opencode** path the recorded score is always re-derived by the harness against the
-**benchmark's own inputs** (a clean-room re-eval), never trusted from the agent's container —
-so even a shelled agent can't fake its score (this runs even in single-container mode, though
-the full adversarial guarantee needs orchestrated mode). The built-in **react** agent has no
-shell, so its in-process number is already trustworthy and is used directly — the original
-default path is unchanged; add `--reeval` to re-derive it too. Orchestrated containers are
-managed purely by label (never by image), so a co-running VS Code devcontainer on the same
-`rtlscout:latest` image is never touched. See
-[README_orchestration.md](README_orchestration.md#when-does-the-authoritative-re-eval-run) for
-the exact when-it-runs matrix.
+The recorded score is re-derived by the harness against the **benchmark's own inputs** (a
+clean-room re-eval) so an agent with a shell can't fake it; the built-in **react** path is
+unchanged. Orchestrated containers are managed purely by label (never by image), so a
+co-running VS Code devcontainer on the same `rtlscout:latest` image is never touched.
 
 ```mermaid
 flowchart LR
