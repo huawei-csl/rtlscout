@@ -19,11 +19,12 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import shutil
 import sys
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict
+from typing import TYPE_CHECKING, Dict, Optional
 
 if TYPE_CHECKING:
     from core.agent import AgentResult
@@ -49,6 +50,35 @@ REFLECTION_PROMPTS = (
     "4. Lessons learned and what you would do differently next time."
 )
 
+# Summarizer turn (react parity): after the optimization session ends/is killed, we CONTINUE
+# the same opencode session and ask the agent to write summary.txt with full memory of the run
+# — mirroring RTLAgent._request_summary. This is NOT part of the wall-clock budget; it gets its
+# own short timeout below.
+SUMMARY_TURN_TIMEOUT_S = 180
+
+SUMMARY_KICKOFF = (
+    "The optimization session is over. Write a file named `summary.txt` in the current "
+    "directory — a brief, specific summary covering:\n" + REFLECTION_PROMPTS + "\n\n"
+    "Refer to your design files by name where useful. Be concise. Write ONLY summary.txt; do "
+    "not modify any design files."
+)
+
+
+def _extract_session_id(stdout: str) -> Optional[str]:
+    """Pull the opencode session id out of a `--format json` stream (events carry sessionID)."""
+    for line in (stdout or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            d = json.loads(line)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        sid = d.get("sessionID") or (d.get("part") or {}).get("sessionID")
+        if sid:
+            return sid
+    return None
+
 _DESIGN_FILE_BY_LANG = {"spirehdl": "design.py", "amaranth": "design.py", "verilog": "design.sv"}
 
 
@@ -68,13 +98,18 @@ def render_agents_md(req: "BackendRequest") -> str:
     prompt builders (their reference sets are small) + the shared execution section.
     """
     metric_name = _metric_name(req)
-    execution_section = _opencode_execution_section(req, metric_name)
 
     if req.language == "spirehdl":
+        # Clean, dedicated renderer — no react tool notes precede the workflow block.
         from core.agents_md_spire import render_spire_agents_md
+        execution_section = _opencode_execution_section(req, metric_name,
+                                                        supersedes_react_tools=False)
         return render_spire_agents_md(req, execution_section=execution_section,
                                       metric_name=metric_name, seed_text=req.system_prompt_extra)
 
+    # verilog/amaranth reuse the react prompt builders (which inline react tool notes), so the
+    # workflow block must announce it overrides them.
+    execution_section = _opencode_execution_section(req, metric_name, supersedes_react_tools=True)
     from core.prompts import build_amaranth_system_prompt, build_system_prompt
     td_settable = bool(req.cost_metric is not None and hasattr(req.cost_metric, "target_delay"))
     budget = req.limits.max_evals or req.limits.max_steps or 20
@@ -89,20 +124,35 @@ def render_agents_md(req: "BackendRequest") -> str:
     return "\n".join(parts)
 
 
-def _opencode_execution_section(req: "BackendRequest", metric_name: str) -> str:
+def _opencode_execution_section(req: "BackendRequest", metric_name: str,
+                                supersedes_react_tools: bool = False) -> str:
+    """Render the shared OpenCode workflow block.
+
+    ``supersedes_react_tools``: the verilog/amaranth paths reuse the react prompt builders,
+    which inline react-only tool notes (``create_file``/``run_evaluation``/``done`` + an
+    "always call a tool" rule); for them this block must say it overrides those. The SpireHDL
+    renderer (``core.agents_md_spire``) builds a clean prompt with no such notes, so it passes
+    False and this preamble is omitted.
+    """
     design_file = _DESIGN_FILE_BY_LANG.get(req.language, "design.sv")
     budget_line = (f"You have an evaluation budget of ~{req.limits.max_evals} scored evaluations"
                    if req.limits.max_evals else "Use evaluations judiciously")
     secs = req.limits.wall_clock_s
     budget_min = f"~{secs // 60} minutes" if secs else "a fixed wall-clock budget"
+    if supersedes_react_tools:
+        header = ("## OpenCode execution environment (AUTHORITATIVE — overrides any tool notes above)"
+                  "\n\nYou are running as an autonomous coding agent with a **real shell and your own"
+                  "\nfile-editing tools**, in your working directory. Ignore any earlier references to"
+                  "\n`create_file` / `replace_file` / `apply_diff` / `edit_file` / `run_evaluation` /"
+                  ' `done`\ntools and to a per-response "always call a tool" rule — those describe a'
+                  " *different*\nharness. Here you simply read, write and edit files directly and run"
+                  " shell commands.")
+    else:
+        header = ("## How you work here\n\nYou are an autonomous coding agent with a **real shell and"
+                  " your own file-editing tools**.\nRead, write and edit files directly and run shell"
+                  " commands in your working directory.")
     return f"""
-## OpenCode execution environment (AUTHORITATIVE — overrides any tool notes above)
-
-You are running as an autonomous coding agent with a **real shell and your own
-file-editing tools**, in your working directory. Ignore any earlier references to
-`create_file` / `replace_file` / `apply_diff` / `edit_file` / `run_evaluation` / `done`
-tools and to a per-response "always call a tool" rule — those describe a *different*
-harness. Here you simply read, write and edit files directly and run shell commands.
+{header}
 
 **Your design file:** put your design in `{design_file}` in the current directory
 (create helper files as needed).
@@ -128,15 +178,15 @@ out) — a quick look at the SpireHDL API is fine, but do **not** burn your budg
 Do **NOT** stop after one or two evaluations. Keep trying genuinely different designs /
 micro-architectures (e.g. different multiplier/adder configurations, pipelining, sharing) and
 re-evaluating each with `./evaluate_design`, keeping the best result, until `./remaining_time`
-is near zero (or you see a `[BUDGET]` message). Only then do the required final steps below.
+is near zero (or you see a `[BUDGET]` message).
 
-**REQUIRED final steps before you stop (do these in order):**
-1. Make sure your best design is in `{design_file}` and run `./evaluate_design {design_file}`
-   one final time so the recorded best reflects it.
-2. Write a file named `summary.txt` in the current directory, a brief, specific summary covering:
-{REFLECTION_PROMPTS}
-
-Your design files carry over to the next agent, so refer to them by filename where useful.
+**Finishing up — no special wrap-up needed.** Every design you score with `./evaluate_design`
+is automatically saved as a candidate, and after the session the harness independently
+re-scores all candidates and keeps the best one — so you do **not** need to restore your best
+design into `{design_file}` or run a "final" evaluation. Just make sure every version you want
+considered has been scored at least once (a design you edit but never evaluate is not a
+candidate). Keep improving and evaluating until time runs out; you'll be asked separately to
+write a short summary afterward.
 """
 
 
@@ -390,9 +440,28 @@ class OpenCodeBackend:
 
         cmd_result = sandbox.run_command(argv, spec)
 
-        # Persist the session for provenance + the agreement-gate tamper scan.
-        (req.workdir / "opencode_session.log").write_text(
-            (cmd_result.stdout or "") + "\n--- STDERR ---\n" + (cmd_result.stderr or ""))
+        # Summarizer turn (react parity, handover §5.2): CONTINUE the same session and ask the
+        # agent to write summary.txt with full memory of what it did — the optimization run is
+        # killed at the wall-clock (mid-iteration), so it never reaches a "write summary" step on
+        # its own. Runs with its own short timeout, NOT counted against the optimization budget.
+        # Falls back to _harvest's _synth_summary if the session can't be continued.
+        from core.agent_backend import RunLimits
+        session_id = _extract_session_id(cmd_result.stdout)
+        summary_result = None
+        if session_id:
+            s_inner = (f'exec opencode run --session {shlex.quote(session_id)}{skip_perm} '
+                       f'--format json -m {model_arg} --agent rtl "$1"')
+            summary_argv = ["bash", "-c", s_inner, "opencode-rtl", SUMMARY_KICKOFF]
+            summary_spec = SandboxSpec(workdir=workspace, network="provider",
+                                       limits=RunLimits(wall_clock_s=SUMMARY_TURN_TIMEOUT_S), env=env)
+            summary_result = sandbox.run_command(summary_argv, summary_spec)
+
+        # Persist both turns for provenance + the agreement-gate tamper scan.
+        session_log = (cmd_result.stdout or "") + "\n--- STDERR ---\n" + (cmd_result.stderr or "")
+        if summary_result is not None:
+            session_log += ("\n\n=== SUMMARY TURN ===\n" + (summary_result.stdout or "")
+                            + "\n--- STDERR ---\n" + (summary_result.stderr or ""))
+        (req.workdir / "opencode_session.log").write_text(session_log)
         (req.workdir / "_opencode_provenance.json").write_text(json.dumps({
             "opencode_pinned_version": OPENCODE_PINNED_VERSION,
             "model": model_arg,
@@ -400,6 +469,11 @@ class OpenCodeBackend:
             "argv": argv[:-1] + ["<kickoff>"],
             "returncode": cmd_result.returncode,
             "timed_out": cmd_result.timed_out,
+            "summary_turn": {
+                "session_id": session_id,
+                "ran": summary_result is not None,
+                "returncode": getattr(summary_result, "returncode", None),
+            },
             "opencode_config": opencode_cfg,
         }, indent=2))
 

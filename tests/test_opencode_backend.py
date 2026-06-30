@@ -39,6 +39,15 @@ def _make_req(tmp_path, language="verilog", model="z-ai/glm-4.6", provider="open
     )
 
 
+def test_extract_session_id():
+    from core.opencode_backend import _extract_session_id
+    stream = ('{"type":"step_start","sessionID":"ses_abc123","part":{}}\n'
+              '{"type":"text","part":{"text":"hi"}}\n')
+    assert _extract_session_id(stream) == "ses_abc123"
+    assert _extract_session_id("") is None
+    assert _extract_session_id("not json\n") is None
+
+
 def test_make_backend_opencode():
     from core.agent_backend import make_backend
     from core.opencode_backend import OpenCodeBackend
@@ -51,14 +60,15 @@ def test_render_agents_md_overrides_react_mechanics(tmp_path):
     req = _make_req(tmp_path, language="verilog")
     md = render_agents_md(req)
     # The opencode execution section must be present and reference the eval wrapper +
-    # the verbatim reflection prompts + the right design filename.
+    # the right design filename. (summary.txt is no longer requested in AGENTS.md — the
+    # harness drives a separate summarizer turn after the run.)
     assert "OpenCode execution environment" in md
     assert "./evaluate_design" in md
-    assert "summary.txt" in md
-    assert "What optimizations had the most impact?" in md
     assert "design.sv" in md  # verilog design filename
     assert "./remaining_time" in md  # agent is told how to check its time budget
     assert "Time budget" in md
+    assert "no special wrap-up needed" in md  # finishing-up wording (no manual final eval)
+    assert "summary.txt" not in md            # summary is harness-driven, not asked of the agent
     assert "time wisely" in md.lower()  # steered to iterate, not dig through the harness
 
 
@@ -99,6 +109,21 @@ def test_spirehdl_agents_md_no_verbose_overview(tmp_path):
     from core.opencode_backend import render_agents_md
     md = render_agents_md(_make_req(tmp_path, language="spirehdl"))
     assert "## SpireHDL Overview" not in md
+
+
+def test_react_tool_override_only_when_needed(tmp_path):
+    """SpireHDL has no react tool notes, so it must NOT carry the 'overrides any tool notes' /
+    'Ignore any earlier references' preamble; verilog reuses the react builder, so it must."""
+    from core.opencode_backend import render_agents_md
+    spire = render_agents_md(_make_req(tmp_path / "s", language="spirehdl"))
+    assert "overrides any tool notes above" not in spire
+    assert "Ignore any earlier references" not in spire
+    assert "## How you work here" in spire           # clean replacement intro
+    assert "./evaluate_design" in spire               # workflow still present
+
+    verilog = render_agents_md(_make_req(tmp_path / "v", language="verilog"))
+    assert "overrides any tool notes above" in verilog
+    assert "Ignore any earlier references" in verilog
 
 
 def test_render_opencode_config(tmp_path):
