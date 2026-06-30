@@ -273,7 +273,12 @@ flowchart TD
   docker daemon**, so it needs that daemon's socket plus paths that resolve on it. This is
   **docker-*out*-of-docker** (siblings on the host daemon) — **not** a nested daemon
   (docker-in-docker), which is deliberately avoided. So run the harness either:
-  - **on the host**, if the host has the Python deps installed; **or**
+  - **on the host** — works too, but it's **more setup**: you first have to install the Python
+    deps into a host environment (`pip install -e deps/spire-hdl -e deps/tech_eval -r
+    requirements.txt`) because the harness imports `tech_eval`/`spirehdl`. (Only the Python
+    deps + docker are needed on the host — **not** the EDA toolchain, since `evaluate()` runs
+    inside the judge *containers*. The container option below bundles all of that, which is why
+    it's the easier, validated path.) **or**
   - **in a container** that bind-mounts the host **docker socket** (`-v
     /var/run/docker.sock:…` + `--group-add <docker gid>`) and the host `docker` CLI, and
     **identity-mounts** the repo (host path == container path) so the host daemon can mount
@@ -311,6 +316,15 @@ docker run --rm -v "$PWD:$PWD" -v /usr/bin/docker:/usr/bin/docker:ro \
     python run_multirun.py --benchmark fpmul_f16 --model openrouter:z-ai/glm-5.2 --language spirehdl \
       --agent-backend opencode --mode orchestrated --total-runs 4 \
       --wall-clock-min 10 --max-evals 12 --skip-cec --runs-root "'"$PWD"'/runs/orch"'
+
+# 3b) ALTERNATIVE to (3): launch from the HOST instead of a harness container. More work —
+#     the host first needs the Python deps installed (the harness imports tech_eval/spirehdl);
+#     it does NOT need the EDA toolchain (that lives in the judge containers). Option (3) is the
+#     bundled, validated path; this is here for completeness.
+pip install -e deps/spire-hdl -e deps/tech_eval -r requirements.txt   # one-time host setup
+python run_multirun.py --benchmark fpmul_f16 --model openrouter:z-ai/glm-5.2 --language spirehdl \
+    --agent-backend opencode --mode orchestrated --total-runs 4 \
+    --wall-clock-min 10 --max-evals 12 --skip-cec --runs-root runs/orch
 
 python rtlscout_cli.py cleanup --session <id-printed-at-start>
 ```
