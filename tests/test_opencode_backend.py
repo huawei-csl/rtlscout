@@ -59,6 +59,7 @@ def test_render_agents_md_overrides_react_mechanics(tmp_path):
     assert "design.sv" in md  # verilog design filename
     assert "./remaining_time" in md  # agent is told how to check its time budget
     assert "Time budget" in md
+    assert "time wisely" in md.lower()  # steered to iterate, not dig through the harness
 
 
 def test_write_remaining_time_wrapper(tmp_path):

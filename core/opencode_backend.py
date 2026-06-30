@@ -124,6 +124,11 @@ there is **no step/turn limit**. Check how much is left at any point by running:
 
     ./remaining_time
 
+**Use your time wisely:** spend it making and *evaluating design changes*, not investigating
+the harness/evaluator internals. Treat `./evaluate_design` as a black box (design in, score
+out) — a quick look at the SpireHDL API is fine, but do **not** burn your budget reading
+`core/`, the cost-metric implementation, or the testbench plumbing.
+
 Do **NOT** stop after one or two evaluations. Keep trying genuinely different designs /
 micro-architectures (e.g. different multiplier/adder configurations, pipelining, sharing) and
 re-evaluating each with `./evaluate_design`, keeping the best result, until `./remaining_time`
