@@ -88,6 +88,12 @@ def main():
     parser.add_argument("--reeval", action="store_true",
                         help="Force the authoritative post-run re-score on the react path too "
                              "(always on for opencode) — for apples-to-apples A/B parity")
+    parser.add_argument("--wall-clock-min", type=float, default=0.0,
+                        help="Hard per-run wall-clock budget in MINUTES (opencode backend; "
+                             "0 = no limit). The react backend uses --max-steps instead.")
+    parser.add_argument("--max-evals", type=int, default=None,
+                        help="Soft per-run eval-count cap enforced by the eval shim (opencode "
+                             "backend). Default: unlimited.")
     args = parser.parse_args()
 
     runs_root = None
@@ -121,6 +127,8 @@ def main():
         agent_backend=args.agent_backend,
         deploy_mode=args.mode,
         reeval=args.reeval,
+        wall_clock_s=int(args.wall_clock_min * 60),
+        max_evals=args.max_evals,
     )
 
 

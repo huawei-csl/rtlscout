@@ -24,7 +24,11 @@ Plan file: `~/.claude/plans/use-rtl-scout-public-as-a-cuddly-harp.md`.
     -e deps/tech_eval -r requirements.txt`).
   - run things with:
     `docker exec -u vscode -w /workspaces/rtl_scout rtlscout-oc-dev bash -lc '<cmd>'`.
-- **Real-LLM model:** `openrouter / GLM 5.2` (fallback 5.1), kept token-minimal.
+- **Real-LLM model:** `openrouter:z-ai/glm-5.2` (resolved slug; fallback `z-ai/glm-5.1`), token-minimal.
+- **OpenCode:** pinned **v1.17.11** (official release from `github.com/anomalyco/opencode`, the source
+  opencode.ai's installer uses). Installed via `.devcontainer/Dockerfile.opencode` →
+  `rtlscout-opencode:latest` (`FROM rtlscout:latest` + opencode + baked deps; a SEPARATE tag that
+  never overwrites `rtlscout:latest`). The dev container `rtlscout-oc-dev` now runs this image.
 
 ## Design decisions adopted (handover §10)
 
@@ -88,7 +92,25 @@ overwrite `rtlscout:latest`; all managed-container selectors are label-based, ne
   `_make_task` shadowed the new deployment mode in the task dict; renamed the param to
   `deploy_mode`.
 
-### Phase 2 — OpenCodeBackend (single-container) — 🟡 CODE DONE, live validation pending install
+### Phase 2 — OpenCodeBackend (single-container) — ✅ DONE (live-validated with GLM 5.2)
+- `core/opencode_backend.py` renders AGENTS.md + opencode.json + `_eval_config.json` + the
+  `evaluate_design` wrapper, launches a fresh non-interactive opencode run, harvests the on-disk tree.
+- Budget knobs added (handover §4.3): `wall_clock_s` (hard) + `max_evals` (soft) threaded through
+  `run_agent_on_benchmark` → multirun → CLIs (`--wall-clock-min`, `--max-evals`). Without these an
+  opencode run would be unbounded.
+- `.devcontainer/Dockerfile.opencode` + `.dockerignore`; built `rtlscout-opencode:latest`.
+- **Live validation (GLM 5.2, single-container, simple_adder):**
+  - opencode smoke → **PASS, 308 transistors**, 3 evals; authoritative re-eval applied
+    (advisory=authoritative=308, not diverged); pool updated.
+  - real react-vs-opencode **A/B** → both PASS, both authoritative 308, both feed the pool.
+  - §4.8 live non-interactive write-gate → **passed**.
+  - full offline `pytest -q tests/` → **55 passed, 1 skipped**.
+- **Key debugging finding (deviation/fix):** opencode's `run` spawns an internal server that fails
+  with a generic `UnknownError: Unexpected server error` when launched as a **bare subprocess in
+  `--agent` mode** (bash launch of the identical command worked; environments were byte-identical).
+  Fix: launch opencode via `bash -c 'exec opencode run … "$1"' _ <kickoff>` (kickoff as `$1` to avoid
+  quoting hazards). Also set `HOME` to a run-local `_ochome` so opencode's cache/config never depend
+  on container HOME ownership. Both diagnosed by bisecting bash-vs-subprocess × with/without `--agent`.
 - New `core/opencode_backend.py`: `OpenCodeBackend.run` — renders `AGENTS.md` (per-language
   `core.prompts` output + seed text + an **OpenCode execution section** that overrides the react
   tool mechanics and documents `./evaluate_design` + the required final steps incl. the four
@@ -124,4 +146,8 @@ overwrite `rtlscout:latest`; all managed-container selectors are label-based, ne
 
 ## Token spend (real-LLM checks)
 
-- *(none yet)*
+- Phase 2 (GLM 5.2 via OpenRouter, all on the trivial `simple_adder`): a handful of tiny
+  connectivity/bisect "PONG" calls (~hundreds of tokens each) during the bash-vs-subprocess
+  debugging; one opencode smoke (~3 evals), one react A/B leg (~3 steps), one §4.8 write-gate run.
+  Total a few cents (per-call cost observed ≈ $0.003). Kept minimal per the "don't spend too many
+  tokens" constraint.

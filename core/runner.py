@@ -217,6 +217,8 @@ def run_agent_on_benchmark(
     fsm_optimize: bool = False,
     run_cec: bool = True,
     agent_backend: str = "react",
+    wall_clock_s: int = 0,
+    max_evals: Optional[int] = None,
 ) -> AgentResult:
     """Execute the agent on a single benchmark and return the result.
 
@@ -252,7 +254,7 @@ def run_agent_on_benchmark(
         cec_reference=cec_reference,
         run_cec=run_cec,
         save_workspaces=save_workspaces,
-        limits=RunLimits(max_steps=max_steps),
+        limits=RunLimits(max_steps=max_steps, wall_clock_s=wall_clock_s, max_evals=max_evals),
         flowy_optimize=flowy_optimize,
         abc_optimize=abc_optimize,
         arith_autoconfig=arith_autoconfig,

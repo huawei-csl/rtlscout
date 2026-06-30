@@ -285,6 +285,14 @@ class OpenCodeBackend:
             if val:
                 env[keyvar] = val
 
+        # Give opencode a guaranteed-writable HOME under the run dir, so its config/cache
+        # never depend on the container's HOME ownership (robust across uid remapping /
+        # fresh orchestrated containers). Project-local opencode.json + the env key mean
+        # no global config or auth file is needed.
+        oc_home = req.workdir / "_ochome"
+        oc_home.mkdir(parents=True, exist_ok=True)
+        env["HOME"] = str(oc_home)
+
         model_arg = f"{req.provider}/{req.model}"
         kickoff = (
             "Implement and optimize the RTL design described in AGENTS.md. Start with a simple "
@@ -293,7 +301,13 @@ class OpenCodeBackend:
             "AGENTS.md before you stop."
         )
         # Fresh session, machine-readable output. NO -c/--session/--attach (handover §4.2).
-        argv = ["opencode", "run", "--format", "json", "-m", model_arg, "--agent", "rtl", kickoff]
+        # IMPORTANT: opencode's `run` spawns an internal server that fails with a generic
+        # "Unexpected server error" when launched as a bare subprocess in --agent mode; running
+        # it via a shell (bash -c) reliably fixes it (env is identical either way — it's the
+        # process/session context opencode's server-spawn needs). The kickoff is passed as $1 to
+        # avoid any shell-quoting hazards; model_arg is a safe provider/model slug.
+        inner = f'exec opencode run --format json -m {model_arg} --agent rtl "$1"'
+        argv = ["bash", "-c", inner, "opencode-rtl", kickoff]
 
         sandbox = req.agent_sandbox or LocalSandbox()
         spec = SandboxSpec(workdir=workspace, network="provider", limits=req.limits, env=env)

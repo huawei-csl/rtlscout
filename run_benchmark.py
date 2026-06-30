@@ -58,6 +58,10 @@ def main():
                         help="Agent backend: 'react' (default, in-process loop) or 'opencode' "
                              "(external shell agent). NOTE: this single-run path produces ADVISORY "
                              "numbers only; for authoritative re-eval use run_multirun.py --total-runs 1")
+    parser.add_argument("--wall-clock-min", type=float, default=0.0,
+                        help="Hard wall-clock budget in MINUTES for the opencode backend (0 = none)")
+    parser.add_argument("--max-evals", type=int, default=None,
+                        help="Soft eval-count cap for the opencode backend (default: unlimited)")
     args = parser.parse_args()
 
     model_provider, model = parse_model_spec(args.model)
@@ -89,6 +93,8 @@ def main():
         dont_touch_main_arith=args.dont_touch_main_arith,
         run_cec=not args.skip_cec,
         agent_backend=args.agent_backend,
+        wall_clock_s=int(args.wall_clock_min * 60),
+        max_evals=args.max_evals,
     )
 
     if result.passed:

@@ -1,0 +1,45 @@
+# rtlscout-opencode:latest  =  rtlscout:latest  +  pinned OpenCode  +  baked Python deps
+#
+# Used for the OpenCode agent backend's containers (handover §5.4/§5.5):
+#   - orchestrated AGENT containers (need opencode + the EDA toolchain + python deps)
+#   - orchestrated JUDGE containers (need the toolchain + deps to run evaluate(); opencode
+#     is harmless extra surface, so one image serves both roles)
+#   - single-container live testing (run the harness inside this image)
+#
+# IMPORTANT (devcontainer safety): this is a SEPARATE image tag. It is built FROM
+# rtlscout:latest and never overwrites it, so the running rtl_scout devcontainer is
+# unaffected. Build from the repo root:
+#
+#   docker build -f .devcontainer/Dockerfile.opencode -t rtlscout-opencode:latest .
+#
+# The repo's core.* + benchmarks + .env are bind-mounted at runtime; only the slow-moving
+# Python deps (spire-hdl / tech_eval / requirements) are baked so containers start fast.
+
+FROM rtlscout:latest
+
+# Pin OpenCode (re-verify CLI flags / opencode.json schema against this exact version).
+ARG OPENCODE_VERSION=1.17.11
+
+USER root
+
+# Install the pinned OpenCode binary from the official release (the same source the
+# opencode.ai installer uses: the project moved orgs sst -> anomalyco).
+RUN curl -fsSL -o /tmp/oc.tgz \
+      "https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}/opencode-linux-x64.tar.gz" \
+ && tar -xzf /tmp/oc.tgz -C /tmp \
+ && cp "$(find /tmp -maxdepth 2 -type f -name opencode | head -1)" /usr/local/bin/opencode \
+ && chmod 0755 /usr/local/bin/opencode \
+ && rm -rf /tmp/oc.tgz /tmp/opencode* \
+ && /usr/local/bin/opencode --version
+
+# Bake the Python deps into the image's venv so orchestrated containers don't pip-install
+# on every launch. (Non-editable snapshot; the mounted repo provides core.* at runtime.)
+COPY deps/spire-hdl /opt/rtlscout-deps/spire-hdl
+COPY deps/tech_eval /opt/rtlscout-deps/tech_eval
+COPY requirements.txt /opt/rtlscout-deps/requirements.txt
+RUN chown -R vscode:vscode /opt/rtlscout-deps
+
+USER vscode
+RUN bash -lc '. /home/vscode/pyenv_eda/bin/activate \
+ && uv pip install /opt/rtlscout-deps/spire-hdl /opt/rtlscout-deps/tech_eval \
+ && uv pip install -r /opt/rtlscout-deps/requirements.txt'

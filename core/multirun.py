@@ -386,6 +386,8 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
     technology = task.get("technology", "asap7")
     agent_backend = task.get("agent_backend", "react")
     deploy_mode = task.get("mode", "single-container")
+    wall_clock_s = task.get("wall_clock_s", 0)
+    max_evals = task.get("max_evals")
     # Authoritative re-eval is mandatory on the opencode path (its container is
     # untrusted); on react it is opt-in via --reeval purely for A/B parity.
     do_reeval = bool(task.get("reeval", False)) or agent_backend == "opencode"
@@ -430,6 +432,8 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
             fsm_optimize=fsm_optimize,
             run_cec=run_cec,
             agent_backend=agent_backend,
+            wall_clock_s=wall_clock_s,
+            max_evals=max_evals,
         )
         result_dict = result.to_dict()
         result_dict["status"] = "ok"
@@ -527,6 +531,8 @@ def run_multirun(
     agent_backend: str = "react",
     deploy_mode: str = "single-container",
     reeval: bool = False,
+    wall_clock_s: int = 0,
+    max_evals: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Run the async elite-pool multi-run optimization.
 
@@ -687,6 +693,8 @@ def run_multirun(
             "agent_backend": agent_backend,
             "mode": deploy_mode,
             "reeval": reeval,
+            "wall_clock_s": wall_clock_s,
+            "max_evals": max_evals,
         }
 
     with ProcessPoolExecutor(max_workers=max_concurrent) as executor:

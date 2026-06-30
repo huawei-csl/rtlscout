@@ -1,0 +1,16 @@
+# Keep the Docker build context small (esp. for Dockerfile.opencode). None of these are
+# needed to build an image; the repo is bind-mounted into containers at runtime.
+.git
+runs
+runs_*
+method_collection*
+plots
+logs_*
+runs_pareto
+__pycache__
+**/__pycache__
+*.pyc
+.pytest_cache
+.spirehdl_cache
+imgs
+internal_docs
