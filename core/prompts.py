@@ -478,12 +478,10 @@ def build_spirehdl_system_prompt(description: str, cost_metric_name: str, extra:
                                   arith_autoconfig: bool = False,
                                   dont_touch_main_arith: bool = False,
                                   fsm_optimize: bool = False,
-                                  cost_metric_note: str = "",
-                                  inline_references: bool = True) -> str:
-    # inline_references=False (OpenCode: shell + read access) emits compact pointers to the
-    # spire-hdl READMEs + reference files instead of inlining ~tens of KB of source.
-    references_block = (_build_references_block(SPIREHDL_REFERENCES) if inline_references
-                        else _build_reference_pointers_block(SPIREHDL_REFERENCES))
+                                  cost_metric_note: str = "") -> str:
+    # The react loop inlines the reference sources. (The OpenCode+SpireHDL path uses the lean
+    # pointer-based renderer in core.agents_md_spire instead.)
+    references_block = _build_references_block(SPIREHDL_REFERENCES)
     cost_note_block = (f"\n\n**Cost metric `{cost_metric_name}`:** {cost_metric_note}"
                        if cost_metric_note else "")
 

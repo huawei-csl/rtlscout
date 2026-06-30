@@ -61,38 +61,31 @@ def _metric_name(req: "BackendRequest") -> str:
 
 
 def render_agents_md(req: "BackendRequest") -> str:
-    """Render AGENTS.md: the per-language task/spec prompt from core.prompts, the seed
-    text, and an OpenCode execution section that overrides the react tool mechanics."""
-    from core.prompts import (build_amaranth_system_prompt, build_spirehdl_system_prompt,
-                              build_system_prompt)
+    """Render AGENTS.md for an OpenCode run.
 
+    SpireHDL gets a dedicated, lean renderer (``core.agents_md_spire``) — a shell-capable
+    agent doesn't need ~100 KB of inlined SpireHDL source. Verilog/Amaranth reuse the react
+    prompt builders (their reference sets are small) + the shared execution section.
+    """
     metric_name = _metric_name(req)
-    td_settable = bool(req.cost_metric is not None and hasattr(req.cost_metric, "target_delay"))
-    budget = req.limits.max_evals or req.limits.max_steps or 20
+    execution_section = _opencode_execution_section(req, metric_name)
 
     if req.language == "spirehdl":
-        # inline_references=False: the OpenCode agent has a shell + read access, so point it at
-        # the spire-hdl README + reference files (which it can `cat`) instead of inlining ~tens
-        # of KB of source into AGENTS.md.
-        base = build_spirehdl_system_prompt(
-            req.benchmark.description, metric_name, extra="",
-            target_delay_is_settable=td_settable, max_steps=budget,
-            flowy_optimize=req.flowy_optimize, abc_optimize=req.abc_optimize,
-            arith_autoconfig=req.arith_autoconfig, dont_touch_main_arith=req.dont_touch_main_arith,
-            fsm_optimize=req.fsm_optimize, inline_references=False)
-    elif req.language == "amaranth":
-        base = build_amaranth_system_prompt(
-            req.benchmark.description, metric_name, extra="",
-            target_delay_is_settable=td_settable, max_steps=budget)
-    else:
-        base = build_system_prompt(
-            req.benchmark.description, metric_name, extra="",
-            target_delay_is_settable=td_settable, max_steps=budget)
+        from core.agents_md_spire import render_spire_agents_md
+        return render_spire_agents_md(req, execution_section=execution_section,
+                                      metric_name=metric_name, seed_text=req.system_prompt_extra)
+
+    from core.prompts import build_amaranth_system_prompt, build_system_prompt
+    td_settable = bool(req.cost_metric is not None and hasattr(req.cost_metric, "target_delay"))
+    budget = req.limits.max_evals or req.limits.max_steps or 20
+    builder = build_amaranth_system_prompt if req.language == "amaranth" else build_system_prompt
+    base = builder(req.benchmark.description, metric_name, extra="",
+                   target_delay_is_settable=td_settable, max_steps=budget)
 
     parts = [base]
     if req.system_prompt_extra:
         parts.append("\n## Additional guidance (seed / lessons)\n\n" + req.system_prompt_extra)
-    parts.append(_opencode_execution_section(req, metric_name))
+    parts.append(execution_section)
     return "\n".join(parts)
 
 

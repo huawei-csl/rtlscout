@@ -88,10 +88,17 @@ def test_spirehdl_agents_md_points_to_readme_not_inlined(tmp_path):
     md = render_agents_md(_make_req(tmp_path, language="spirehdl"))
     assert "deps/spire-hdl/README.md" in md          # points at the main README
     assert "read these files yourself" in md          # tells the agent to read them
+    assert "Common mistakes" in md                    # the curated hints are inlined
+    # the dedicated renderer must be far smaller than the react prompt that inlines the sources
+    inlined = build_spirehdl_system_prompt("d", "area")
+    assert len(md) < len(inlined) / 2                 # materially smaller (~80%+)
 
-    inlined = build_spirehdl_system_prompt("d", "area", inline_references=True)
-    pointer = build_spirehdl_system_prompt("d", "area", inline_references=False)
-    assert len(pointer) < len(inlined) / 2            # materially smaller (it's ~88% smaller)
+
+def test_spirehdl_agents_md_no_verbose_overview(tmp_path):
+    """The verbose react 'SpireHDL Overview' prose is dropped in the OpenCode renderer."""
+    from core.opencode_backend import render_agents_md
+    md = render_agents_md(_make_req(tmp_path, language="spirehdl"))
+    assert "## SpireHDL Overview" not in md
 
 
 def test_render_opencode_config(tmp_path):
