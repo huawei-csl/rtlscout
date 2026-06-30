@@ -128,7 +128,35 @@ overwrite `rtlscout:latest`; all managed-container selectors are label-based, ne
   from `github.com/anomalyco/opencode/releases` (the project moved orgs `sst`→`anomalyco`); latest =
   **v1.17.11** (pinned in `OPENCODE_PINNED_VERSION`). Awaiting user decision on the install.
 
-### Phase 3 — ContainerSandbox + orchestrated mode + cleanup — ⬜ TODO
+### Phase 3 — ContainerSandbox + orchestrated mode + cleanup — ✅ DONE (live-validated)
+- `core/containers.py`: label scheme (`rtlscout.managed/session/role/run/started`) + label-scoped
+  `list_managed`/`cleanup` (refuses `devcontainer.local_folder`); `rtlscout_cli.py` exposes
+  `cleanup`/`list` (plain CLI, works without the harness — orphan sweep, §5.5 layer 3).
+- `core/sandbox.py`: `ContainerSandbox` (`docker run --rm`, rtlscout labels, **identity mounts**
+  host==container to avoid docker-in-docker path translation, `--user` host uid so bind mounts are
+  writable, network/cpu/memory limits) + a crash-safety registry (atexit + SIGINT/SIGTERM reap,
+  §5.5 layer 1). `LocalSandbox.runs_in_process=True` / `ContainerSandbox=False`.
+- `core/reeval.py`: container-judge branch (a fresh `--rm` judge container per candidate runs
+  `python -m core.reeval --eval-dir …` against the benchmark's own inputs) + that CLI.
+- `core/multirun.py`: `--mode orchestrated` wiring — one `session_id` per campaign;
+  `_make_agent_sandbox` (network=bridge for provider egress) + `_make_judge_sandbox` (network=none);
+  `agent_sandbox` threaded into `run_agent_on_benchmark`/`BackendRequest`.
+- Image: `.devcontainer/Dockerfile.opencode` also `chmod -R a+rX /home/vscode` so orchestrated
+  containers running as the host uid can use the baked venv. Host `docker` CLI is bind-mounted into
+  the harness container for docker-in-docker (no daemon-in-image needed).
+- New `tests/test_containers.py` (2 docker tests; skip without docker).
+- **Verified:** container tests (label-scoped cleanup; devcontainer stand-in survives; the
+  `devcontainer.local_folder` guard; running-orphan sweep) → **2 passed** (host). `rtlscout_cli list`
+  shows only managed containers, never `nervous_elbakyan`. **Real orchestrated mini-campaign**
+  (GLM 5.2, simple_adder, agent container + per-candidate judge containers): **PASS 308**,
+  authoritative re-eval applied (n_evals=3, not diverged), all sibling containers auto-removed (no
+  orphans), `nervous_elbakyan` still Up, `rtlscout:latest` (`ed0a02eda4b8`) unchanged throughout.
+- **Deviations/notes:** `rtlscout --cleanup` is a `cleanup` **subcommand** (`python rtlscout_cli.py
+  cleanup`) rather than a `--cleanup` flag. One image (`rtlscout-opencode:latest`) serves both agent
+  and judge roles (judge ignores the opencode binary). Orchestrated mode requires the harness to run
+  with an **identity mount** of the repo (host path == container path) + the docker socket; the
+  agent network is `bridge` (broad egress) rather than a provider-only allowlist — a Phase-4
+  hardening lever.
 
 ---
 
@@ -151,3 +179,6 @@ overwrite `rtlscout:latest`; all managed-container selectors are label-based, ne
   debugging; one opencode smoke (~3 evals), one react A/B leg (~3 steps), one §4.8 write-gate run.
   Total a few cents (per-call cost observed ≈ $0.003). Kept minimal per the "don't spend too many
   tokens" constraint.
+- Phase 3 (GLM 5.2, simple_adder): one real orchestrated campaign (1 opencode agent run ~3 evals +
+  3 judge re-evals, all on simple_adder). The container-management tests use a dummy `ubuntu:24.04`
+  image and spend nothing. Cumulative real-LLM spend well under the $10 budget the user OK'd.

@@ -219,6 +219,7 @@ def run_agent_on_benchmark(
     agent_backend: str = "react",
     wall_clock_s: int = 0,
     max_evals: Optional[int] = None,
+    agent_sandbox=None,
 ) -> AgentResult:
     """Execute the agent on a single benchmark and return the result.
 
@@ -260,6 +261,7 @@ def run_agent_on_benchmark(
         arith_autoconfig=arith_autoconfig,
         dont_touch_main_arith=dont_touch_main_arith,
         fsm_optimize=fsm_optimize,
+        agent_sandbox=agent_sandbox,
     )
 
     print(f"\n{'='*60}")

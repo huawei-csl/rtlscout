@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 import shutil
 import tempfile
 from pathlib import Path
@@ -191,16 +192,39 @@ def reeval_run(run_dir: Path, benchmark, judge_sandbox, *, cost_metric, language
         report["flags"].append("no eval_*/ to re-score")
         return report
 
-    parent_tmp = run_dir / "_reeval"
-    parent_tmp.mkdir(exist_ok=True)
-    try:
-        authoritative: List[Dict[str, Any]] = []
+    authoritative: List[Dict[str, Any]] = []
+    if getattr(judge_sandbox, "runs_in_process", True):
+        # Local judge: re-eval each candidate in-process (single-container mode).
+        parent_tmp = run_dir / "_reeval"
+        parent_tmp.mkdir(exist_ok=True)
+        try:
+            for eval_dir in eval_dirs:
+                authoritative.append(
+                    _reeval_one(eval_dir, benchmark, judge_sandbox, cost_metric,
+                                language, run_cec, parent_tmp))
+        finally:
+            shutil.rmtree(parent_tmp, ignore_errors=True)
+    else:
+        # Container judge (orchestrated): a fresh --rm judge container per candidate runs
+        # `python -m core.reeval` against the benchmark's own inputs and writes the
+        # authoritative result.json into the (bind-mounted) eval_dir.
+        from core.sandbox import SandboxSpec
         for eval_dir in eval_dirs:
-            authoritative.append(
-                _reeval_one(eval_dir, benchmark, judge_sandbox, cost_metric,
-                            language, run_cec, parent_tmp))
-    finally:
-        shutil.rmtree(parent_tmp, ignore_errors=True)
+            argv = _container_judge_argv(eval_dir, benchmark, cost_metric, language, run_cec)
+            res = judge_sandbox.run_command(argv, SandboxSpec(workdir=run_dir, network="none"))
+            rj = eval_dir / "result.json"
+            if rj.exists():
+                try:
+                    authoritative.append(json.loads(rj.read_text()))
+                    continue
+                except json.JSONDecodeError:
+                    pass
+            authoritative.append({
+                "passed": False, "cost_value": None, "metrics": {},
+                "cost": {"ok": False, "value": None, "error": "judge produced no result"},
+                "eval_index": int(eval_dir.name.split("_")[1]),
+                "error": f"container judge failed: {(res.stderr or '')[-200:]}",
+            })
 
     tiebreaker_key = getattr(type(cost_metric), "tiebreaker_key", None)
     best = select_best_eval(authoritative, tiebreaker_key)
@@ -254,3 +278,58 @@ def reeval_run(run_dir: Path, benchmark, judge_sandbox, *, cost_metric, language
             f"{len(report['tamper_signatures'])} tamper-signature hit(s) in session log")
 
     return report
+
+
+def _container_judge_argv(eval_dir: Path, benchmark, cost_metric, language: str,
+                          run_cec: bool) -> List[str]:
+    """Build the `bash -c` argv that re-evals ONE eval_dir inside a judge container.
+    Uses identity-mounted paths (host == container), the image's venv python, and
+    cd's into the repo so `core` is importable."""
+    repo = Path(__file__).resolve().parent.parent
+    py = "/home/vscode/pyenv_eda/bin/python"
+    parts = [py, "-m", "core.reeval",
+             "--eval-dir", str(eval_dir),
+             "--benchmark-root", str(benchmark.root),
+             "--cost-metric", cost_metric.metric_name,
+             "--language", language,
+             "--technology", str(getattr(cost_metric, "technology", "asap7")),
+             "--energy-exp", str(getattr(cost_metric, "energy_exp", 1.0))]
+    if run_cec:
+        parts.append("--run-cec")
+    inner = f"cd {shlex.quote(str(repo))} && exec " + " ".join(shlex.quote(p) for p in parts)
+    return ["bash", "-c", inner]
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    """CLI: re-evaluate a SINGLE eval_{i}/ authoritatively and write its result.json.
+    Invoked inside a judge container by `reeval_run` (orchestrated mode), but also usable
+    standalone. Runs the same in-process re-eval (`_reeval_one`) the local judge uses."""
+    import argparse
+    from core.benchmarks import load_benchmark
+    from core.cost import make_cost_metric
+    from core.sandbox import LocalSandbox
+
+    p = argparse.ArgumentParser(description="Authoritative re-eval of one eval_{i}/ directory.")
+    p.add_argument("--eval-dir", required=True)
+    p.add_argument("--benchmark-root", required=True)
+    p.add_argument("--cost-metric", default="transistors")
+    p.add_argument("--language", default="verilog")
+    p.add_argument("--technology", default="asap7")
+    p.add_argument("--energy-exp", type=float, default=1.0)
+    p.add_argument("--run-cec", action="store_true")
+    args = p.parse_args(argv)
+
+    benchmark = load_benchmark(Path(args.benchmark_root))
+    cost_metric = make_cost_metric(args.cost_metric, technology=args.technology,
+                                   energy_exp=args.energy_exp)
+    parent_tmp = Path(tempfile.mkdtemp(prefix="reeval_cli_"))
+    try:
+        _reeval_one(Path(args.eval_dir), benchmark, LocalSandbox(), cost_metric,
+                    args.language, args.run_cec, parent_tmp)
+    finally:
+        shutil.rmtree(parent_tmp, ignore_errors=True)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

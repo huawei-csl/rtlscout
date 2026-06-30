@@ -349,15 +349,32 @@ def build_seed_prompt(
 
 # ── worker function (module-level for pickling) ─────────────────────────────
 
-def _make_judge_sandbox(mode: str):
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_AGENT_IMAGE = "rtlscout-opencode:latest"
+
+
+def _make_judge_sandbox(mode: str, *, session_id: str = "", work_root=None, run_index: int = 0):
     """Build the judge-role Sandbox for the deployment mode (handover §3.1)."""
     from core.sandbox import LocalSandbox
     if mode == "single-container":
         return LocalSandbox()
     if mode == "orchestrated":
-        from core.sandbox import ContainerSandbox  # added in Phase 3
-        return ContainerSandbox(role="judge")
+        from core.sandbox import ContainerSandbox
+        return ContainerSandbox(role="judge", session_id=session_id, work_root=work_root,
+                                host_repo=_REPO_ROOT, run_index=run_index,
+                                image=_AGENT_IMAGE, network="none", cpus=4, memory="8g")
     raise ValueError(f"Unknown mode: {mode!r}. Use 'single-container' or 'orchestrated'.")
+
+
+def _make_agent_sandbox(mode: str, *, session_id: str, work_root, run_index: int):
+    """Build the agent-role Sandbox. Orchestrated agents need egress to the model
+    provider, so they use the default bridge network (judge stays network=none)."""
+    if mode == "orchestrated":
+        from core.sandbox import ContainerSandbox
+        return ContainerSandbox(role="agent", session_id=session_id, work_root=work_root,
+                                host_repo=_REPO_ROOT, run_index=run_index,
+                                image=_AGENT_IMAGE, network="bridge", cpus=4, memory="8g")
+    return None  # single-container: backend uses an in-process LocalSandbox
 
 
 def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
@@ -386,6 +403,7 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
     technology = task.get("technology", "asap7")
     agent_backend = task.get("agent_backend", "react")
     deploy_mode = task.get("mode", "single-container")
+    session_id = task.get("session_id", "")
     wall_clock_s = task.get("wall_clock_s", 0)
     max_evals = task.get("max_evals")
     # Authoritative re-eval is mandatory on the opencode path (its container is
@@ -413,6 +431,10 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
     run_dir = runs_root / f"run_{run_index:03d}"
     run_dir.mkdir(parents=True, exist_ok=True)
 
+    # Orchestrated mode: the agent runs in its own fresh container (mounts run_dir).
+    agent_sandbox = _make_agent_sandbox(deploy_mode, session_id=session_id,
+                                        work_root=run_dir, run_index=run_index)
+
     start = time.time()
     try:
         result = run_agent_on_benchmark(
@@ -434,6 +456,7 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
             agent_backend=agent_backend,
             wall_clock_s=wall_clock_s,
             max_evals=max_evals,
+            agent_sandbox=agent_sandbox,
         )
         result_dict = result.to_dict()
         result_dict["status"] = "ok"
@@ -471,7 +494,8 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
         try:
             from core.reeval import reeval_run
             workdir = Path(result_dict["workdir"])
-            judge_sandbox = _make_judge_sandbox(deploy_mode)
+            judge_sandbox = _make_judge_sandbox(deploy_mode, session_id=session_id,
+                                                work_root=workdir, run_index=run_index)
             session_logs = [workdir / "chat_log.txt", workdir / "opencode_session.log"]
             report = reeval_run(workdir, bench, judge_sandbox, cost_metric=cost_metric,
                                 language=language, run_cec=run_cec, session_logs=session_logs)
@@ -534,19 +558,26 @@ def run_multirun(
     wall_clock_s: int = 0,
     max_evals: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """Run the async elite-pool multi-run optimization.
+    """Run the async elite-pool multi-run optimization (one ``session_id`` per campaign,
+    used to label + sweep this campaign's orchestrated containers).
 
     ``agent_backend`` ('react'|'opencode') selects the per-run agent; ``deploy_mode``
     ('single-container'|'orchestrated') selects the Sandbox impl for both the agent and
     the judge. ``reeval`` forces the authoritative post-run re-score on the react path
     too (it is always on for opencode) — used for apples-to-apples A/B parity.
     """
+    import uuid
     from datetime import datetime
 
     if runs_root is None:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         runs_root = Path("runs") / f"multirun_{ts}"
     runs_root.mkdir(parents=True, exist_ok=True)
+    session_id = uuid.uuid4().hex  # labels + scopes this campaign's orchestrated containers
+    if deploy_mode == "orchestrated":
+        print(f"[ORCHESTRATED] session={session_id}  agent+judge containers carry "
+              f"rtlscout.session={session_id}; clean up with: python rtlscout_cli.py "
+              f"cleanup --session {session_id}", flush=True)
 
     # Load benchmark
     benchmarks = load_benchmarks(benchmarks_root, [benchmark_name])
@@ -695,6 +726,7 @@ def run_multirun(
             "reeval": reeval,
             "wall_clock_s": wall_clock_s,
             "max_evals": max_evals,
+            "session_id": session_id,
         }
 
     with ProcessPoolExecutor(max_workers=max_concurrent) as executor:

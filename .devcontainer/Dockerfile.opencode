@@ -43,3 +43,12 @@ USER vscode
 RUN bash -lc '. /home/vscode/pyenv_eda/bin/activate \
  && uv pip install /opt/rtlscout-deps/spire-hdl /opt/rtlscout-deps/tech_eval \
  && uv pip install -r /opt/rtlscout-deps/requirements.txt'
+
+# Orchestrated agent/judge containers run as the HOST uid (so bind-mounted, host-owned
+# work dirs are writable) — that uid must be able to traverse/read the venv + home, which
+# are owned by the image's vscode uid. Open them read/traverse to all (done as root since
+# some uv-managed files aren't vscode-owned). No secrets live here; provider keys are passed
+# via env at runtime, never baked.
+USER root
+RUN chmod -R a+rX /home/vscode
+USER vscode
