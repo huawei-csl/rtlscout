@@ -30,6 +30,7 @@ if TYPE_CHECKING:  # type-only imports — keeps this module import-light and cy
     from core.agent import AgentResult
     from core.benchmarks import Benchmark
     from core.cost import CostMetric
+    from core.sandbox import Sandbox
 
 
 @dataclass
@@ -72,6 +73,9 @@ class BackendRequest:
     arith_autoconfig: bool = False
     dont_touch_main_arith: bool = False
     fsm_optimize: bool = False
+    # The agent-role sandbox (handover §3.1). None ⇒ the backend uses a LocalSandbox
+    # (single-container mode). Phase 3 sets this to a ContainerSandbox for orchestrated mode.
+    agent_sandbox: Optional["Sandbox"] = None
 
 
 class AgentBackend(Protocol):

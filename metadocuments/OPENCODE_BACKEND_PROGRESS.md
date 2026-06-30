@@ -88,7 +88,23 @@ overwrite `rtlscout:latest`; all managed-container selectors are label-based, ne
   `_make_task` shadowed the new deployment mode in the task dict; renamed the param to
   `deploy_mode`.
 
-### Phase 2 — OpenCodeBackend (single-container) — ⬜ TODO
+### Phase 2 — OpenCodeBackend (single-container) — 🟡 CODE DONE, live validation pending install
+- New `core/opencode_backend.py`: `OpenCodeBackend.run` — renders `AGENTS.md` (per-language
+  `core.prompts` output + seed text + an **OpenCode execution section** that overrides the react
+  tool mechanics and documents `./evaluate_design` + the required final steps incl. the four
+  verbatim reflection prompts), writes `opencode.json` (custom `rtl` agent, `edit`/`bash` allow,
+  webfetch deny), `_eval_config.json` (for the shim), and an executable `evaluate_design` wrapper;
+  launches a fresh `opencode run --format json -m <prov>/<model> --agent rtl` (no
+  `-c`/`--session`); harvests `evals.jsonl`/`eval_{i}/`/`best_design/`/`summary.txt` into an
+  `AgentResult` (synthesizes summary if missing); writes session log + provenance.
+- New `tests/test_opencode_backend.py`: 5 rendering/config/wrapper unit tests (pass now) + a
+  §4.8 non-interactive write-gate gated on `opencode` present AND `RTLSCOUT_OPENCODE_LIVE=1`.
+- **Verified (no binary):** import + render/config/wrapper tests → **5 passed, 1 skipped**.
+- **BLOCKED on install:** OpenCode is not installed; the auto-mode classifier declined to let me
+  run the remote installer / download the release binary without explicit user authorization (the
+  user named "OpenCode" but not the source). Provenance check: `opencode.ai/install` itself pulls
+  from `github.com/anomalyco/opencode/releases` (the project moved orgs `sst`→`anomalyco`); latest =
+  **v1.17.11** (pinned in `OPENCODE_PINNED_VERSION`). Awaiting user decision on the install.
 
 ### Phase 3 — ContainerSandbox + orchestrated mode + cleanup — ⬜ TODO
 
