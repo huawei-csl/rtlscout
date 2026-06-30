@@ -143,6 +143,24 @@ The judge runs even on the trusted side because `evaluate()` *executes* the agen
 SpireHDL `.py` — so every re-score gets a fresh workdir with the benchmark's own inputs +
 extracted design only (and, in orchestrated mode, its own `--network none` container).
 
+### When does the authoritative re-eval run?
+
+It is **not** globally always-on — it depends on the backend (and is independent of the mode):
+
+| path | re-eval? | recorded score |
+|---|---|---|
+| **react, single-container, no `--reeval`** (the original default) | **no** | the agent's in-process number — react has **no shell**, so it can't tamper its own scorer and the number is already authoritative-grade |
+| react + `--reeval` | yes | re-derived (apples-to-apples A/B vs opencode) |
+| **opencode, single-container** | **yes — in the *same* container** | re-derived; defends against *accidental* tampering / nondeterminism + closes the `run_eval` two-name-overlay hole, but **not** the adversarial guarantee (agent + judge share the container) |
+| **opencode, orchestrated** | **yes — fresh `--rm` container per candidate** | re-derived; full adversarial-agent guarantee |
+
+So: the **original react path is unchanged** (no re-eval); the re-eval is **mandatory for
+opencode** (a shell ⇒ untrusted container) and **opt-in for react**. Note it runs for opencode
+even in single-container — but there the judge shares the agent's container, so for untrusted
+or external agents use **orchestrated** mode. (If you fully trust a single-container opencode
+agent and want to skip the re-eval for speed, that would be a small added flag — not currently
+exposed.)
+
 ---
 
 ## The OpenCode backend
