@@ -79,6 +79,21 @@ def test_render_agents_md_spirehdl_design_py(tmp_path):
     assert "design.py" in md
 
 
+def test_spirehdl_agents_md_points_to_readme_not_inlined(tmp_path):
+    """OpenCode (shell + read access) should get compact pointers to the spire-hdl README +
+    reference files, NOT ~tens of KB of inlined source — keeps AGENTS.md small."""
+    from core.opencode_backend import render_agents_md
+    from core.prompts import build_spirehdl_system_prompt
+
+    md = render_agents_md(_make_req(tmp_path, language="spirehdl"))
+    assert "deps/spire-hdl/README.md" in md          # points at the main README
+    assert "read these files yourself" in md          # tells the agent to read them
+
+    inlined = build_spirehdl_system_prompt("d", "area", inline_references=True)
+    pointer = build_spirehdl_system_prompt("d", "area", inline_references=False)
+    assert len(pointer) < len(inlined) / 2            # materially smaller (it's ~88% smaller)
+
+
 def test_render_opencode_config(tmp_path):
     from core.opencode_backend import render_opencode_config
     req = _make_req(tmp_path, model="z-ai/glm-4.6", provider="openrouter")

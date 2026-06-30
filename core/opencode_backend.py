@@ -71,12 +71,15 @@ def render_agents_md(req: "BackendRequest") -> str:
     budget = req.limits.max_evals or req.limits.max_steps or 20
 
     if req.language == "spirehdl":
+        # inline_references=False: the OpenCode agent has a shell + read access, so point it at
+        # the spire-hdl README + reference files (which it can `cat`) instead of inlining ~tens
+        # of KB of source into AGENTS.md.
         base = build_spirehdl_system_prompt(
             req.benchmark.description, metric_name, extra="",
             target_delay_is_settable=td_settable, max_steps=budget,
             flowy_optimize=req.flowy_optimize, abc_optimize=req.abc_optimize,
             arith_autoconfig=req.arith_autoconfig, dont_touch_main_arith=req.dont_touch_main_arith,
-            fsm_optimize=req.fsm_optimize)
+            fsm_optimize=req.fsm_optimize, inline_references=False)
     elif req.language == "amaranth":
         base = build_amaranth_system_prompt(
             req.benchmark.description, metric_name, extra="",
