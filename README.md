@@ -304,7 +304,7 @@ run_eval.py          # CLI: re-evaluate a design file
 plot_results.py      # CLI: plotting at any level
 ```
 
-### Agent tools
+### ReAct backend tools
 
 | Tool | Description |
 |------|-------------|
