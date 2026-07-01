@@ -14,7 +14,7 @@
 
 # RTL Scout
 
-An RTL design agent powered by selectable LLM backends (DeepInfra, Anthropic, OpenRouter) with tool use. The agent iteratively creates and optimizes Verilog/SystemVerilog, [Spire HDL](https://github.com/huawei-csl/spire-hdl) or Amaranth designs, targeting **correctness first, then minimal cost** under a configurable cost metric. The agent can run as the built-in in-process loop or as an external **OpenCode** agent in a sandboxed, per-run container — see [Agent Flow](#agent-flow).
+An RTL design agent powered by selectable LLM backends (DeepInfra, Anthropic, OpenRouter) with tool use. The agent iteratively creates and optimizes Verilog/SystemVerilog, [Spire HDL](https://github.com/huawei-csl/spire-hdl) or Amaranth designs, targeting **correctness first, then minimal cost** under a configurable cost metric. The agent can run as the built-in in-process loop or as an external OpenCode agent in a sandboxed, per-run container — see [Agent Flow](#agent-flow).
 
 ## What RTL Scout does
 
@@ -128,6 +128,7 @@ Browse `benchmarks/` for the full set; to add your own, see **[README_add_benchm
 | Run one agent | `run_benchmark.py` | Debugging or trying one benchmark/model |
 | Run many agents with an elite pool | `run_multirun.py` | Optimizing one objective more seriously |
 | Build an area-delay Pareto front | `run_pipeline.py` | Best results, but token-heavy and slow |
+| Reproduce RTLRewriter paper tables | [Bundled RTLRewriter results](#bundled-rtlrewriter-results) | The 14 general (non-FP) cases; cell & transistor count tables |
 | Reproduce FP paper experiments | [`README_fpmul.md`](README_fpmul.md) | Specialized `fpmul_f16` / `fpadd_f16` pipeline |
 
 Each is detailed in [Running benchmarks](#running-benchmarks) below.
@@ -626,6 +627,26 @@ This repo **focuses on** the general, less-specialized workflow (**Phases 1–2*
 ### Bundled RTLRewriter results
 
 The best designs RTLScout found on the 14 [RTLRewriter](https://github.com/yaoxufeng/RTLRewriter-Bench) benchmark cases are bundled under [`artifacts/rtlrewriter_benchmark_results/`](artifacts/rtlrewriter_benchmark_results/), in both source languages (Verilog / Spire) and for both optimization objectives (Yosys cell count / transistor count). Each of the 56 designs ships with its reference spec, testbench, `INFO.json`, and a **formal equivalence-check (CEC) proof** against the benchmark baseline. The bundle is self-verifying: `python verify.py` re-runs every check (needs only `yosys` + `verilator`), and any design re-evaluates in place via `run_eval.py`. See the folder's `README.md` and `README_cec_results.md` for the per-case verdict tables.
+
+**Reproducing the paper tables.** The two LaTeX result tables shipped with the bundle come from these multi-run campaigns. Each runs all 14 cases in both languages (Verilog + Spire) via the Phase 1–2 pipeline:
+
+```bash
+# Cell-count table; all 14 cases, both languages by default
+python experiments/rtl_rewriter_multirun.py \
+    --phases 2 --total-runs 1 \
+    --max-steps 30 --elite-size 5 \
+    --workers 4 --max-concurrent 2 \
+    --model claude:claude-opus-4-6 \
+    --cost-metric yosys_cells
+
+# Transistor-count table; all 14 cases, both languages by default
+python experiments/rtl_rewriter_multirun.py \
+    --phases 2 --total-runs 1 \
+    --max-steps 60 --elite-size 5 \
+    --workers 8 --max-concurrent 2 \
+    --model claude:claude-opus-4-6 \
+    --cost-metric yosys_transistors
+```
 
 ### Floating-point pipeline
 
