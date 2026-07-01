@@ -10,7 +10,8 @@ Lifecycle:
   3. Launch a FRESH ``opencode run`` (no ``-c``/``--session``/``--attach`` — one run ==
      one fresh context, §4.2) via the agent sandbox.
   4. Harvest the standard on-disk tree (``evals.jsonl`` / ``eval_{i}/`` / ``best_design/``
-     / ``summary.txt``) the eval shim produced, and build an ``AgentResult``.
+     / ``summary.txt``) the eval shim produced, and build an ``AgentResult``. The full native
+     session (prompts + responses) is saved via ``opencode export`` to ``opencode_session.json``.
 
 The recorded score is NOT trusted from here — the harness re-derives it with
 ``core.reeval.reeval_run`` against the benchmark's own inputs (mandatory on this path).
@@ -375,7 +376,10 @@ class OpenCodeBackend:
         # never depend on the container's HOME ownership (robust across uid remapping /
         # fresh orchestrated containers). Project-local opencode.json + the env key mean
         # no global config or auth file is needed.
-        oc_home = req.workdir / "_ochome"
+        # MUST be absolute: opencode's cwd is the workspace, so a *relative* HOME would be
+        # resolved against the workspace and nest opencode's ~100 MB of cache/node_modules
+        # INSIDE it — which then gets copied into every eval_i/ snapshot (huge bloat).
+        oc_home = (req.workdir / "_ochome").resolve()
         oc_home.mkdir(parents=True, exist_ok=True)
         env["HOME"] = str(oc_home)
 
@@ -448,9 +452,39 @@ class OpenCodeBackend:
             summary_result = _continue_session(session_id, SUMMARY_KICKOFF, SUMMARY_TURN_TIMEOUT_S)
             transcript.append("=== SUMMARY TURN ===\n" + (summary_result.stdout or ""))
 
-        # Persist all rounds for provenance + the agreement-gate tamper scan.
-        (req.workdir / "opencode_session.log").write_text(
-            "\n\n=== ROUND ===\n".join(transcript) + "\n--- STDERR ---\n" + (cmd_result.stderr or ""))
+        # Export the FULL native session as JSON (`opencode export`) BEFORE deleting _ochome
+        # (its SQLite DB). Unlike the stdout transcript, this includes the *prompts* (user turns:
+        # kickoff, nudges, summary) alongside the assistant/tool events — one self-contained
+        # {info, messages} document for the whole run (all rounds share one session). Best-effort:
+        # a failed export just leaves the stdout transcript log below as the record.
+        session_json_saved = False
+        if session_id:
+            try:
+                exp = sandbox.run_command(
+                    ["bash", "-c", f"exec opencode export {shlex.quote(session_id)}", "opencode-export"],
+                    SandboxSpec(workdir=workspace, network="none",
+                                limits=RunLimits(wall_clock_s=60), env=env))
+                out = (exp.stdout or "").strip()
+                if exp.returncode == 0 and out:
+                    json.loads(out)  # validate it's real JSON before trusting it
+                    (req.workdir / "opencode_session.json").write_text(out)
+                    session_json_saved = True
+            except (json.JSONDecodeError, ValueError, OSError):
+                pass  # keep going — the stdout transcript log is the fallback
+
+        # opencode leaves ~100 MB of cache / node_modules / session snapshots under HOME
+        # (_ochome). The session was only needed for the nudge + summary turns + the export above,
+        # so drop it now to keep the run dir small. (_ochome is a sibling of workspace, so it never
+        # entered eval snapshots — but it still bloats the run dir if left behind.)
+        shutil.rmtree(oc_home, ignore_errors=True)
+
+        # opencode_session.json (above) is the complete record — prompts + responses — whenever
+        # the export succeeded, so it supersedes the assembled-from-stdout transcript. Only write
+        # the transcript log as a FALLBACK when the export didn't save, so there is always some
+        # session record for the agreement-gate tamper scan.
+        if not session_json_saved:
+            (req.workdir / "opencode_session.log").write_text(
+                "\n\n=== ROUND ===\n".join(transcript) + "\n--- STDERR ---\n" + (cmd_result.stderr or ""))
         (req.workdir / "_opencode_provenance.json").write_text(json.dumps({
             "opencode_pinned_version": OPENCODE_PINNED_VERSION,
             "model": model_arg,
@@ -459,6 +493,7 @@ class OpenCodeBackend:
             "returncode": cmd_result.returncode,
             "timed_out": cmd_result.timed_out,
             "nudge_rounds": nudges,
+            "session_json_saved": session_json_saved,
             "summary_turn": {
                 "session_id": session_id,
                 "ran": summary_result is not None,

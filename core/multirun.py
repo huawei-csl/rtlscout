@@ -494,7 +494,10 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
             workdir = Path(result_dict["workdir"])
             judge_sandbox = _make_judge_sandbox(deploy_mode, session_id=session_id,
                                                 work_root=workdir, run_index=run_index)
-            session_logs = [workdir / "chat_log.txt", workdir / "opencode_session.log"]
+            # opencode_session.json is the complete record; opencode_session.log is the fallback
+            # (only present if the export failed). The scan reads whichever exist.
+            session_logs = [workdir / "opencode_session.json", workdir / "opencode_session.log",
+                            workdir / "chat_log.txt"]
             report = reeval_run(workdir, bench, judge_sandbox, cost_metric=cost_metric,
                                 language=language, run_cec=run_cec, session_logs=session_logs)
             auth = json.loads((workdir / "result.json").read_text())
