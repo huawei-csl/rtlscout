@@ -35,15 +35,14 @@ if TYPE_CHECKING:  # type-only imports — keeps this module import-light and cy
 
 @dataclass
 class RunLimits:
-    """Per-run budget (handover doc §4.3).
+    """Per-run budget.
 
-    ``max_steps`` is the ReAct turn cap used by the react backend today.
-    ``wall_clock_s`` is the hard subprocess/container timeout (used by the OpenCode
-    backend, which has no turn cap); ``0`` means "no wall-clock limit" — the react
-    default. ``max_evals`` is the soft eval-count cap enforced by the eval shim.
+    ``max_steps`` is the ReAct turn cap used by the react backend. ``wall_clock_s`` is the
+    hard subprocess/container timeout used by the OpenCode backend (which has no turn cap);
+    ``0`` means "no wall-clock limit". The two backends use different limiters: react is
+    step-bounded, OpenCode is time-bounded.
     """
     wall_clock_s: int = 0
-    max_evals: Optional[int] = None
     max_steps: int = 20
 
 

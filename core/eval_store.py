@@ -123,7 +123,6 @@ def run_eval_and_store(
     run_cec: bool = True,
     cec_reference: Optional[Path] = None,
     target_delay: Optional[float] = None,
-    max_evals: Optional[int] = None,
     quiet: bool = False,
 ) -> Dict[str, Any]:
     """Run one advisory evaluation and emit the standard on-disk tree.
@@ -183,10 +182,6 @@ def run_eval_and_store(
     if not quiet:
         print(f"[Eval saved to {eval_dir.name}/]")
         print(summary, flush=True)
-        if max_evals is not None and eval_index >= max_evals:
-            print(f"\n[BUDGET] Eval budget reached ({eval_index}/{max_evals}). Finalize your "
-                  f"current best design, run a final evaluation if you changed it, and write "
-                  f"summary.txt now.", flush=True)
 
     return eval_dict
 
@@ -240,7 +235,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         run_cec=cfg.get("run_cec", True),
         cec_reference=Path(cec_reference) if cec_reference else None,
         target_delay=cfg.get("target_delay"),
-        max_evals=cfg.get("max_evals"),
     )
     return 0
 

@@ -170,39 +170,8 @@ def _build_references_block(registry: List[dict]) -> str:
     return "\n\n".join(sections)
 
 
-# spire-hdl ships topic READMEs next to its main one — pointed at (not inlined) for
-# shell-capable agents so they can read what they need on demand.
-_SPIRE_DOC_READMES = [
-    ("README.md", "main SpireHDL overview — start here"),
-    ("README_arithmetic_generator.md", "configurable multiplier/adder generators"),
-    ("README_arithmetic_optimization.md", "arithmetic architecture optimization"),
-    ("README_optimization_decorators.md", "@abc_optimized / @flowy_optimized / etc."),
-    ("README_fsm_optimization.md", "FSM / state-encoding optimization"),
-    ("README_state_machines.md", "state machines"),
-    ("README_aggregate_types.md", "structs / arrays / aggregate types"),
-    ("README_memories.md", "memories"),
-    ("README_custom_verilog.md", "embedding custom Verilog"),
-]
-
-
-def _build_reference_pointers_block(registry: List[dict]) -> str:
-    """Compact pointer block (paths + descriptions, NO inlined content) for agents that have
-    a shell and can read files themselves (the OpenCode backend). Keeps AGENTS.md small and
-    sidesteps embedding ~tens of KB of source. Lists the spire-hdl READMEs first, then the
-    reference implementations to read on demand."""
-    lines = [
-        "You have a shell and read access to the whole repo — **read these files yourself with "
-        "`cat` instead of guessing the API.** They are NOT inlined here to keep this prompt small.",
-        "",
-        "**SpireHDL docs (start with the main README):**",
-    ]
-    for fname, desc in _SPIRE_DOC_READMES:
-        lines.append(f"- `{_SPIRE / fname}` — {desc}")
-    lines.append("")
-    lines.append("**Reference implementations / examples (read the ones you need):**")
-    for ref in registry:
-        lines.append(f"- `{ref['path']}` — {ref['description']}")
-    return "\n".join(lines)
+# (The OpenCode reference-pointer block + per-HDL AGENTS.md assembly live in
+# core/agents_md.py — the react prompts below inline their references instead.)
 
 
 # ---------------------------------------------------------------------------
@@ -479,8 +448,8 @@ def build_spirehdl_system_prompt(description: str, cost_metric_name: str, extra:
                                   dont_touch_main_arith: bool = False,
                                   fsm_optimize: bool = False,
                                   cost_metric_note: str = "") -> str:
-    # The react loop inlines the reference sources. (The OpenCode+SpireHDL path uses the lean
-    # pointer-based renderer in core.agents_md_spire instead.)
+    # The react loop inlines the reference sources. (The OpenCode path uses the lean
+    # pointer-based renderer in core.agents_md instead.)
     references_block = _build_references_block(SPIREHDL_REFERENCES)
     cost_note_block = (f"\n\n**Cost metric `{cost_metric_name}`:** {cost_metric_note}"
                        if cost_metric_note else "")

@@ -63,6 +63,17 @@ SUMMARY_KICKOFF = (
     "not modify any design files."
 )
 
+# If the agent hands back before the wall-clock budget is used up (its equivalent of the react
+# loop's `done`), nudge it to keep going. Bounded by the guards below so it can't run away.
+NUDGE_MIN_REMAINING_S = 45   # don't continue if less than this remains
+NUDGE_MAX_ROUNDS = 5         # hard cap on continuation rounds
+NUDGE_PROMPT = (
+    "You still have time left and there is likely more to gain — do NOT stop yet. Try a "
+    "genuinely different design, or a further optimization of your best so far, then re-run "
+    "./evaluate_design. You'll be terminated automatically when time runs out; keep improving "
+    "until then."
+)
+
 
 def _extract_session_id(stdout: str) -> Optional[str]:
     """Pull the opencode session id out of a `--format json` stream (events carry sessionID)."""
@@ -91,68 +102,27 @@ def _metric_name(req: "BackendRequest") -> str:
 
 
 def render_agents_md(req: "BackendRequest") -> str:
-    """Render AGENTS.md for an OpenCode run.
-
-    SpireHDL gets a dedicated, lean renderer (``core.agents_md_spire``) — a shell-capable
-    agent doesn't need ~100 KB of inlined SpireHDL source. Verilog/Amaranth reuse the react
-    prompt builders (their reference sets are small) + the shared execution section.
-    """
+    """Render AGENTS.md for an OpenCode run via the unified lean renderer
+    (``core.agents_md``) — a shell-capable agent gets task + workflow + reference pointers,
+    not the react loop's inlined tool mechanics."""
     metric_name = _metric_name(req)
-
-    if req.language == "spirehdl":
-        # Clean, dedicated renderer — no react tool notes precede the workflow block.
-        from core.agents_md_spire import render_spire_agents_md
-        execution_section = _opencode_execution_section(req, metric_name,
-                                                        supersedes_react_tools=False)
-        return render_spire_agents_md(req, execution_section=execution_section,
-                                      metric_name=metric_name, seed_text=req.system_prompt_extra)
-
-    # verilog/amaranth reuse the react prompt builders (which inline react tool notes), so the
-    # workflow block must announce it overrides them.
-    execution_section = _opencode_execution_section(req, metric_name, supersedes_react_tools=True)
-    from core.prompts import build_amaranth_system_prompt, build_system_prompt
-    td_settable = bool(req.cost_metric is not None and hasattr(req.cost_metric, "target_delay"))
-    budget = req.limits.max_evals or req.limits.max_steps or 20
-    builder = build_amaranth_system_prompt if req.language == "amaranth" else build_system_prompt
-    base = builder(req.benchmark.description, metric_name, extra="",
-                   target_delay_is_settable=td_settable, max_steps=budget)
-
-    parts = [base]
-    if req.system_prompt_extra:
-        parts.append("\n## Additional guidance (seed / lessons)\n\n" + req.system_prompt_extra)
-    parts.append(execution_section)
-    return "\n".join(parts)
+    execution_section = _opencode_execution_section(req, metric_name)
+    from core.agents_md import render_opencode_agents_md
+    return render_opencode_agents_md(req, execution_section=execution_section,
+                                     metric_name=metric_name, seed_text=req.system_prompt_extra)
 
 
-def _opencode_execution_section(req: "BackendRequest", metric_name: str,
-                                supersedes_react_tools: bool = False) -> str:
-    """Render the shared OpenCode workflow block.
-
-    ``supersedes_react_tools``: the verilog/amaranth paths reuse the react prompt builders,
-    which inline react-only tool notes (``create_file``/``run_evaluation``/``done`` + an
-    "always call a tool" rule); for them this block must say it overrides those. The SpireHDL
-    renderer (``core.agents_md_spire``) builds a clean prompt with no such notes, so it passes
-    False and this preamble is omitted.
-    """
+def _opencode_execution_section(req: "BackendRequest", metric_name: str) -> str:
+    """Render the shared OpenCode workflow block (shell intro, ./evaluate_design,
+    ./remaining_time, time budget, finishing-up). Language-agnostic; the per-HDL renderer in
+    core.agents_md places it after the objective."""
     design_file = _DESIGN_FILE_BY_LANG.get(req.language, "design.sv")
-    budget_line = (f"You have an evaluation budget of ~{req.limits.max_evals} scored evaluations"
-                   if req.limits.max_evals else "Use evaluations judiciously")
     secs = req.limits.wall_clock_s
     budget_min = f"~{secs // 60} minutes" if secs else "a fixed wall-clock budget"
-    if supersedes_react_tools:
-        header = ("## OpenCode execution environment (AUTHORITATIVE — overrides any tool notes above)"
-                  "\n\nYou are running as an autonomous coding agent with a **real shell and your own"
-                  "\nfile-editing tools**, in your working directory. Ignore any earlier references to"
-                  "\n`create_file` / `replace_file` / `apply_diff` / `edit_file` / `run_evaluation` /"
-                  ' `done`\ntools and to a per-response "always call a tool" rule — those describe a'
-                  " *different*\nharness. Here you simply read, write and edit files directly and run"
-                  " shell commands.")
-    else:
-        header = ("## How you work here\n\nYou are an autonomous coding agent with a **real shell and"
-                  " your own file-editing tools**.\nRead, write and edit files directly and run shell"
-                  " commands in your working directory.")
-    return f"""
-{header}
+    return f"""## How you work here
+
+You are an autonomous coding agent with a **real shell and your own file-editing tools**.
+Read, write and edit files directly and run shell commands in your working directory.
 
 **Your design file:** put your design in `{design_file}` in the current directory
 (create helper files as needed).
@@ -163,30 +133,31 @@ def _opencode_execution_section(req: "BackendRequest", metric_name: str,
 
 This runs the project's evaluator on your design, prints correctness (lint/sim/CEC) and
 the `{metric_name}` cost, and snapshots the result. Use it to iterate: get a correct
-design first, then minimize `{metric_name}` cost without breaking correctness. {budget_line}.
+design first, then minimize `{metric_name}` cost without breaking correctness.
 
-**Time budget — keep going until it runs out.** You have {budget_min} of wall-clock time and
-there is **no step/turn limit**. Check how much is left at any point by running:
+**Time budget.** You have {budget_min} of wall-clock time and there is **no step/turn limit**.
+You do **not** need to stop or wrap up on your own — you will be **terminated automatically**
+when the budget runs out, and every design you evaluated is kept (see below). So keep working
+the whole time; there is no benefit to finishing early. Check how much is left at any point with:
 
     ./remaining_time
 
 **Use your time wisely:** spend it making and *evaluating design changes*, not investigating
 the harness/evaluator internals. Treat `./evaluate_design` as a black box (design in, score
-out) — a quick look at the SpireHDL API is fine, but do **not** burn your budget reading
-`core/`, the cost-metric implementation, or the testbench plumbing.
+out) — a quick look at the reference docs/designs listed below is fine, but do **not** burn
+your budget reading `core/`, the cost-metric implementation, or the testbench plumbing.
 
-Do **NOT** stop after one or two evaluations. Keep trying genuinely different designs /
-micro-architectures (e.g. different multiplier/adder configurations, pipelining, sharing) and
-re-evaluating each with `./evaluate_design`, keeping the best result, until `./remaining_time`
-is near zero (or you see a `[BUDGET]` message).
+Do **NOT** stop or wind down after one or two evaluations. Keep trying genuinely different
+designs / micro-architectures (e.g. different multiplier/adder configurations, pipelining,
+sharing) and re-evaluating each with `./evaluate_design`, keeping the best result. If you run
+low on ideas, try more variations rather than stopping — you have the full budget to use.
 
-**Finishing up — no special wrap-up needed.** Every design you score with `./evaluate_design`
-is automatically saved as a candidate, and after the session the harness independently
-re-scores all candidates and keeps the best one — so you do **not** need to restore your best
-design into `{design_file}` or run a "final" evaluation. Just make sure every version you want
-considered has been scored at least once (a design you edit but never evaluate is not a
-candidate). Keep improving and evaluating until time runs out; you'll be asked separately to
-write a short summary afterward.
+**No wrap-up needed.** Every design you score with `./evaluate_design` is automatically saved
+as a candidate, and after the session the harness independently re-scores all candidates and
+keeps the best one — so you do **not** need to restore your best design into `{design_file}`,
+run a "final" evaluation, or write a summary. Just make sure every version you want considered
+has been scored at least once (a design you edit but never evaluate is not a candidate). A short
+summary is requested from you separately after you're stopped.
 """
 
 
@@ -255,7 +226,6 @@ def write_eval_config(req: "BackendRequest") -> Path:
         "language": req.language,
         "run_cec": bool(req.run_cec and req.cec_reference is not None),
         "cec_reference": str(req.cec_reference) if req.cec_reference else None,
-        "max_evals": req.limits.max_evals,
     }
     path = req.workdir / "_eval_config.json"
     path.write_text(json.dumps(cfg, indent=2))
@@ -412,9 +382,10 @@ class OpenCodeBackend:
         model_arg = f"{req.provider}/{req.model}"
         kickoff = (
             "Implement and optimize the RTL design described in AGENTS.md. Start with a simple "
-            "correct implementation, run ./evaluate_design to score it, then iterate to minimize "
-            f"the {metric_name} cost while staying correct. Follow the REQUIRED final steps in "
-            "AGENTS.md before you stop."
+            "correct implementation, run ./evaluate_design to score it, then keep iterating to "
+            f"minimize the {metric_name} cost while staying correct. Do not stop or wind down on "
+            "your own — you will be terminated automatically when the time budget runs out, and "
+            "every design you evaluated is kept. Keep improving the whole time."
         )
         # Fresh session, machine-readable output. NO -c/--session/--attach (handover §4.2).
         # IMPORTANT: opencode's `run` spawns an internal server that fails with a generic
@@ -434,34 +405,52 @@ class OpenCodeBackend:
 
         # Stamp the wall-clock deadline as close to launch as possible so the agent's
         # ./remaining_time reflects the real budget (0 = no limit).
+        from core.agent_backend import RunLimits
+        from core.eval_store import read_evals
         wall_s = req.limits.wall_clock_s
-        (req.workdir / "_deadline_epoch").write_text(
-            str(int(time.time()) + wall_s) if wall_s else "0")
+        deadline = (time.time() + wall_s) if wall_s else None
+        (req.workdir / "_deadline_epoch").write_text(str(int(deadline)) if deadline else "0")
+
+        def _n_evals() -> int:
+            return len(read_evals(req.workdir / "evals.jsonl"))
+
+        def _continue_session(session_id: str, prompt: str, timeout_s: int):
+            """Continue the SAME opencode session with a follow-up prompt (nudge or summary)."""
+            inner = (f'exec opencode run --session {shlex.quote(session_id)}{skip_perm} '
+                     f'--format json -m {model_arg} --agent rtl "$1"')
+            cspec = SandboxSpec(workdir=workspace, network="provider",
+                                limits=RunLimits(wall_clock_s=max(1, timeout_s)), env=env)
+            return sandbox.run_command(["bash", "-c", inner, "opencode-rtl", prompt], cspec)
 
         cmd_result = sandbox.run_command(argv, spec)
+        session_id = _extract_session_id(cmd_result.stdout)
+        transcript = [cmd_result.stdout or ""]
+
+        # Nudge loop: if the agent handed back before the wall-clock ran out (its equivalent of
+        # the react `done`), continue the same session and push it to keep improving. Guards:
+        # stop if <NUDGE_MIN_REMAINING_S left, a round adds no new evaluation (done/stuck), or
+        # after NUDGE_MAX_ROUNDS. Worse attempts are harmless — the harness keeps the best.
+        nudges = 0
+        while (session_id and deadline is not None and not cmd_result.timed_out
+               and nudges < NUDGE_MAX_ROUNDS and (deadline - time.time()) > NUDGE_MIN_REMAINING_S):
+            before = _n_evals()
+            cmd_result = _continue_session(session_id, NUDGE_PROMPT, int(deadline - time.time()))
+            transcript.append(cmd_result.stdout or "")
+            nudges += 1
+            if not cmd_result.timed_out and _n_evals() == before:
+                break  # nudge produced no new evaluation → agent is done/stuck; stop nudging
 
         # Summarizer turn (react parity, handover §5.2): CONTINUE the same session and ask the
-        # agent to write summary.txt with full memory of what it did — the optimization run is
-        # killed at the wall-clock (mid-iteration), so it never reaches a "write summary" step on
-        # its own. Runs with its own short timeout, NOT counted against the optimization budget.
-        # Falls back to _harvest's _synth_summary if the session can't be continued.
-        from core.agent_backend import RunLimits
-        session_id = _extract_session_id(cmd_result.stdout)
+        # agent to write summary.txt with full memory. Its own short timeout, NOT counted against
+        # the optimization budget. Falls back to _harvest's _synth_summary if it can't continue.
         summary_result = None
         if session_id:
-            s_inner = (f'exec opencode run --session {shlex.quote(session_id)}{skip_perm} '
-                       f'--format json -m {model_arg} --agent rtl "$1"')
-            summary_argv = ["bash", "-c", s_inner, "opencode-rtl", SUMMARY_KICKOFF]
-            summary_spec = SandboxSpec(workdir=workspace, network="provider",
-                                       limits=RunLimits(wall_clock_s=SUMMARY_TURN_TIMEOUT_S), env=env)
-            summary_result = sandbox.run_command(summary_argv, summary_spec)
+            summary_result = _continue_session(session_id, SUMMARY_KICKOFF, SUMMARY_TURN_TIMEOUT_S)
+            transcript.append("=== SUMMARY TURN ===\n" + (summary_result.stdout or ""))
 
-        # Persist both turns for provenance + the agreement-gate tamper scan.
-        session_log = (cmd_result.stdout or "") + "\n--- STDERR ---\n" + (cmd_result.stderr or "")
-        if summary_result is not None:
-            session_log += ("\n\n=== SUMMARY TURN ===\n" + (summary_result.stdout or "")
-                            + "\n--- STDERR ---\n" + (summary_result.stderr or ""))
-        (req.workdir / "opencode_session.log").write_text(session_log)
+        # Persist all rounds for provenance + the agreement-gate tamper scan.
+        (req.workdir / "opencode_session.log").write_text(
+            "\n\n=== ROUND ===\n".join(transcript) + "\n--- STDERR ---\n" + (cmd_result.stderr or ""))
         (req.workdir / "_opencode_provenance.json").write_text(json.dumps({
             "opencode_pinned_version": OPENCODE_PINNED_VERSION,
             "model": model_arg,
@@ -469,6 +458,7 @@ class OpenCodeBackend:
             "argv": argv[:-1] + ["<kickoff>"],
             "returncode": cmd_result.returncode,
             "timed_out": cmd_result.timed_out,
+            "nudge_rounds": nudges,
             "summary_turn": {
                 "session_id": session_id,
                 "ran": summary_result is not None,
@@ -477,6 +467,7 @@ class OpenCodeBackend:
             "opencode_config": opencode_cfg,
         }, indent=2))
 
+        # stop_reason reflects how the agent phase ended (after any nudges).
         if cmd_result.timed_out:
             stop_reason = "timeout"
         elif cmd_result.returncode == 0:
@@ -484,5 +475,5 @@ class OpenCodeBackend:
         else:
             stop_reason = "error"
 
-        token_usage = _parse_token_usage(cmd_result.stdout)
+        token_usage = _parse_token_usage("\n".join(transcript))
         return _harvest(req, stop_reason, cmd_result, token_usage)

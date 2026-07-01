@@ -25,8 +25,7 @@ def test_make_backend_rejects_unknown():
 def test_run_limits_defaults():
     lim = RunLimits(max_steps=20)
     assert lim.max_steps == 20
-    assert lim.wall_clock_s == 0      # react default: no wall-clock cap
-    assert lim.max_evals is None
+    assert lim.wall_clock_s == 0      # react is step-bounded; opencode sets a wall-clock
 
 
 def test_provision_workspace_lays_down_inputs(tmp_path):
