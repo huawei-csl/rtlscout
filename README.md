@@ -140,15 +140,13 @@ Each is detailed in [Running benchmarks](#running-benchmarks) below.
 ## Agent Flow
 
 RTLScout runs one optimization agent per run, selected by **`--agent-backend react|opencode`**
-(the two subsections below). Whatever the backend, the harness re-derives the recorded score
-against the **benchmark's own inputs** (a clean-room re-eval), so an agent with a shell can't
-fake it:
+(the two subsections below). Both iterate on the design and report an *advisory* score as they go.
 
-```mermaid
-flowchart LR
-  A["agent<br/>react / opencode<br/>(advisory eval)"] --> R["authoritative re-eval<br/>vs the benchmark's own inputs"]
-  R --> P["elite pool + Pareto"]
-```
+Optionally, the harness then re-derives the **recorded** score in a clean room, re-running the
+evaluation against the benchmark's own inputs, so a tampered or noisy number can't reach the
+elite pool. This runs automatically for **OpenCode** (its shell makes its own score untrustworthy)
+and is off by default for **react** (no shell, so its number is already trustworthy; pass
+`--reeval` only for an A/B comparison).
 
 ### Python ReAct Backend
 
