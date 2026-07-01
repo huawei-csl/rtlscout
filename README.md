@@ -142,18 +142,16 @@ Each is detailed in [Running benchmarks](#running-benchmarks) below.
 RTLScout runs one optimization agent per run, selected by **`--agent-backend react|opencode`**
 (the two subsections below). Both iterate on the design and report an *advisory* score as they go.
 
-Optionally, the harness then re-derives the **recorded** score in a clean room, re-running the
-evaluation against the benchmark's own inputs, so a tampered or noisy number can't reach the
+Optionally, the harness then re-evaluates the designs, so a tampered or noisy number can't reach the
 elite pool. This runs automatically for **OpenCode** (its shell makes its own score untrustworthy)
-and is off by default for **react** (no shell, so its number is already trustworthy; pass
-`--reeval` only for an A/B comparison).
+and is off by default for **react** (no shell, so its number is already trustworthy).
 
-### Python ReAct Backend
+### Python ReAct Backend (`--agent-backend react`, default)
 
-`--agent-backend react` (the default). An **in-process loop**: a capability-confined agent calls
-whitelisted tools on its `workspace/` subdir — **no shell**. It is bounded by `--max-steps`
-(there is no wall-clock limit). Because it can't reach the scorer, its in-process number is
-already trustworthy and feeds the pool directly.
+A **pure-Python loop**: a capability-confined agent calls tools from a limited set on its `workspace/`
+subdir, with **no shell/CLI tool** available. It is bounded by `--max-steps` (there is no wall-clock
+limit). Because it can't reach the scorer, its in-process number is already trustworthy and feeds the
+pool directly.
 
 ```mermaid
 flowchart TD
@@ -172,13 +170,12 @@ flowchart TD
   NS -->|"until done or max_steps"| LLM
 ```
 
-**Strategy:** build a simple correct design first, evaluate it, then — once 100% correct —
-iteratively optimize the cost metric, reverting on any correctness regression, until `done` or
-`max_steps`.
+**Strategy:** build a simple correct design first, evaluate it, then iteratively optimize the cost
+metric, reverting on any correctness regression, until `done` or `max_steps`.
 
-### OpenCode Backend
+### OpenCode Backend (`--agent-backend opencode`)
 
-`--agent-backend opencode`. The external [OpenCode](https://opencode.ai) agent runs with a
+The external [OpenCode](https://opencode.ai) agent runs with a
 **real shell**, once per run in its own sandbox. Because a shell can tamper its own copy of the
 scorer/inputs, its advisory number is **never trusted** — the harness always re-derives the
 recorded score (the `reeval` step below) against the benchmark's own inputs.

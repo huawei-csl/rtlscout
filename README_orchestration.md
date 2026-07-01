@@ -342,6 +342,3 @@ python rtlscout_cli.py cleanup --session <id-printed-at-start>
   is a hardening lever (handover §4.7/Phase 4).
 - **CEC cost:** the equivalence check dominates eval time; `--skip-cec` makes PPA evals ~30 s
   for `fpmul_f16` (correctness then relies on the testbench/vectors).
-
-See `RTLSCOUT_OPENCODE_BACKEND.md` for the full design rationale and
-`metadocuments/OPENCODE_BACKEND_PROGRESS.md` for the implementation log.
