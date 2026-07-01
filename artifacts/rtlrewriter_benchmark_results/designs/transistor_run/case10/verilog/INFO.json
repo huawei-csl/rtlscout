@@ -1,0 +1,19 @@
+{
+  "case": "case10",
+  "module": "example3",
+  "language": "verilog",
+  "top_module": "example",
+  "type": "sequential",
+  "metric": "transistors",
+  "best_phase": "phase2",
+  "metric_value": 38,
+  "cec_status": "EQUIVALENT",
+  "cec_method": "tempinduct",
+  "cec_detail": "reset-anchored temporal induction \u2014 complete proof",
+  "files": {
+    "starting_point": "starting_point.v",
+    "tb.sv": "tb.sv",
+    "vectors.dat": "vectors.dat",
+    "best_netlist": "best.sv"
+  }
+}

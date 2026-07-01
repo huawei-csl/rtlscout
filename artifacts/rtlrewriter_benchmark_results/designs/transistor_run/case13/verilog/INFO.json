@@ -1,0 +1,19 @@
+{
+  "case": "case13",
+  "module": "mux_type3",
+  "language": "verilog",
+  "top_module": "mux_tree",
+  "type": "combinational",
+  "metric": "transistors",
+  "best_phase": "phase1",
+  "metric_value": 6,
+  "cec_status": "EQUIVALENT",
+  "cec_method": "equiv_induct",
+  "cec_detail": "equiv flow: all 1 $equiv cells proven",
+  "files": {
+    "starting_point": "starting_point.v",
+    "tb.sv": "tb.sv",
+    "vectors.dat": "vectors.dat",
+    "best_netlist": "best.sv"
+  }
+}

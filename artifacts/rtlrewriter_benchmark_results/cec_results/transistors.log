@@ -1,0 +1,31 @@
+[cec] Transistors v2 table (table_rtl_rewriter_transistors_v2.tex): metric=transistors workers=28 sim_cases=[2, 12]
+  ✅ case9   verilog  example1                     transistors=  196.0 phase=base   -> IDENTITY: best = shipped baseline (identical to the reference)
+  ✅ case1   verilog  add3                         transistors=  128.0 phase=phase1 -> EQUIVALENT: equiv flow: all 1 $equiv cells proven
+  ✅ case5   spirehdl adder_bit_width              transistors=  290.0 phase=phase2 -> EQUIVALENT: equiv flow: all 9 $equiv cells proven
+  ✅ case1   spirehdl add3                         transistors=  128.0 phase=phase1 -> EQUIVALENT: equiv flow: all 1 $equiv cells proven
+  ✅ case5   verilog  adder_bit_width              transistors=  290.0 phase=phase1 -> EQUIVALENT: equiv flow: all 9 $equiv cells proven
+  ✅ case6   verilog  adder_subexpression          transistors=  908.0 phase=phase2 -> EQUIVALENT: equiv flow: all 10 $equiv cells proven
+  ✅ case14  verilog  mux_type4                    transistors=   24.0 phase=phase1 -> EQUIVALENT: equiv flow: all 1 $equiv cells proven
+  ✅ case11  spirehdl mux_dead_code                transistors=  178.0 phase=phase2 -> EQUIVALENT: equiv flow: all 8 $equiv cells proven
+  ✅ case11  verilog  mux_dead_code                transistors=  178.0 phase=phase1 -> EQUIVALENT: equiv flow: all 8 $equiv cells proven
+  ✅ case13  verilog  mux_type3                    transistors=    6.0 phase=phase1 -> EQUIVALENT: equiv flow: all 1 $equiv cells proven
+  ✅ case13  spirehdl mux_type3                    transistors=    6.0 phase=phase1 -> EQUIVALENT: equiv flow: all 1 $equiv cells proven
+  ✅ case6   spirehdl adder_subexpression          transistors=  936.0 phase=phase2 -> EQUIVALENT: equiv flow: all 10 $equiv cells proven
+  ✅ case14  spirehdl mux_type4                    transistors=   24.0 phase=phase1 -> EQUIVALENT: miter+SAT UNSAT — no input distinguishes the designs
+  ✅ case10  verilog  example3                     transistors=   38.0 phase=phase2 -> EQUIVALENT: reset-anchored temporal induction — complete proof
+  ✅ case10  spirehdl example3                     transistors=   26.0 phase=phase1 -> EQUIVALENT: reset-anchored temporal induction — complete proof
+  ✅ case9   spirehdl example1                     transistors=  124.0 phase=phase2 -> EQUIVALENT: reset-anchored temporal induction — complete proof
+  ✅ case4   spirehdl multi_constant_multiplication2 transistors= 4642.0 phase=phase2 -> EQUIVALENT: equiv flow: all 96 $equiv cells proven
+  ✅ case4   verilog  multi_constant_multiplication2 transistors= 4648.0 phase=phase2 -> EQUIVALENT: equiv flow: all 96 $equiv cells proven
+  ✅ case3   spirehdl multi_constant_multiplication transistors= 3564.0 phase=phase2 -> EQUIVALENT: equiv flow: all 96 $equiv cells proven
+  ✅ case3   verilog  multi_constant_multiplication transistors= 3782.0 phase=phase2 -> EQUIVALENT: equiv flow: all 96 $equiv cells proven
+  ✅ case7   spirehdl alu_subexpression            transistors= 1892.0 phase=phase2 -> EQUIVALENT: equiv flow: all 9 $equiv cells proven
+  ✅ case8   verilog  multiplier_bitwidth          transistors= 2880.0 phase=phase1 -> EQUIVALENT: equiv flow: all 16 $equiv cells proven
+  ✅ case7   verilog  alu_subexpression            transistors= 2072.0 phase=phase1 -> EQUIVALENT: equiv flow: all 9 $equiv cells proven
+  ✅ case2   verilog  commutativity_subexpression  transistors=84386.0 phase=phase1 -> EQUIVALENT: 1,000,000 random vectors, 0 mismatches (simulation; formal CEC intractable — 32-bit multipliers)
+  ✅ case12  verilog  communtativity_subpexpression2 transistors=108390.0 phase=phase2 -> EQUIVALENT: 1,000,000 random vectors, 0 mismatches (simulation; formal CEC intractable — 32-bit multipliers)
+  ✅ case8   spirehdl multiplier_bitwidth          transistors= 2696.0 phase=phase2 -> EQUIVALENT: equiv flow: all 16 $equiv cells proven
+  ✅ case12  spirehdl communtativity_subpexpression2 transistors=88282.0 phase=phase2 -> EQUIVALENT: 1,000,000 random vectors, 0 mismatches (simulation; formal CEC intractable — 32-bit multipliers)
+  ✅ case2   spirehdl commutativity_subexpression  transistors=68690.0 phase=phase2 -> EQUIVALENT: 1,000,000 random vectors, 0 mismatches (simulation; formal CEC intractable — 32-bit multipliers)
+[cec] wrote cec_results/transistors.md
+[cec] wrote cec_results/transistors.json

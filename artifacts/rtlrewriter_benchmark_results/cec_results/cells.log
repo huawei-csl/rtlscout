@@ -1,0 +1,31 @@
+[cec] Cells table (table_rtl_rewriter.tex): metric=cells workers=28 sim_cases=[2, 12]
+  ✅ case1   verilog  add3                         cells=   10.0 phase=phase1 -> EQUIVALENT: equiv flow: all 1 $equiv cells proven
+  ✅ case5   verilog  adder_bit_width              cells=   37.0 phase=phase2 -> EQUIVALENT: equiv flow: all 9 $equiv cells proven
+  ✅ case11  spirehdl mux_dead_code                cells=   24.0 phase=phase1 -> EQUIVALENT: equiv flow: all 24 $equiv cells proven
+  ✅ case5   spirehdl adder_bit_width              cells=   37.0 phase=phase1 -> EQUIVALENT: equiv flow: all 9 $equiv cells proven
+  ✅ case1   spirehdl add3                         cells=   10.0 phase=phase1 -> EQUIVALENT: equiv flow: all 1 $equiv cells proven
+  ✅ case13  verilog  mux_type3                    cells=    1.0 phase=phase1 -> EQUIVALENT: equiv flow: all 1 $equiv cells proven
+  ✅ case13  spirehdl mux_type3                    cells=    1.0 phase=phase1 -> EQUIVALENT: equiv flow: all 1 $equiv cells proven
+  ✅ case14  verilog  mux_type4                    cells=    2.0 phase=phase1 -> EQUIVALENT: equiv flow: all 1 $equiv cells proven
+  ✅ case6   verilog  adder_subexpression          cells=  128.0 phase=phase2 -> EQUIVALENT: equiv flow: all 10 $equiv cells proven
+  ✅ case11  verilog  mux_dead_code                cells=   24.0 phase=phase1 -> EQUIVALENT: equiv flow: all 8 $equiv cells proven
+  ✅ case9   verilog  example1                     cells=   40.0 phase=phase1 -> EQUIVALENT: equiv flow: all 7 $equiv cells proven
+  ✅ case14  spirehdl mux_type4                    cells=    2.0 phase=phase1 -> EQUIVALENT: miter+SAT UNSAT — no input distinguishes the designs
+  ✅ case6   spirehdl adder_subexpression          cells=  117.0 phase=phase2 -> EQUIVALENT: equiv flow: all 10 $equiv cells proven
+  ✅ case7   verilog  alu_subexpression            cells=  272.0 phase=phase2 -> EQUIVALENT: equiv flow: all 9 $equiv cells proven
+  ✅ case10  verilog  example3                     cells=    6.0 phase=phase1 -> EQUIVALENT: reset-anchored temporal induction — complete proof
+  ✅ case10  spirehdl example3                     cells=   10.0 phase=phase2 -> EQUIVALENT: reset-anchored temporal induction — complete proof
+  ✅ case4   verilog  multi_constant_multiplication2 cells=  827.0 phase=phase2 -> EQUIVALENT: equiv flow: all 96 $equiv cells proven
+  ✅ case9   spirehdl example1                     cells=   25.0 phase=phase1 -> EQUIVALENT: reset-anchored temporal induction — complete proof
+  ✅ case7   spirehdl alu_subexpression            cells=  249.0 phase=phase2 -> EQUIVALENT: equiv flow: all 9 $equiv cells proven
+  ✅ case3   verilog  multi_constant_multiplication cells=  655.0 phase=phase2 -> EQUIVALENT: equiv flow: all 96 $equiv cells proven
+  ✅ case4   spirehdl multi_constant_multiplication2 cells=  558.0 phase=phase2 -> EQUIVALENT: equiv flow: all 96 $equiv cells proven
+  ✅ case3   spirehdl multi_constant_multiplication cells=  438.0 phase=phase2 -> EQUIVALENT: equiv flow: all 96 $equiv cells proven
+  ✅ case8   verilog  multiplier_bitwidth          cells=  370.0 phase=phase1 -> EQUIVALENT: equiv flow: all 16 $equiv cells proven
+  ✅ case8   spirehdl multiplier_bitwidth          cells=  343.0 phase=phase1 -> EQUIVALENT: equiv flow: all 16 $equiv cells proven
+  ✅ case12  verilog  communtativity_subpexpression2 cells=14448.0 phase=phase1 -> EQUIVALENT: 1,000,000 random vectors, 0 mismatches (simulation; formal CEC intractable — 32-bit multipliers)
+  ✅ case2   verilog  commutativity_subexpression  cells=11272.0 phase=phase1 -> EQUIVALENT: 1,000,000 random vectors, 0 mismatches (simulation; formal CEC intractable — 32-bit multipliers)
+  ✅ case2   spirehdl commutativity_subexpression  cells= 8702.0 phase=phase2 -> EQUIVALENT: 1,000,000 random vectors, 0 mismatches (simulation; formal CEC intractable — 32-bit multipliers)
+  ✅ case12  spirehdl communtativity_subpexpression2 cells=11032.0 phase=phase2 -> EQUIVALENT: 1,000,000 random vectors, 0 mismatches (simulation; formal CEC intractable — 32-bit multipliers)
+[cec] wrote cec_results/cells.md
+[cec] wrote cec_results/cells.json

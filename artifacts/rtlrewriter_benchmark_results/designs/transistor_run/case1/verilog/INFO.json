@@ -1,0 +1,19 @@
+{
+  "case": "case1",
+  "module": "add3",
+  "language": "verilog",
+  "top_module": "example",
+  "type": "sequential",
+  "metric": "transistors",
+  "best_phase": "phase1",
+  "metric_value": 128,
+  "cec_status": "EQUIVALENT",
+  "cec_method": "equiv_induct",
+  "cec_detail": "equiv flow: all 1 $equiv cells proven",
+  "files": {
+    "starting_point": "starting_point.v",
+    "tb.sv": "tb.sv",
+    "vectors.dat": "vectors.dat",
+    "best_netlist": "best.sv"
+  }
+}
