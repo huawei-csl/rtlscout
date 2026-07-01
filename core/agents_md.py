@@ -14,15 +14,15 @@ Per-language differences are captured in ``_CFG``:
     in-repo docs) + point at the reference designs.
   - Verilog: a one-line note + point at the reference designs.
 
-Reuses the reference registries + ``_build_optimization_guidance`` from ``core/prompts.py``.
+Reuses the reference registries from ``core/prompts.py``; optimization guidance is emitted as
+short pointers (the OpenCode agent can read the referenced READMEs itself).
 """
 from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional
 
-from core.prompts import (AMARANTH_REFERENCES, SPIREHDL_REFERENCES, VERILOG_REFERENCES, _SPIRE,
-                          _build_optimization_guidance)
+from core.prompts import AMARANTH_REFERENCES, SPIREHDL_REFERENCES, VERILOG_REFERENCES, _SPIRE
 
 if TYPE_CHECKING:
     from core.agent_backend import BackendRequest
@@ -138,11 +138,40 @@ def _references(cfg: dict) -> str:
 
 
 def _optimization_guidance(req: "BackendRequest", cfg: dict) -> str:
+    """Lean pointer version of the react prompt's optimization guidance. The react loop inlines
+    the spire-hdl optimization READMEs (it has no shell); the OpenCode agent can `cat` them, so
+    here we just emphasize which capabilities are enabled and point at the doc to read."""
     if not cfg["opt_flags"]:
         return ""
-    return _build_optimization_guidance(req.abc_optimize, req.flowy_optimize,
-                                        req.arith_autoconfig, req.dont_touch_main_arith,
-                                        req.fsm_optimize).strip()
+
+    def R(name):
+        return f"`{_SPIRE / name}`"
+
+    items = []
+    if req.abc_optimize:
+        items.append(f"- **`@abc_optimized`** — wrap combinational logic with the decorator that "
+                     f"runs an ABC logic-synthesis script over it. See {R('README_optimization_decorators.md')}.")
+    if req.arith_autoconfig:
+        items.append(f"- **`replace_arithmetic_ops()` / `@arithmetic_optimized`** — reconfigure how "
+                     f"`*`/`+`/etc. map to multiplier/adder architectures instead of the default "
+                     f"operator mapping. See {R('README_arithmetic_optimization.md')}.")
+    if req.fsm_optimize:
+        items.append(f"- **FSM / state-encoding** — the `State` API plus the `optimized_fsm` / "
+                     f"`optimized_encoding` wrappers, for alternative state encodings on sequential "
+                     f"designs. See {R('README_fsm_optimization.md')} and {R('README_state_machines.md')}.")
+    if req.flowy_optimize:
+        items.append(f"- **`@flowy_optimized`** (Mockturtle) — combinational optimization via "
+                     f"Mockturtle. See {R('README_optimization_decorators.md')}. **Note:** Mockturtle "
+                     f"is not in the default image, so this only helps in a flowy-enabled environment.")
+    if req.dont_touch_main_arith:
+        items.append("- **Do not touch the main arithmetic** — do **not** modify the core "
+                     "`MultiplierConfig` / `AdderConfig`; optimize everything else.")
+    if not items:
+        return ""
+    return ("## Optimization guidance (enabled for this run)\n\n"
+            "These synthesis-aware capabilities are highlighted. You already have the SpireHDL READMEs "
+            "and source pointed at above — read the referenced doc for the exact API; the notes "
+            "below are the emphasis.\n\n" + "\n".join(items))
 
 
 def _seed(seed_text: str) -> str:
