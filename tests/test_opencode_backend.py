@@ -41,7 +41,7 @@ def _make_req(tmp_path, language="verilog", model="z-ai/glm-4.6", provider="open
 
 class _FakeSandbox:
     """Scripted sandbox for testing the nudge loop without an LLM. Each run_command uses the
-    next script entry; `add_eval` appends a line to evals.jsonl to simulate the agent scoring
+    next script entry; `add_eval` appends a line to agent_evals.jsonl to simulate the agent scoring
     a new design that round."""
     runs_in_process = False
 
@@ -59,7 +59,7 @@ class _FakeSandbox:
         s = self.scripts[min(self.calls, len(self.scripts) - 1)]
         self.calls += 1
         if s.get("add_eval"):
-            with open(self.run_root / "evals.jsonl", "a") as f:
+            with open(self.run_root / "agent_evals.jsonl", "a") as f:
                 f.write(json.dumps({"eval_index": self.calls, "passed": True,
                                     "cost": {"ok": True}, "cost_value": 1}) + "\n")
         return CommandResult(returncode=s.get("returncode", 0), stdout=s.get("stdout", ""),
@@ -250,7 +250,7 @@ def test_opencode_noninteractive_write_gate(tmp_path):
                     provider="openrouter", wall_clock_s=420)
     result = OpenCodeBackend().run(req)
 
-    evals_path = req.workdir / "evals.jsonl"
+    evals_path = req.workdir / "agent_evals.jsonl"
     assert evals_path.exists(), "agent never ran the eval shim (non-interactive write/eval failed)"
     lines = [l for l in evals_path.read_text().splitlines() if l.strip()]
     assert len(lines) >= 1, "no evaluation was recorded"

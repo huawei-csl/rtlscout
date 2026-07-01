@@ -2,7 +2,7 @@
 
 ``run_eval_and_store`` is the **agent-side advisory** eval command: it runs the same
 ``core.evaluation.evaluate`` the react loop uses, then emits the *exact* on-disk tree
-the loop produces today (``evals.jsonl``, ``eval_{i}/``, ``best_design/`` +
+the loop produces today (``agent_evals.jsonl``, ``eval_{i}/``, ``best_design/`` +
 ``_best_meta.json``) so every downstream consumer (multirun pool/seeding, Pareto) is
 untouched. It is **advisory**: scored against the agent's own (writable) copy of the
 inputs. The authoritative score is re-derived later by ``core.reeval.reeval_run``
@@ -100,7 +100,7 @@ def select_best_eval(eval_dicts: List[Dict[str, Any]],
 
 
 def read_evals(evals_path: Path) -> List[Dict[str, Any]]:
-    """Read ``evals.jsonl`` (one eval dict per line). Returns [] if absent."""
+    """Read ``agent_evals.jsonl`` (one eval dict per line). Returns [] if absent."""
     evals_path = Path(evals_path)
     if not evals_path.exists():
         return []
@@ -128,7 +128,7 @@ def run_eval_and_store(
     """Run one advisory evaluation and emit the standard on-disk tree.
 
     Stateless across calls: the eval index and running best are derived from the
-    files in ``run_root`` (``evals.jsonl`` + ``eval_{i}/``), so the OpenCode agent
+    files in ``run_root`` (``agent_evals.jsonl`` + ``eval_{i}/``), so the OpenCode agent
     can invoke this as a fresh subprocess each time. Returns the eval dict.
     """
     from core.evaluation import evaluate
@@ -136,7 +136,7 @@ def run_eval_and_store(
     workspace = Path(workspace)
     run_root = Path(run_root) if run_root is not None else workspace.parent
     run_root.mkdir(parents=True, exist_ok=True)
-    evals_path = run_root / "evals.jsonl"
+    evals_path = run_root / "agent_evals.jsonl"
 
     existing = read_evals(evals_path)
     eval_index = len(existing) + 1
@@ -211,7 +211,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                              "Omit to auto-detect.")
     parser.add_argument("--workspace", default=".", help="Workspace to evaluate (default: cwd).")
     parser.add_argument("--run-root", default=None,
-                        help="Where eval_{i}/ + best_design/ + evals.jsonl live (default: workspace parent).")
+                        help="Where eval_{i}/ + best_design/ + agent_evals.jsonl live (default: workspace parent).")
     args = parser.parse_args(argv)
 
     workspace = Path(args.workspace).resolve()

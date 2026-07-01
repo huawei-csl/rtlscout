@@ -9,7 +9,7 @@ Lifecycle:
      shim) into the run root and an ``evaluate_design`` wrapper into the workspace.
   3. Launch a FRESH ``opencode run`` (no ``-c``/``--session``/``--attach`` — one run ==
      one fresh context, §4.2) via the agent sandbox.
-  4. Harvest the standard on-disk tree (``evals.jsonl`` / ``eval_{i}/`` / ``best_design/``
+  4. Harvest the standard on-disk tree (``agent_evals.jsonl`` / ``eval_{i}/`` / ``best_design/``
      / ``summary.txt``) the eval shim produced, and build an ``AgentResult``. The full native
      session (prompts + responses) is saved via ``opencode export`` to ``opencode_session.json``.
 
@@ -272,7 +272,7 @@ def write_remaining_time_wrapper(req: "BackendRequest") -> Path:
 
 
 def _synth_summary(all_evals, best) -> str:
-    """Synthesize a minimal summary.txt from evals.jsonl when the agent left none."""
+    """Synthesize a minimal summary.txt from agent_evals.jsonl when the agent left none."""
     n = len(all_evals)
     if best is not None:
         return (f"(Auto-generated) {n} evaluation(s) recorded. Best passing design: "
@@ -310,7 +310,7 @@ def _harvest(req: "BackendRequest", stop_reason: str, cmd_result, token_usage) -
     from core.eval_store import read_evals, select_best_eval
 
     workdir = req.workdir
-    all_evals = read_evals(workdir / "evals.jsonl")
+    all_evals = read_evals(workdir / "agent_evals.jsonl")
     tiebreaker = getattr(type(req.cost_metric), "tiebreaker_key", None) if req.cost_metric else None
     best = select_best_eval(all_evals, tiebreaker)
 
@@ -416,7 +416,7 @@ class OpenCodeBackend:
         (req.workdir / "_deadline_epoch").write_text(str(int(deadline)) if deadline else "0")
 
         def _n_evals() -> int:
-            return len(read_evals(req.workdir / "evals.jsonl"))
+            return len(read_evals(req.workdir / "agent_evals.jsonl"))
 
         def _continue_session(session_id: str, prompt: str, timeout_s: int):
             """Continue the SAME opencode session with a follow-up prompt (nudge or summary)."""

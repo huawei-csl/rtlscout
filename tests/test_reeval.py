@@ -58,7 +58,7 @@ def _make_run(base: Path, bench, design_src: str, advisory_cost, advisory_passed
 @requires_verilator
 @requires_yosys
 def test_run_eval_and_store_tree(tmp_path):
-    """The advisory shim emits the standard tree: eval_{i}/, best_design/ + meta, evals.jsonl."""
+    """The advisory shim emits the standard tree: eval_{i}/, best_design/ + meta, agent_evals.jsonl."""
     from core.benchmarks import load_benchmark
     from core.cost import make_cost_metric
     from core.eval_store import run_eval_and_store
@@ -77,18 +77,18 @@ def test_run_eval_and_store_tree(tmp_path):
     assert ed["eval_index"] == 1
     assert (workdir / "eval_1" / "result.json").exists()
     assert (workdir / "eval_1" / "workspace" / "design.sv").exists()
-    assert (workdir / "evals.jsonl").exists()
+    assert (workdir / "agent_evals.jsonl").exists()
 
     meta = json.loads((workdir / "best_design" / "_best_meta.json").read_text())
     assert meta["eval_index"] == 1
     assert meta["best_cost"] == ed["cost_value"]
 
-    # A second eval increments the index and appends to evals.jsonl.
+    # A second eval increments the index and appends to agent_evals.jsonl.
     ed2 = run_eval_and_store(ws, design_top_module=bench.module_name, cost_metric=cm,
                              language="verilog", run_root=workdir, design_file="design.sv",
                              run_cec=False, quiet=True)
     assert ed2["eval_index"] == 2
-    assert len((workdir / "evals.jsonl").read_text().strip().splitlines()) == 2
+    assert len((workdir / "agent_evals.jsonl").read_text().strip().splitlines()) == 2
 
 
 @requires_verilator
