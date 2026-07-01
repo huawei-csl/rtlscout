@@ -16,7 +16,7 @@
 
 An RTL design agent powered by pluggable LLM backends (DeepInfra, Anthropic) with tool use. The agent iteratively creates and optimizes Verilog/SystemVerilog, Spire or Amaranth designs, targeting **correctness first, then minimal cost** under a configurable cost metric. The agent
 can run as the built-in in-process loop or as an external **OpenCode** agent in a sandboxed,
-per-run container — see [Agent backends & sandboxing](#agent-backends--sandboxing-opencode).
+per-run container — see [Agent Flow](#agent-flow).
 
 ## What RTL Scout does
 
@@ -137,6 +137,92 @@ Browse `benchmarks/` for the full set; to add your own, see **[README_add_benchm
 
 Each is detailed in [Running benchmarks](#running-benchmarks) below.
 
+## Agent Flow
+
+RTLScout runs one optimization agent per run. **What** agent runs — and **where** it's
+sandboxed — is set by two flags:
+
+- `--agent-backend react|opencode` — *how* the agent runs (the two subsections below).
+- `--mode single-container|orchestrated` — *where* it runs (sandboxing; see
+  [OpenCode Backend](#opencode-backend)).
+
+Whatever the backend, the harness re-derives the recorded score against the **benchmark's own
+inputs** (a clean-room re-eval), so an agent with a shell can't fake it:
+
+```mermaid
+flowchart LR
+  A["agent<br/>react / opencode<br/>(advisory eval)"] --> R["authoritative re-eval<br/>vs the benchmark's own inputs"]
+  R --> P["elite pool + Pareto"]
+```
+
+### Python ReAct Backend
+
+`--agent-backend react` (the default). An **in-process loop**: a capability-confined agent calls
+whitelisted tools on its `workspace/` subdir — **no shell**. It is bounded by `--max-steps`
+(there is no wall-clock limit). Because it can't reach the scorer, its in-process number is
+already trustworthy and feeds the pool directly.
+
+```mermaid
+flowchart TD
+  SP["System prompt<br/>spec + cost metric + tool docs"] --> LLM["LLM: response + tool calls"]
+  LLM --> FT["File tools<br/>create_file / replace_file /<br/>apply_diff / read_file / ls"]
+  LLM --> C
+  LLM --> DONE["done<br/>(final eval)"]
+  subgraph RE ["run_evaluation"]
+    C["compile .py &rarr; Verilog<br/>(SpireHDL / Amaranth)"] --> V["Verilator<br/>lint + sim"] --> Y["Yosys<br/>cost"]
+  end
+  FT --> TR["Tool result<br/>fed back to LLM"]
+  Y --> TR
+  Y -->|"100% correct & lower cost"| TB["Track best<br/>best_design/"]
+  DONE --> RES["Result<br/>best_cost, best_eval"]
+  TR --> NS["Next step"]
+  NS -->|"until done or max_steps"| LLM
+```
+
+**Strategy:** build a simple correct design first, evaluate it, then — once 100% correct —
+iteratively optimize the cost metric, reverting on any correctness regression, until `done` or
+`max_steps`.
+
+### OpenCode Backend
+
+`--agent-backend opencode`. The external [OpenCode](https://opencode.ai) agent runs with a
+**real shell**, once per run in its own sandbox. Because a shell can tamper its own copy of the
+scorer/inputs, its advisory number is **never trusted** — the harness always re-derives the
+recorded score (the `reeval` step below) against the benchmark's own inputs.
+
+**Sandboxing — `--mode`** (this is the flag's main use; the react backend has no shell, so
+containerizing it buys little and it effectively always runs single-container):
+
+- `single-container` (default) — agent + judge run in the current container. Convenience / dev;
+  lower assurance.
+- `orchestrated` — a fresh `docker run --rm` container per agent run **and** per scored
+  candidate → full isolation and the adversarial-agent integrity guarantee. Containers are
+  managed purely by **label** (never by image), so a co-running devcontainer on
+  `rtlscout:latest` is never touched.
+
+```mermaid
+flowchart TD
+  PROV["provision workspace<br/>tb + data + context + reference"] --> REN["render AGENTS.md + opencode.json<br/>+ evaluate_design / remaining_time wrappers"]
+  REN --> RUN["opencode run<br/>(one fresh session, real shell)"]
+  RUN -->|"./evaluate_design"| ADV["advisory eval<br/>agent_evals.jsonl + eval_i/ + best_design/"]
+  ADV --> RUN
+  RUN -->|"stops early + time left"| NUDGE["nudge:<br/>keep going"]
+  NUDGE --> RUN
+  RUN -->|"wall-clock up"| SUM["summary turn<br/>(same session &rarr; summary.txt)"]
+  SUM --> RV["reeval_run<br/>re-score every eval_i/ vs the benchmark's own inputs"]
+  RV --> POOL["authoritative result.json + best_design/<br/>&rarr; elite pool + Pareto"]
+```
+
+Budget: `--wall-clock-min` sets the hard per-run time budget — the agent is terminated when it's
+up, and nudged to keep going if it stops early. Build the agent image once with
+`docker build -f .devcontainer/Dockerfile.opencode -t rtlscout-opencode:latest .`; clean up
+orchestrated containers with `python rtlscout_cli.py cleanup`.
+
+See **[README_orchestration.md](README_orchestration.md)** for the full sandboxing + integrity
+model: assurance by mode, the advisory/authoritative split, OpenCode permissions/launch quirks,
+and label-based cleanup.
+
+
 ## Running benchmarks
 
 > Every command here drives an LLM provider, so set your API token in `.env` first (`DEEPINFRA_API_KEY`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, …) — see [Installation](#installation-details). The `--model` argument always uses **`provider:model`** syntax; providers are `deepinfra`, `anthropic`, `openrouter` (and `fake` for offline testing).
@@ -204,102 +290,6 @@ python run_pipeline.py \
 > **Note:** This is the *general* (less specialized) workflow. The FP-specialized **4-phase** pipeline (arithmetic-architecture sweep + high-effort Mockturtle refinement) is documented separately in **[README_fpmul.md](README_fpmul.md)**.
 
 See the [Usage](#usage) section for more command examples.
-
-## Agent backends & sandboxing (OpenCode)
-
-By default RTLScout runs an **in-process ReAct agent** in the current container. Two opt-in,
-orthogonal seams let an **external [OpenCode](https://opencode.ai) agent** run in its own
-sandbox while keeping recorded scores trustworthy:
-
-- `--agent-backend react|opencode` — *how* the agent runs (the in-process loop vs an external
-  `opencode run` with a real shell).
-- `--mode single-container|orchestrated` — *where* it runs (here, or a fresh `docker run --rm`
-  container per agent run **and** per scored candidate).
-
-The recorded score is re-derived by the harness against the **benchmark's own inputs** (a
-clean-room re-eval) so an agent with a shell can't fake it; the built-in **react** path is
-unchanged. Orchestrated containers are managed purely by label (never by image), so a
-co-running VS Code devcontainer on the same `rtlscout:latest` image is never touched.
-
-```mermaid
-flowchart LR
-  A["agent<br/>react / opencode<br/>(advisory eval)"] --> R["authoritative re-eval<br/>vs benchmark's own inputs"]
-  R --> P["elite pool + Pareto"]
-```
-
-```bash
-# external OpenCode agent, fully isolated: fresh container per run + per judge
-python run_multirun.py --benchmark fpmul_f16 --model openrouter:z-ai/glm-5.2 --language spirehdl \
-    --agent-backend opencode --mode orchestrated --wall-clock-min 10 --max-evals 12
-```
-
-Extra flags: `--reeval` (force the authoritative re-score on the react path too, for A/B
-parity), `--wall-clock-min` (hard per-run budget for the opencode agent), `--max-evals` (soft
-eval cap). Build the agent image once with
-`docker build -f .devcontainer/Dockerfile.opencode -t rtlscout-opencode:latest .`, and clean
-up orchestrated containers with `python rtlscout_cli.py cleanup`.
-
-See **[README_orchestration.md](README_orchestration.md)** for the full picture: the two
-seams, the single-container vs orchestrated **assurance model**, the advisory/authoritative
-**integrity split** (with diagrams), OpenCode permissions/launch quirks, the
-`rtlscout-opencode` image, and label-based container cleanup.
-
-## Agent flow
-
-```
-                        ┌──────────────────────┐
-                        │   System prompt      │
-                        │  (spec + cost metric │
-                        │   + tool docs)       │
-                        └─────────┬────────────┘
-                                  │
-                                  v
-                   ┌──────────────────────────────┐
-                   │         LLM generates        │
-                   │    response + tool calls     │
-                   └──────────────┬───────────────┘
-                                  │
-              ┌───────────────────┼───────────────────┐
-              v                   v                   v
-     ┌────────────────┐  ┌───────────────┐  ┌────────────────┐
-     │  File tools    │  │ run_evaluation│  │     done       │
-     │  create_file   │  │               │  │  (final eval)  │
-     │  replace_file  │  │  ┌─────────┐  │  └───────┬────────┘
-     │  apply_diff    │  │  │SpireHDL │  │          │
-     │  read_file     │  │  │compile  │  │          │
-     │  ls            │  │  │(if flag)│  │          v
-     └────────┬───────┘  │  └────┬────┘  │    ┌───────────┐
-              │          │       v       │    │  Result   │
-              │          │  ┌─────────┐  │    │ best_cost │
-              │          │  │Verilator│  │    │ best_eval │
-              │          │  │lint+sim │  │    └───────────┘
-              │          │  └────┬────┘  │
-              │          │       v       │
-              │          │  ┌─────────┐  │
-              │          │  │  Yosys  │  │
-              │          │  │  cost   │  │
-              │          │  └────┬────┘  │
-              │          │       v       │
-              │          │  Summary:     │
-              │          │  pass/fail +  │
-              │          │  cost value   │
-              │          └───────┬───────┘
-              │                  │
-              └─────────┬────────┘
-                        │
-                        v
-               ┌────────────────┐    100% correct     ┌──────────────┐
-               │ Tool result    │───& lower cost? ───>│ Track best   │
-               │ fed back to LLM│                     │ best_design/ │
-               └────────┬───────┘                     └──────────────┘
-                        │
-                        v
-                 ┌────────────────┐
-                 │ Next step      │──── until done or max_steps
-                 └────────────────┘
-```
-
-**Strategy**: the LLM is instructed to (1) build a simple correct design first, (2) run evaluation, (3) once 100% correct, iteratively optimize to reduce the cost metric, reverting if correctness breaks.
 
 ## Architecture
 
