@@ -14,10 +14,9 @@ sandboxed campaigns.
 | flag | values | default | meaning |
 |---|---|---|---|
 | `--agent-backend` | `react` \| `opencode` | `react` | *how* the agent runs (in-process loop vs external OpenCode) |
-| `--mode` | `single-container` \| `orchestrated` | `single-container` | *where* work runs (here vs fresh `--rm` containers) |
+| `--mode` | `single-container` \| `orchestrated` | `single-container` | *where* work runs (here vs fresh `--rm` containers). **OpenCode only** — `orchestrated` with `--agent-backend react` is rejected |
 | `--reeval` | flag | off | force the authoritative re-score on the **react** path too (always on for opencode) |
-| `--wall-clock-min` | minutes | `0` (none) | hard per-run budget for the **opencode** agent |
-| `--max-evals` | int | none | soft eval-count cap (enforced by the eval shim) |
+| `--wall-clock-min` | minutes | `10` | hard per-run budget for the **opencode** agent (`0` = no limit) |
 
 ```bash
 # default: in-process ReAct, single container (unchanged)
@@ -25,7 +24,7 @@ python run_multirun.py --benchmark fpmul_f16 --model openrouter:z-ai/glm-5.2 --t
 
 # external OpenCode agent, each run + each judge in its own --rm container
 python run_multirun.py --benchmark fpmul_f16 --model openrouter:z-ai/glm-5.2 \
-    --agent-backend opencode --mode orchestrated --wall-clock-min 10 --max-evals 12
+    --agent-backend opencode --mode orchestrated --wall-clock-min 10
 ```
 
 ---
@@ -178,8 +177,8 @@ Per-run lifecycle (`core/opencode_backend.py`):
 4. **Harvest** `evals.jsonl` / `eval_i/` / `best_design/` / `summary.txt` into an
    `AgentResult`; snapshot a provenance file + session log.
 
-**Budget (no turn cap):** `--wall-clock-min` is the hard stop (subprocess/container
-timeout); `--max-evals` is a soft cap the shim enforces.
+**Budget (no turn cap):** `--wall-clock-min` is the hard stop (subprocess/container timeout);
+the agent is terminated when it's up and nudged to keep going if it stops early.
 
 ### Permissions (important — handover §4.8)
 
@@ -306,7 +305,7 @@ python run_multirun.py --benchmark fpmul_f16 --model openrouter:z-ai/glm-5.2 \
 
 # 2) opencode, single-container  (run INSIDE an rtlscout-opencode container)
 python run_multirun.py --benchmark fpmul_f16 --model openrouter:z-ai/glm-5.2 --language spirehdl \
-    --agent-backend opencode --total-runs 1 --wall-clock-min 10 --max-evals 12 --skip-cec
+    --agent-backend opencode --total-runs 1 --wall-clock-min 10 --skip-cec
 
 # 3) opencode, ORCHESTRATED — harness needs an identity mount + the docker socket:
 docker run --rm -v "$PWD:$PWD" -v /usr/bin/docker:/usr/bin/docker:ro \
@@ -315,7 +314,7 @@ docker run --rm -v "$PWD:$PWD" -v /usr/bin/docker:/usr/bin/docker:ro \
   bash -c 'export PATH=/home/vscode/pyenv_eda/bin:/usr/local/bin:$PATH; \
     python run_multirun.py --benchmark fpmul_f16 --model openrouter:z-ai/glm-5.2 --language spirehdl \
       --agent-backend opencode --mode orchestrated --total-runs 4 \
-      --wall-clock-min 10 --max-evals 12 --skip-cec --runs-root "'"$PWD"'/runs/orch"'
+      --wall-clock-min 10 --skip-cec --runs-root "'"$PWD"'/runs/orch"'
 
 # 3b) ALTERNATIVE to (3): launch from the HOST instead of a harness container. More work —
 #     the host first needs the Python deps installed (the harness imports tech_eval/spirehdl);
@@ -324,7 +323,7 @@ docker run --rm -v "$PWD:$PWD" -v /usr/bin/docker:/usr/bin/docker:ro \
 pip install -e deps/spire-hdl -e deps/tech_eval -r requirements.txt   # one-time host setup
 python run_multirun.py --benchmark fpmul_f16 --model openrouter:z-ai/glm-5.2 --language spirehdl \
     --agent-backend opencode --mode orchestrated --total-runs 4 \
-    --wall-clock-min 10 --max-evals 12 --skip-cec --runs-root runs/orch
+    --wall-clock-min 10 --skip-cec --runs-root runs/orch
 
 python rtlscout_cli.py cleanup --session <id-printed-at-start>
 ```

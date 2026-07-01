@@ -573,6 +573,16 @@ def run_multirun(
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         runs_root = Path("runs") / f"multirun_{ts}"
     runs_root.mkdir(parents=True, exist_ok=True)
+
+    # --mode applies to the OpenCode backend only. The react agent has no shell and always runs
+    # in-process (its in-process score is already trustworthy), so containerizing it — or its
+    # judge — buys nothing. Reject the combination rather than silently ignoring the flag.
+    if agent_backend != "opencode" and deploy_mode == "orchestrated":
+        raise ValueError(
+            f"--mode orchestrated applies to --agent-backend opencode only (got "
+            f"--agent-backend {agent_backend}). The react agent runs in-process; use "
+            f"--mode single-container, or switch to --agent-backend opencode.")
+
     session_id = uuid.uuid4().hex  # labels + scopes this campaign's orchestrated containers
     if deploy_mode == "orchestrated":
         print(f"[ORCHESTRATED] session={session_id}  agent+judge containers carry "

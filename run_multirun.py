@@ -94,6 +94,10 @@ def main():
                              "--max-steps instead.")
     args = parser.parse_args()
 
+    if args.mode == "orchestrated" and args.agent_backend != "opencode":
+        parser.error("--mode orchestrated applies to --agent-backend opencode only; the react "
+                     "agent runs in-process. Use --mode single-container, or --agent-backend opencode.")
+
     runs_root = None
     if args.runs_root:
         runs_root = Path(args.runs_root)

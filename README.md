@@ -139,15 +139,10 @@ Each is detailed in [Running benchmarks](#running-benchmarks) below.
 
 ## Agent Flow
 
-RTLScout runs one optimization agent per run. **What** agent runs — and **where** it's
-sandboxed — is set by two flags:
-
-- `--agent-backend react|opencode` — *how* the agent runs (the two subsections below).
-- `--mode single-container|orchestrated` — *where* it runs (sandboxing; see
-  [OpenCode Backend](#opencode-backend)).
-
-Whatever the backend, the harness re-derives the recorded score against the **benchmark's own
-inputs** (a clean-room re-eval), so an agent with a shell can't fake it:
+RTLScout runs one optimization agent per run, selected by **`--agent-backend react|opencode`**
+(the two subsections below). Whatever the backend, the harness re-derives the recorded score
+against the **benchmark's own inputs** (a clean-room re-eval), so an agent with a shell can't
+fake it:
 
 ```mermaid
 flowchart LR
@@ -190,8 +185,8 @@ iteratively optimize the cost metric, reverting on any correctness regression, u
 scorer/inputs, its advisory number is **never trusted** — the harness always re-derives the
 recorded score (the `reeval` step below) against the benchmark's own inputs.
 
-**Sandboxing — `--mode`** (this is the flag's main use; the react backend has no shell, so
-containerizing it buys little and it effectively always runs single-container):
+**Sandboxing — `--mode`** (OpenCode only — the react agent has no shell and always runs
+in-process, so `--mode orchestrated` with `--agent-backend react` is rejected):
 
 - `single-container` (default) — agent + judge run in the current container. Convenience / dev;
   lower assurance.
