@@ -325,8 +325,10 @@ def dispatch_subcircuit(spec_key: str, *, db: Optional[Any] = None, objective: s
         agent_note = f"agent exited rc={proc.returncode}"
         (workdir / "opencode_session.log").write_text(proc.stdout + "\n--- stderr ---\n"
                                                       + proc.stderr)
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as exc:
         agent_note = f"agent terminated at the {budget_min:g}-minute budget"
+        (workdir / "opencode_session.log").write_text(
+            (exc.stdout or "") + "\n--- stderr ---\n" + (exc.stderr or ""))
 
     report = build_report(spec_key, db=db, objective=objective, before_ids=before)
     report["agent"] = {"model": model, "note": agent_note,
@@ -372,8 +374,10 @@ def dispatch_dv_prep(spec_key: str, *, db: Optional[Any] = None, model: Optional
         agent_note = f"agent exited rc={proc.returncode}"
         (workdir / "opencode_session.log").write_text(proc.stdout + "\n--- stderr ---\n"
                                                       + proc.stderr)
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as exc:
         agent_note = f"agent terminated at the {budget_min:g}-minute budget"
+        (workdir / "opencode_session.log").write_text(
+            (exc.stdout or "") + "\n--- stderr ---\n" + (exc.stderr or ""))
 
     report: Dict[str, Any] = {"spec_key": spec_key, "frozen": None,
                               "agent": {"model": model, "note": agent_note,
@@ -435,8 +439,10 @@ def run_orchestrator(*, db: Optional[Any] = None, objective: str = "area",
         agent_note = f"agent exited rc={proc.returncode}"
         (workdir / "opencode_session.log").write_text(proc.stdout + "\n--- stderr ---\n"
                                                       + proc.stderr)
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as exc:
         agent_note = f"agent terminated at the {budget_min:g}-minute budget"
+        (workdir / "opencode_session.log").write_text(
+            (exc.stdout or "") + "\n--- stderr ---\n" + (exc.stderr or ""))
 
     after = d.read_json(d.manifest_path, {"slots": {}})
     slots_report = {}
