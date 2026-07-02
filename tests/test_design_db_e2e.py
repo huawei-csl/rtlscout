@@ -24,7 +24,7 @@ from core.design_db_agents import run_orchestrator
 
 COMB_CAND = """\
 module cand(input [7:0] a, input [7:0] b, output [7:0] sum);
-  assign sum = a + b;
+  assign sum = (a ^ b) + ((a & b) << 1);
 endmodule
 """
 
@@ -112,9 +112,10 @@ esac
                               workdir=orch_ws)
 
     slots = report["slots"]
-    assert slots["adder"]["n_designs"] == 1 and slots["adder"]["n_designs_before"] == 0
-    assert slots["adder"]["selected_id"].startswith("agent:rtl-subcircuit:")
-    assert slots["seqm"]["n_designs"] == 1
+    # dispatch seeds the baseline, so the comb slot ends with original + the agent design
+    assert slots["adder"]["n_designs"] == 2 and slots["adder"]["n_designs_before"] == 0
+    assert slots["adder"]["selected_id"]                       # floor or agent — argmin decides
+    assert slots["seqm"]["n_designs"] >= 1                     # seed (+ agent unless deduped)
     assert (orch_ws / "report.json").exists() and (orch_ws / "opencode_session.log").exists()
 
     seq_slot = db / VERSION_DIR / seq

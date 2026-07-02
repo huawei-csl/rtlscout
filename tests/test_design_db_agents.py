@@ -113,10 +113,11 @@ def test_dispatch_e2e_with_stub_agent(db, tmp_path, monkeypatch):
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     stub = bin_dir / "opencode"
+    distinct = EQUIV_MOD256.replace("a + b;", "(a ^ b) + ((a & b) << 1);")   # carry-save form
     stub.write_text(
         "#!/usr/bin/env bash\n"
         "echo \"$RTLSCOUT_DISPATCH_DEPTH\" > depth.txt\n"
-        "cat > design.v <<'VEOF'\n" + EQUIV_MOD256 + "VEOF\n"
+        "cat > design.v <<'VEOF'\n" + distinct + "VEOF\n"
         "./eval design.v > eval_out.json\n"
         "./db-insert design.v > insert_out.json\n")
     stub.chmod(0o755)
@@ -124,8 +125,9 @@ def test_dispatch_e2e_with_stub_agent(db, tmp_path, monkeypatch):
 
     w = tmp_path / "dispatch_ws"
     report = dispatch_subcircuit(key, model="stub:model", budget_min=2, workdir=w)
-    assert report["n_added"] == 1 and report["n_designs"] == 1
-    assert report["best"]["design_id"].startswith("agent:rtl-subcircuit:")
+    assert report["seeded"].startswith("original:")          # the baseline floor was seeded
+    assert report["n_added"] == 1 and report["n_designs"] == 2
+    assert report["best"]["design_id"]                        # floor or agent — deterministic argmin
     assert (w / "report.json").exists() and (w / "opencode_session.log").exists()
     assert (w / "depth.txt").read_text().strip() == "1"       # the guard incremented
     manifest = json.loads((db / VERSION_DIR / "manifest.json").read_text())

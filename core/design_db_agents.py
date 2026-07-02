@@ -29,7 +29,9 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from spire.design_db import DesignDB, DesignDBError, pareto_front, select_design
+from spire.design_db import (DesignDB, DesignDBError, pareto_front, seed_original,
+                             select_design)
+from spire.design_db.verify import VerificationError
 
 DISPATCH_DEPTH_ENV = "RTLSCOUT_DISPATCH_DEPTH"
 DISPATCH_DEPTH_CAP = 2
@@ -156,8 +158,14 @@ automatically once it runs out.
 
 ## Policy
 
+- Read the manifest first: each slot's `class` and whether it is verified (`spire db show <key>`
+  — a missing `verification` means unverified).
+- **Sequential slot without a frozen verification → `./dv-prep <key>` first**, then dispatch it.
+  Combinational slots are CEC-verified by default — dispatch them directly.
+- Dispatch each slot **once**, sequentially, with a small sub-budget (`--budget-min 3` unless told
+  otherwise). The commands block until the subagent finishes — that is normal; read each JSON
+  report before deciding the next step.
 - Prefer slots with no admitted designs beyond `original:*`, or with a weak Pareto front.
-- Dispatch sequentially; read each report before deciding the next step.
 - You never insert designs yourself and never edit slot files — subagents + the gate do that.
 """
 
@@ -286,12 +294,13 @@ def build_report(spec_key: str, *, db: Optional[Any] = None, objective: str = "a
 
 def dispatch_subcircuit(spec_key: str, *, db: Optional[Any] = None, objective: str = "area",
                         model: Optional[str] = None, budget_min: float = 10.0,
-                        workdir: Optional[Path] = None,
+                        workdir: Optional[Path] = None, seed_baseline: bool = True,
                         opencode_bin: str = "opencode") -> Dict[str, Any]:
     """Launch one ``rtl-subcircuit`` agent on a slot and return the trusted report.
 
-    Depth-guarded (``RTLSCOUT_DISPATCH_DEPTH``, cap 2): a dispatched agent may dispatch further,
-    but recursion is bounded by the shim, not by prompt goodwill.
+    Seeds the slot's own golden first (the selection floor — a correct-but-worse agent design can
+    never win). Depth-guarded (``RTLSCOUT_DISPATCH_DEPTH``, cap 2): a dispatched agent may
+    dispatch further, but recursion is bounded by the shim, not by prompt goodwill.
     """
     depth = int(os.environ.get(DISPATCH_DEPTH_ENV, "0"))
     if depth >= DISPATCH_DEPTH_CAP:
@@ -305,6 +314,12 @@ def dispatch_subcircuit(spec_key: str, *, db: Optional[Any] = None, objective: s
     model_spec = model.replace(":", "/", 1)     # provider:model -> provider/model (opencode form)
 
     d = DesignDB.open(db, create=False)
+    seeded = None
+    if seed_baseline:
+        try:
+            seeded = seed_original(spec_key, db=db).design_id
+        except VerificationError as exc:        # a golden failing its own gate is a slot problem
+            seeded = f"seed-failed: {str(exc).splitlines()[0][:120]}"
     before = set(d.read_json(d.slot_dir(spec_key) / "index.json", {}))
 
     workdir = Path(workdir) if workdir else Path(tempfile.mkdtemp(prefix="ddb_dispatch_"))
@@ -331,6 +346,7 @@ def dispatch_subcircuit(spec_key: str, *, db: Optional[Any] = None, objective: s
             (exc.stdout or "") + "\n--- stderr ---\n" + (exc.stderr or ""))
 
     report = build_report(spec_key, db=db, objective=objective, before_ids=before)
+    report["seeded"] = seeded
     report["agent"] = {"model": model, "note": agent_note,
                        "duration_s": round(time.time() - started, 1),
                        "workspace": str(workdir)}
@@ -402,7 +418,7 @@ def dispatch_dv_prep(spec_key: str, *, db: Optional[Any] = None, model: Optional
 
 def run_orchestrator(*, db: Optional[Any] = None, objective: str = "area",
                      model: Optional[str] = None, budget_min: float = 30.0,
-                     workdir: Optional[Path] = None,
+                     workdir: Optional[Path] = None, kickoff_extra: str = "",
                      opencode_bin: str = "opencode") -> Dict[str, Any]:
     """Launch the ``rtl-orchestrator`` session: it inspects the DB, prepares verifications
     (``./dv-prep``) and dispatches subcircuit agents (``./dispatch``) — all launches go through
@@ -427,9 +443,14 @@ def run_orchestrator(*, db: Optional[Any] = None, objective: str = "area",
                f"where needed, dispatch subcircuit agents with ./dispatch, and summarize. "
                f"Objective: {objective}. You will be terminated automatically once the time "
                f"budget runs out.")
+    if kickoff_extra:
+        kickoff += " " + kickoff_extra
     env = dict(os.environ)
     env[DISPATCH_DEPTH_ENV] = str(depth + 1)
     env[AGENT_MODEL_ENV] = model          # nested shim launches inherit the model choice
+    nested = workdir / "nested"           # child dispatch/dv-prep workspaces land here
+    nested.mkdir(parents=True, exist_ok=True)
+    env["TMPDIR"] = str(nested)
     cmd = f"exec {shlex.quote(opencode_bin)} run --format json -m {shlex.quote(model_spec)} " \
           f"--agent rtl-orchestrator {shlex.quote(kickoff)}"
     started = time.time()
