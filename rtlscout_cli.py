@@ -45,6 +45,15 @@ def main(argv=None) -> int:
     f.add_argument("--module-name", default=None)
     f.add_argument("--keep-runs", action="store_true", help="keep the campaign artifacts")
 
+    v = sub.add_parser("dv-prep", help="launch the stimulus-authoring agent on an unfrozen slot, "
+                                       "then freeze its Tier-2 sim verification")
+    v.add_argument("--slot", required=True)
+    v.add_argument("--db", default=None)
+    v.add_argument("--model", default=None, help="provider:model (default: $RTLSCOUT_FILL_MODEL)")
+    v.add_argument("--budget-min", type=float, default=10.0)
+    v.add_argument("--vectors", type=int, default=256)
+    v.add_argument("--seed", type=int, default=0)
+
     s = sub.add_parser("db-score", help="stamp per-technology PPA metrics onto stored designs")
     s.add_argument("--db", default=None)
     s.add_argument("--slot", action="append", default=None, help="limit to slot(s); default all")
@@ -75,6 +84,16 @@ def main(argv=None) -> int:
             return 1
         print(json.dumps(report.to_dict(), indent=2))
         return 0 if (report.admitted or report.deduped or report.seeded) else 1
+
+    if args.cmd == "dv-prep":
+        from core.design_db_agents import main as agents_main
+        argv2 = ["dv-prep", "--slot", args.slot, "--budget-min", str(args.budget_min),
+                 "--vectors", str(args.vectors), "--seed", str(args.seed)]
+        if args.db:
+            argv2 += ["--db", args.db]
+        if args.model:
+            argv2 += ["--model", args.model]
+        return agents_main(argv2)
 
     if args.cmd == "db-score":
         from core.design_db_fill import score_designs

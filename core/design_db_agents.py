@@ -89,6 +89,49 @@ you will be terminated automatically once the time budget runs out, so use your 
 """
 
 
+def render_dv_prep_agents_md(spec: Dict[str, Any], spec_key: str, slot_dir: Path,
+                             budget_min: float) -> str:
+    clock = spec.get("clock") or {}
+    return f"""# Task — author a stimulus generator for one design-DB slot (dv prep)
+
+Slot `{spec_key[:12]}…` at `{slot_dir}` needs a **simulation verification**: your job is to write
+the *stimulus only*. Expected outputs are always produced by tooling simulating the golden — you
+never write answers, and you never see or write candidate designs. Budget ≈ **{budget_min:g}
+minutes**; you will be terminated automatically once it runs out.
+
+## Understand the interface first (read these)
+
+- `{slot_dir}/golden.v` — the reference implementation (its behavior defines the protocol).
+- `{slot_dir}/starting_point.py` / `{slot_dir}/spec.json` — source + interface.
+  Data inputs to drive (clock `{clock.get('clk')}` / reset `{clock.get('rst')}` are driven by the
+  testbench, not by you):
+
+{_ports_table(spec)}
+
+## Deliverable
+
+Write **`stimulus.py`** in this workspace, defining exactly:
+
+```python
+def generate(ports, n_vectors, seed):
+    # ports: [{{"name", "width", "signed", "dir"}}] — the data inputs above
+    # yield one dict {{input_name: int}} per cycle/vector
+    ...
+```
+
+Aim for stimulus that *exercises the block*: reset-adjacent behavior, corner values, bursts,
+protocol sequences — not just uniform random. The stimulus is frozen afterwards and stays open to
+human review; weak stimulus weakens the check for every future design in this slot.
+
+## Workflow
+
+1. Read the golden + source; understand the protocol.
+2. Write `stimulus.py`; run `./check-stimulus` to validate it loads and produces vectors. Iterate.
+3. Done — tooling simulates the golden with your generator and freezes the verification. You do
+   not freeze, insert, or report anything yourself.
+"""
+
+
 def render_orchestrator_agents_md(db_root: Path, objective: str, budget_min: float) -> str:
     return f"""# Task — orchestrate design-DB slot optimization
 
@@ -104,6 +147,9 @@ automatically once it runs out.
 - `./dispatch <spec_key> [--objective {objective}] [--budget-min N]` — the **only** way to start a
   subcircuit agent. It blocks until that agent finishes and prints the trusted report JSON
   (n_added, best, Pareto). Depth and budget are enforced by the shim, not by you.
+- `./dv-prep <spec_key> [--budget-min N]` — for an *unfrozen sequential slot*: launches the
+  stimulus-authoring agent, then tooling freezes the sim verification. Run it **before**
+  dispatching an optimizer at such a slot.
 - `spire db verify --slot <key> …` — if a slot has no frozen verification, choose one explicitly
   (`--auto` for the sim harness; CEC is the combinational default). Never guess: the command's
   errors list the options.
@@ -184,6 +230,33 @@ def provision_orchestrator_workspace(workdir: Path, *, db: Optional[Any] = None,
         json.dumps(render_agent_opencode_config(model_spec, "rtl-orchestrator"), indent=2) + "\n")
     _write_shim(workdir / "dispatch",
                 f"core.design_db_agents dispatch --db {shlex.quote(str(d.root))} --slot")
+    _write_shim(workdir / "dv-prep",
+                f"core.design_db_agents dv-prep --db {shlex.quote(str(d.root))} --slot")
+    return workdir
+
+
+def provision_dv_prep_workspace(spec_key: str, workdir: Path, *, db: Optional[Any] = None,
+                                model_spec: str = "openrouter/model",
+                                budget_min: float = 10.0) -> Path:
+    """AGENTS.md + opencode.json + the check-stimulus shim for a dv-prep agent."""
+    d = DesignDB.open(db, create=False)
+    slot = d.slot_dir(spec_key)
+    spec = d.read_json(slot / "spec.json", None)
+    if spec is None:
+        raise DesignDBError(f"unknown slot {spec_key[:12]}…")
+    existing = d.read_json(slot / "verification.json", None)
+    if existing is not None and int(existing.get("tier", 0)) >= 1:
+        raise DesignDBError("slot already has a frozen sim verification (immutable) — "
+                            "dv-prep has nothing to do")
+    workdir = Path(workdir)
+    workdir.mkdir(parents=True, exist_ok=True)
+    (workdir / "AGENTS.md").write_text(
+        render_dv_prep_agents_md(spec, spec_key, slot, budget_min))
+    (workdir / "opencode.json").write_text(
+        json.dumps(render_agent_opencode_config(model_spec, "rtl-dv-prep"), indent=2) + "\n")
+    _write_shim(workdir / "check-stimulus",
+                f"core.design_db_shims stimulus-check --slot {spec_key} "
+                f"--db {shlex.quote(str(d.root))} --stimulus")
     return workdir
 
 
@@ -262,6 +335,65 @@ def dispatch_subcircuit(spec_key: str, *, db: Optional[Any] = None, objective: s
     return report
 
 
+def dispatch_dv_prep(spec_key: str, *, db: Optional[Any] = None, model: Optional[str] = None,
+                     budget_min: float = 10.0, n_vectors: int = 256, seed: int = 0,
+                     workdir: Optional[Path] = None,
+                     opencode_bin: str = "opencode") -> Dict[str, Any]:
+    """Launch one ``rtl-dv-prep`` agent to author a stimulus generator, then have tooling freeze
+    the Tier-2 sim verification (golden-simulated outputs; no coverage gating — human review of
+    the frozen stimulus is the quality backstop). The agent authors *stimulus only*."""
+    depth = int(os.environ.get(DISPATCH_DEPTH_ENV, "0"))
+    if depth >= DISPATCH_DEPTH_CAP:
+        raise DesignDBError(f"dispatch depth cap reached ({depth} ≥ {DISPATCH_DEPTH_CAP})")
+    model = model or os.environ.get(AGENT_MODEL_ENV)
+    if not model:
+        raise DesignDBError(f"dv-prep needs a model: pass model=... or set ${AGENT_MODEL_ENV}")
+    if shutil.which(opencode_bin) is None:
+        raise DesignDBError(f"{opencode_bin!r} not found on PATH")
+    model_spec = model.replace(":", "/", 1)
+
+    workdir = Path(workdir) if workdir else Path(tempfile.mkdtemp(prefix="ddb_dvprep_"))
+    provision_dv_prep_workspace(spec_key, workdir, db=db, model_spec=model_spec,
+                                budget_min=budget_min)
+    kickoff = (f"Author the stimulus generator for design-DB slot {spec_key}. Read AGENTS.md "
+               f"first. Deliverable: stimulus.py with generate(ports, n_vectors, seed); validate "
+               f"it with ./check-stimulus. You will be terminated automatically once the time "
+               f"budget runs out.")
+    env = dict(os.environ)
+    env[DISPATCH_DEPTH_ENV] = str(depth + 1)
+    cmd = f"exec {shlex.quote(opencode_bin)} run --format json -m {shlex.quote(model_spec)} " \
+          f"--agent rtl-dv-prep {shlex.quote(kickoff)}"
+    started = time.time()
+    try:
+        proc = subprocess.run(["bash", "-c", cmd], cwd=str(workdir), env=env,
+                              capture_output=True, text=True, timeout=budget_min * 60)
+        agent_note = f"agent exited rc={proc.returncode}"
+        (workdir / "opencode_session.log").write_text(proc.stdout + "\n--- stderr ---\n"
+                                                      + proc.stderr)
+    except subprocess.TimeoutExpired:
+        agent_note = f"agent terminated at the {budget_min:g}-minute budget"
+
+    report: Dict[str, Any] = {"spec_key": spec_key, "frozen": None,
+                              "agent": {"model": model, "note": agent_note,
+                                        "duration_s": round(time.time() - started, 1),
+                                        "workspace": str(workdir)}}
+    stimulus = workdir / "stimulus.py"
+    if stimulus.exists():
+        from spire.design_db.verify_sim import freeze_sim_verification
+        verification = freeze_sim_verification(spec_key, stimulus_file=stimulus,
+                                               n_vectors=n_vectors, seed=seed, db=db)
+        # Record honest authorship (spire tags stimulus files "human"; this one is agent-authored).
+        verification["stimulus_author"] = "agent:rtl-dv-prep"
+        d = DesignDB.open(db, create=False)
+        d.write_json(d.slot_dir(spec_key) / "verification.json", verification)
+        shutil.copyfile(stimulus, d.slot_dir(spec_key) / "stimulus.py")   # review artifact
+        report["frozen"] = verification
+    else:
+        report["error"] = "agent produced no stimulus.py — slot left unverified"
+    (workdir / "report.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    return report
+
+
 def main(argv=None) -> int:
     import argparse
     parser = argparse.ArgumentParser(prog="design_db_agents")
@@ -272,15 +404,31 @@ def main(argv=None) -> int:
     p.add_argument("--objective", default="area")
     p.add_argument("--model", default=None)
     p.add_argument("--budget-min", type=float, default=10.0)
+    p.set_defaults(kind="dispatch")
+
+    p = sub.add_parser("dv-prep", help="launch one rtl-dv-prep agent (stimulus authoring + freeze)")
+    p.add_argument("--slot", required=True)
+    p.add_argument("--db", default=None)
+    p.add_argument("--model", default=None)
+    p.add_argument("--budget-min", type=float, default=10.0)
+    p.add_argument("--vectors", type=int, default=256)
+    p.add_argument("--seed", type=int, default=0)
+    p.set_defaults(kind="dv-prep")
+
     args = parser.parse_args(argv)
     try:
-        report = dispatch_subcircuit(args.slot, db=args.db, objective=args.objective,
-                                     model=args.model, budget_min=args.budget_min)
+        if args.kind == "dispatch":
+            report = dispatch_subcircuit(args.slot, db=args.db, objective=args.objective,
+                                         model=args.model, budget_min=args.budget_min)
+        else:
+            report = dispatch_dv_prep(args.slot, db=args.db, model=args.model,
+                                      budget_min=args.budget_min, n_vectors=args.vectors,
+                                      seed=args.seed)
     except DesignDBError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     print(json.dumps(report, indent=2, sort_keys=True))
-    return 0
+    return 0 if not report.get("error") else 2
 
 
 if __name__ == "__main__":

@@ -63,6 +63,28 @@ def _cmd_insert(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_stimulus_check(args: argparse.Namespace) -> int:
+    """Dry-run a stimulus generator file (dv-prep iteration aid): load, generate, validate keys."""
+    from spire.design_db.verify_sim import _ports_split, load_stimulus_file
+    d = DesignDB.open(args.db, create=False)
+    spec = d.read_json(d.slot_dir(args.slot) / "spec.json", None)
+    if spec is None:
+        _print({"verdict": "ERROR", "reason": "unknown slot"})
+        return 1
+    ins, _outs, clk, rst = _ports_split(spec)
+    try:
+        vectors = load_stimulus_file(Path(args.stimulus), ins, args.vectors, args.seed)
+    except Exception as exc:                    # agent iteration aid — any failure is a verdict
+        _print({"verdict": "FAIL", "reason": f"{type(exc).__name__}: "
+                                             f"{str(exc).splitlines()[0][:300]}"})
+        return 2
+    _print({"verdict": "OK", "n_vectors": len(vectors),
+            "data_inputs": [p["name"] for p in ins],
+            "note": "generator loads and produces masked vectors; the freeze will simulate the "
+                    "golden with it (clk/rst are driven by the testbench, not the generator)"})
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="design_db_shims")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -77,6 +99,14 @@ def main(argv=None) -> int:
     p = sub.add_parser("insert"); _common(p)
     p.add_argument("--source", default="agent")
     p.set_defaults(func=_cmd_insert)
+
+    p = sub.add_parser("stimulus-check")
+    p.add_argument("--slot", required=True)
+    p.add_argument("--db", default=None)
+    p.add_argument("--stimulus", default="stimulus.py")
+    p.add_argument("--vectors", type=int, default=64)
+    p.add_argument("--seed", type=int, default=0)
+    p.set_defaults(func=_cmd_stimulus_check)
 
     args = parser.parse_args(argv)
     return args.func(args)
