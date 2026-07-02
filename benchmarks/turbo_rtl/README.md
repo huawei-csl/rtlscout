@@ -232,19 +232,19 @@ Then hand-write `benchmarks/turbo_rtl_spirehdl/my_bench/context/starting_point.p
 
 #### Convention: mirror the reference Verilog `assign`-for-`assign`
 
-For every `assign <name> = <expr>;` in the golden `.v`, write **one** matching line in the Spire script using the standalone `Wire` class from `spirehdl.spirehdl`:
+For every `assign <name> = <expr>;` in the golden `.v`, write **one** matching line in the Spire script using the standalone `Wire` class from `spire`:
 
 ```python
-from spirehdl.spirehdl import UInt, Wire, Register
+from spire import UInt, Wire, Register
 
 # Combinational wire — one per `assign <name> = <expr>;` in the golden
 w = Wire(UInt(W), name="<name>"); w <<= <expr>
 
 # Register — one per `always @(posedge clk) <name> <= <expr>;` in the golden
-r = Register(UInt(W), name="<name>"); r.next <<= <expr>  # see spirehdl Register docs
+r = Register(UInt(W), name="<name>"); r <<= <expr>   # <<= sets the next-state
 ```
 
-Use `Wire(typ, name=...)` rather than the instance-method `m.wire(typ, name)`. `Wire` is a plain class imported from `spirehdl.spirehdl` — it does not need the `Module` handle, so you can declare wires inside helper functions, loops, list comprehensions, or library modules, and they'll still be picked up by the module via its expression-traversal walk from the primary outputs. Same goes for `Register` — use it in place of `m.reg(...)` for clocked state. If you're ever writing reusable generator functions that produce pieces of a design, `Wire`/`Register` is the idiomatic way to do it because the function stays decoupled from the caller's `Module` object.
+`Wire` and `Register` are plain classes — they don't need the `Component` handle, so you can declare them inside `elaborate()`, helper functions, loops, list comprehensions, or library modules, and they'll still be picked up via the expression-traversal walk from the primary outputs. If you're ever writing reusable generator functions that produce pieces of a design, `Wire`/`Register` is the idiomatic way to do it because the function stays decoupled from the caller's `Component`.
 
 Use the **exact width `W`** declared for that wire in the golden — if the golden says `wire [15:0] num_exp4`, use `Wire(UInt(16), name="num_exp4")`; if it says scalar `wire foo`, use `Wire(UInt(1), name="foo")`.
 
@@ -259,20 +259,28 @@ On gate-level / bit-level benchmarks (like the 8b/10b encoder or the GDA adder) 
 Minimal scaffold:
 
 ```python
-from spirehdl.spirehdl_module import Module
-from spirehdl.spirehdl import UInt, Wire, cat
+from spire import Component, IORecord, Input, Output, UInt, Wire
 
-m = Module("my_module", with_clock=False, with_reset=False)
-a = m.input(UInt(8), "a")
-b = m.input(UInt(8), "b")
-y = m.output(UInt(9), "y")
 
-# For every `assign <w> = <expr>;` in the golden — one Wire + <<=
-sum_ab = Wire(UInt(9), name="sum_ab"); sum_ab <<= a + b
+class MyModule(Component):
+    def __init__(self):
+        self.io = IORecord(
+            a=Input(UInt(8)),
+            b=Input(UInt(8)),
+            y=Output(UInt(9)),
+        )
+        self.elaborate()
 
-y <<= sum_ab
+    def elaborate(self):
+        a, b, y = self.io.a, self.io.b, self.io.y
 
-m.to_verilog_file("design.v")
+        # For every `assign <w> = <expr>;` in the golden — one Wire + <<=
+        sum_ab = Wire(UInt(9), name="sum_ab"); sum_ab <<= a + b
+
+        y <<= sum_ab
+
+
+MyModule().to_verilog_file("design.v", name="my_module")
 ```
 
 Worked example for a combinational design: compare `benchmarks/turbo_rtl/bcd_to_bin_16b/context/starting_point.v` (golden) and `benchmarks/turbo_rtl_spirehdl/bcd_to_bin_16b/context/starting_point.py` (mirror) — every `assign` in the golden has a corresponding `Wire(UInt(16), name="<same_name>"); <same_name> <<=` in the mirror.
@@ -282,29 +290,34 @@ Worked example for a combinational design: compare `benchmarks/turbo_rtl/bcd_to_
 For every `reg` that appears on the LHS of a `<=` inside an `always @(posedge clk …)` block in the golden, declare a `Register(typ, name=...)` in the Spire script. The same `<<=` operator sets the **next-state** expression (not combinational driver):
 
 ```python
-from spirehdl.spirehdl_module import Module
-from spirehdl.spirehdl import UInt, Register
+from spire import Component, IORecord, Input, Output, UInt, Register
 
-m = Module("foo", with_clock=True, with_reset=False)   # clk input auto-created
-a = m.input(UInt(8), "a")
-y = m.output(UInt(8), "y")
 
-# reg [7:0] acc;  always @(posedge clk) acc <= acc + a;
-acc = Register(UInt(8), name="acc")
-acc <<= acc + a
+class Foo(Component):
+    def __init__(self):
+        self.io = IORecord(a=Input(UInt(8)), y=Output(UInt(8)))
+        self.elaborate()
 
-y <<= acc
+    def elaborate(self):
+        # reg [7:0] acc;  always @(posedge clk) acc <= acc + a;
+        acc = Register(UInt(8), name="acc")
+        acc <<= acc + self.io.a
+
+        self.io.y <<= acc
+
+
+Foo().to_verilog_file("design.v", name="foo", with_clock=True)   # clk input auto-created
 ```
 
 **Choosing `with_reset`:**
 
-- **No reset in the golden** (`clk`-only): set `with_reset=False`. No reset port is added.
-- **Golden uses `posedge rst` async reset** with reset-value constants: the simplest path is `with_reset=True` (spirehdl auto-creates an `rst` input and emits `always @(posedge clk or posedge rst)`). Declare each register as `Register(typ, init=<reset_value>, name=...)`.
-- **Golden uses a port named anything other than `rst`** (e.g. `reset`, `rst_n`) **or** a synchronous reset inside the `always @(posedge clk)` body: set `with_reset=False`, declare the reset signal as a regular `m.input(UInt(1), "reset")`, and implement the reset explicitly as a `mux` on each register's next-state driver:
+- **No reset in the golden** (`clk`-only): emit with `with_reset=False`. No reset port is added.
+- **Golden uses `posedge rst` async reset** with reset-value constants: the simplest path is `with_reset=True` (Spire auto-creates an `rst` input and emits `always @(posedge clk or posedge rst)`). Declare each register as `Register(typ, init=<reset_value>, name=...)`.
+- **Golden uses a port named anything other than `rst`** (e.g. `reset`, `rst_n`) **or** a synchronous reset inside the `always @(posedge clk)` body: emit with `with_reset=False`, declare the reset signal as a regular `IORecord` field (`reset=Input(UInt(1))`), and implement the reset explicitly as a `mux` on each register's next-state driver:
 
   ```python
-  from spirehdl.spirehdl import mux
-  reset = m.input(UInt(1), "reset")
+  from spire.expr import mux
+  reset = self.io.reset                  # reset=Input(UInt(1)) in the IORecord
   acc = Register(UInt(8), name="acc")
   next_acc = Wire(UInt(8), name="next_acc"); next_acc <<= acc + a
   acc <<= mux(reset, 0, next_acc)       # sync reset to 0
@@ -315,7 +328,7 @@ y <<= acc
 Worked examples:
 
 - Clk-only registered adder — `benchmarks/turbo_rtl_spirehdl/adder_4bit_reg/context/starting_point.py`. Uses `Register(UInt(4), name="sum_reg")` with `with_reset=False`; no reset at all.
-- Synchronous-reset accumulator — `benchmarks/turbo_rtl_spirehdl/avg4_reg/context/starting_point.py`. Uses `with_reset=False` + `m.input(UInt(1), "reset")` + `mux(reset, 0, next_val)` to keep the port named `reset` and match the golden's synchronous-reset semantics.
+- Synchronous-reset accumulator — `benchmarks/turbo_rtl_spirehdl/avg4_reg/context/starting_point.py`. Uses `with_reset=False` + a `reset=Input(UInt(1))` IORecord field + `mux(reset, 0, next_val)` to keep the port named `reset` and match the golden's synchronous-reset semantics.
 
 Full Spire API: `deps/spire-hdl/README.md`.
 
@@ -390,7 +403,7 @@ which is present in this devcontainer. Override with the `SKY130_LIB_PATH` env v
 
 The `dch -f; map; topo; upsize; dnsize; stime` flow is **structurally sensitive**. yosys preserves named wires and explicit alias nodes as boundaries when it hands the netlist to abc, and abc's `dch -f` only does *local* rewriting within those boundaries — it will not back-propagate don't-cares from primary outputs and it will not fuse across explicit BLIF cut nodes. Spire, by design, names a lot more intermediate signals than handwritten Verilog does, so it trips this structural tax more often. Two concrete mechanisms (and one ex-mechanism that turned out to be a bug in `Sky130ADPCost` itself) explain every spirehdl regression we measured:
 
-1. **Source structure influences post-yosys AIG topology** (encoder_8b10b, gda_adder_n8m8p2, bcd_to_bin_16b). Spire's expression cache (`spire-hdl/src/spirehdl/spirehdl.py:65`) creates a named wire every time a sub-expression is referenced for the second time, and `signal_name_inference` mis-attributes Python variable names to the *innermost* sub-expression (so `L03 = ~A & ~B & ~C` ends up as three named wires `L03` / `L03_1` / `L03_2`). Yosys's `opt`/`opt_clean -purge` does collapse most of this — but the post-flatten AIG that gets handed to abc still differs in topology from the equivalent verilog AIG (on `encoder_8b10b`: 58 cells vs 53; on `bcd_to_bin_16b`: 384 cells vs 452 — spirehdl actually has *fewer* cells here, yet loses on ADP). abc's `dch -f; map; topo; upsize; dnsize` then finds **different local optima** for the two AIGs: on encoder it picks a smaller-area / larger-delay solution for spirehdl and a larger-area / smaller-delay one for verilog, and ADP happens to favour the verilog landing by ~8%. Under `area`-only metric the sign flips; under `abc -fast` (a different abc strategy) the sign also flips on encoder (spirehdl 49,963 vs verilog 50,597). So this is **not** a "named wires are hard barriers" story — it's "source structure leaks into the AIG and biases abc's local search". No yosys-side flag we tested fixes it.
+1. **Source structure influences post-yosys AIG topology** (encoder_8b10b, gda_adder_n8m8p2, bcd_to_bin_16b). Spire's expression cache (`_maybe_share` in `spire-hdl/src/spire/expr.py:85`) creates a named wire every time a sub-expression is referenced for the second time, and `signal_name_inference` mis-attributes Python variable names to the *innermost* sub-expression (so `L03 = ~A & ~B & ~C` ends up as three named wires `L03` / `L03_1` / `L03_2`). Yosys's `opt`/`opt_clean -purge` does collapse most of this — but the post-flatten AIG that gets handed to abc still differs in topology from the equivalent verilog AIG (on `encoder_8b10b`: 58 cells vs 53; on `bcd_to_bin_16b`: 384 cells vs 452 — spirehdl actually has *fewer* cells here, yet loses on ADP). abc's `dch -f; map; topo; upsize; dnsize` then finds **different local optima** for the two AIGs: on encoder it picks a smaller-area / larger-delay solution for spirehdl and a larger-area / smaller-delay one for verilog, and ADP happens to favour the verilog landing by ~8%. Under `area`-only metric the sign flips; under `abc -fast` (a different abc strategy) the sign also flips on encoder (spirehdl 49,963 vs verilog 50,597). So this is **not** a "named wires are hard barriers" story — it's "source structure leaks into the AIG and biases abc's local search". No yosys-side flag we tested fixes it.
 2. **Output truncation creates a pinned slice node** (bcd_to_bin_16b). When spirehdl arithmetic widens past the desired output width and we truncate via slicing — `operador <<= (s43 + s210)[0:16]` — the explicit slice survives into the netlist as `assign sig_1 = (s43 + s210); assign operador = sig_1[15:0];`. abc can't fuse the upper-bit drop with the addition's last carry, so it has to map the full 17-bit adder and then drop the top bit. Survives `clean -purge` because the 17-bit `sig_1` has multiple genuine fan-in operators driving it (not a pure alias). This is partially a special case of (1): the slice biases the post-flatten AIG and contributes to bcd having a different (smaller-cell-count but worse-ADP) shape than the verilog version. A library-side `fit_width`-at-output fix would remove the slice and is the most promising actionable change.
 
 **Ex-cause 3 — registered-output buffer tax (`adder_4bit_reg`, `avg4_reg`).** Spire can't emit `output reg [3:0] sum`, so registered outputs always become `output sum; reg sum_reg; assign sum = sum_reg;`. yosys then writes one explicit `.names sum_reg[i] sum[i] / 1 1` buffer node per output bit into the BLIF, and abc's `dch -f; map` was mapping each one to a physical buffer cell — costing about 12% area on `adder_4bit_reg` (53,427 vs 47,630). **This was actually a `Sky130ADPCost` script bug, not a spirehdl issue:** yosys's default `opt`/`opt_clean` deliberately preserves *public* wires (named, source-visible) for debuggability, and our script never invoked `opt_clean -purge` to drop alias buffers whose only use is a 1-input copy to an output. **Adding `clean -purge` to the yosys script before `write_blif` makes the buffers vanish.** Re-evaluating the unchanged `adder_4bit_reg` spirehdl best design under the patched metric drops it from 53,427 → 47,217 ADP — an 11.6% improvement that puts spirehdl narrowly *ahead* of the verilog winner. Patch is in `core/cost.py:Sky130ADPCost`. Other registered-output benchmarks (`avg4_reg`) don't show movement because their buffer-cell tax is dominated by the surrounding logic.

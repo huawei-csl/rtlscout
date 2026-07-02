@@ -496,9 +496,9 @@ Dr.RTL) deviates from it. Reading downwards:
 
 ### Memory primitive: array storage for yosys memory inference
 
-Router's FIFO storage uses spirehdl's `MemoryPrimitive`
-(`from spirehdl.primitives import MemoryPrimitive`), instantiated as
-`MemoryPrimitive(UInt(9), depth=16, with_reset_arm=True).make_internal()`.
+Router's FIFO storage uses Spire's `MemoryPrimitive`
+(`from spire.primitives import MemoryPrimitive`), instantiated as
+`MemoryPrimitive(UInt(9), depth=16, with_reset_arm=True)`.
 The verilog router declares
 each FIFO as `reg [8:0] fifo[0:15];` — a memory array yosys's `memory`
 pass (`memory_dff`, `memory_share`, `memory_bmux2rom`) recognises and
@@ -521,7 +521,7 @@ its ports as `Signal` attributes wired with `<<=`:
   becomes a clocked Register that captures `name[read_addr]` on the edge
   (defaults to always-read).
 
-See [`deps/spire-hdl/README_memories.md`](../../deps/spire-hdl/README_memories.md)
+See [`deps/spire-hdl/docs/README_memories.md`](../../deps/spire-hdl/docs/README_memories.md)
 for the full API reference and a FIFO Component example.
 
 Router 4-way comparison (`area_delay_product` at `target_delay=100ps`,
@@ -757,8 +757,8 @@ for bit in range(sel.typ.width):  # log2(N) layers
 return leaves[0]
 ```
 
-**New spirehdl pass: `apply_mux_tree_balance`.** We added this rewrite
-to `deps/spire-hdl/src/spirehdl/spirehdl_simplify.py` as a separate
+**New Spire pass: `apply_mux_tree_balance`.** We added this rewrite
+to `deps/spire-hdl/src/spire/simplify.py` as a separate
 optimisation pass that automatically detects the cascade pattern and
 rewrites it as a balanced bit-tree. Enable it via:
 

@@ -1,5 +1,5 @@
-"""Step the spirehdl router_top through vectors.dat using the spirehdl
-Simulator (deps/spire-hdl/src/spirehdl/spirehdl_simulator.py). Dumps the
+"""Step the spirehdl router_top through vectors.dat using the Spire
+Simulator (deps/spire-hdl/src/spire/simulator.py). Dumps the
 FSM's present_state + key internal signals every cycle so we can diff
 against the verilog golden's trace.
 
@@ -13,10 +13,10 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(REPO))
 
-# Load the spirehdl Module by importing the starting_point script.
-# starting_point.py calls `m.to_verilog_file("design.v")` at the end,
-# which writes design.v into the cwd. We don't care about that here —
-# we just need the `m` (Module) reference.
+# Load the design by importing the starting_point script.
+# starting_point.py calls `RouterTop().to_verilog_file("design.v", ...)` at
+# the end, which writes design.v into the cwd. We don't care about that here —
+# we re-instantiate the Component and lower it to a Netlist for the Simulator.
 import importlib.util
 START = REPO / "benchmarks/dr_rtl_spirehdl/router/context/starting_point.py"
 
@@ -28,7 +28,7 @@ os.chdir(tmpdir)
 spec = importlib.util.spec_from_file_location("router_design", START)
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
-m = mod.m
+m = mod.RouterTop().to_netlist("router_top", with_clock=True)
 
 from spire import Simulator
 sim = Simulator(m)

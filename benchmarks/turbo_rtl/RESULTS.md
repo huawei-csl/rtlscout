@@ -337,7 +337,7 @@ assign sig_16 = in2[5];   // cp5 uses it again
 assign sig_14 = in2[5];   // s5 uses it again
 ```
 
-`_maybe_share` in `spirehdl/spirehdl.py:65` creates a **fresh wire** every time a sub-expression gets referenced for the second time in a row — so `in2[5]`, `in2[6]`, `in2[7]` each end up as three distinct named wires. Functionally a no-op (yosys collapses them in `opt`), but the starting netlist has ~50 extra aliases that `dch -f; map` has to navigate. On this benchmark it lands in a slightly worse local optimum (area 312 → 335, delay 209 → 219).
+`_maybe_share` (`spirehdl/spirehdl.py:65` at the time; now `src/spire/expr.py:85`) creates a **fresh wire** every time a sub-expression gets referenced for the second time in a row — so `in2[5]`, `in2[6]`, `in2[7]` each end up as three distinct named wires. Functionally a no-op (yosys collapses them in `opt`), but the starting netlist has ~50 extra aliases that `dch -f; map` has to navigate. On this benchmark it lands in a slightly worse local optimum (area 312 → 335, delay 209 → 219).
 
 Also, the verilog best expresses the XOR sum bit as `(cp[0] + in1[2] + in2[2]) & 1'b1` (a 3-operand add that yosys reduces to a full-adder sum bit). The Spire best uses the literal `in1[2] ^ in2[2] ^ cp1` — logically identical but yosys's front-end handles it via a different rewrite path and produces slightly more gates.
 
@@ -417,7 +417,7 @@ These are 1-input "buffer" subgraphs — semantically a wire copy, but to abc's 
 
 ### Cause 2 — `_maybe_share` over-shares with `force_share=True` (encoder_8b10b, gda_adder_n8m8p2)
 
-Spirehdl's expression cache (`_maybe_share` in `spirehdl.py:65`) creates a fresh named wire every time a sub-expression is referenced for the second time, and `fit_width` calls it with `force_share=True` even on first sight when a width adjustment is needed. The downstream effect is a wire-count explosion.
+Spire's expression cache (`_maybe_share` in `spirehdl.py:65` at the time; now `src/spire/expr.py:85`) creates a fresh named wire every time a sub-expression is referenced for the second time, and `fit_width` calls it with `force_share=True` even on first sight when a width adjustment is needed. The downstream effect is a wire-count explosion.
 
 Counts on `encoder_8b10b`'s best designs (combinational, ~40 lines of source):
 

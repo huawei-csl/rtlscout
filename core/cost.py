@@ -664,24 +664,24 @@ class YosysTransistorsCost(_YosysStatCost):
 
 
 # ---------------------------------------------------------------------------
-# AIG count / depth via yosys aigmap + spirehdl's standard AIG optimization
+# AIG count / depth via yosys aigmap + Spire's standard AIG optimization
 # ---------------------------------------------------------------------------
 
 class _AigCost(CostMetric):
-    """Measure AIG size and depth after spirehdl's standard optimization.
+    """Measure AIG size and depth after Spire's standard optimization.
 
     Pipeline:
       1. ``yosys`` (CLI) synthesises the design, maps to AIG, writes AIGER
          ASCII (``aigmap; write_aiger -ascii``).
-      2. spirehdl's ``read_aag_into_aig`` loads the .aag into an
+      2. Spire's ``read_aag_into_aig`` loads the .aag into an
          ``aigverse.Aig``.
-      3. ``spirehdl.helpers.optimize_aig_elaborate`` runs two aigverse
+      3. ``spire.helpers.optimize_aig_elaborate`` runs two aigverse
          optimization sequences and returns the best AIG (by gate count,
          depth as tiebreaker).
       4. Report ``aig.size()`` and ``DepthAig(aig).num_levels()``.
 
     Only combinational designs are supported (AIGER latches cannot be
-    loaded by the minimal spirehdl reader). ``async2sync; dffunmap`` is
+    loaded by the minimal Spire reader). ``async2sync; dffunmap`` is
     applied in yosys so edge-triggered logic that survives ``synth`` would
     cause a load-time error.
     """
@@ -743,12 +743,12 @@ class _AigCost(CostMetric):
 
             try:
                 from aigverse import DepthAig
-                from spirehdl.aig.aig_aigerverse import read_aag_into_aig
-                from spirehdl.helpers import optimize_aig_elaborate
+                from spire.aig.aig_aigerverse import read_aag_into_aig
+                from spire.helpers import optimize_aig_elaborate
             except ImportError as e:
                 return CostResult(
                     ok=False, value=None, stats={},
-                    error=f"aigverse/spirehdl not available: {e}",
+                    error=f"aigverse/spire not available: {e}",
                 )
 
             aig = read_aag_into_aig(aag_path)
