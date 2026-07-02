@@ -315,6 +315,7 @@ def dispatch_subcircuit(spec_key: str, *, db: Optional[Any] = None, objective: s
                f"submit. You will be terminated automatically once the time budget runs out.")
     env = dict(os.environ)
     env[DISPATCH_DEPTH_ENV] = str(depth + 1)
+    env[AGENT_MODEL_ENV] = model          # nested shim launches inherit the model choice
     cmd = f"exec {shlex.quote(opencode_bin)} run --format json -m {shlex.quote(model_spec)} " \
           f"--agent rtl-subcircuit {shlex.quote(kickoff)}"
     started = time.time()
@@ -361,6 +362,7 @@ def dispatch_dv_prep(spec_key: str, *, db: Optional[Any] = None, model: Optional
                f"budget runs out.")
     env = dict(os.environ)
     env[DISPATCH_DEPTH_ENV] = str(depth + 1)
+    env[AGENT_MODEL_ENV] = model          # nested shim launches inherit the model choice
     cmd = f"exec {shlex.quote(opencode_bin)} run --format json -m {shlex.quote(model_spec)} " \
           f"--agent rtl-dv-prep {shlex.quote(kickoff)}"
     started = time.time()
@@ -394,6 +396,66 @@ def dispatch_dv_prep(spec_key: str, *, db: Optional[Any] = None, model: Optional
     return report
 
 
+def run_orchestrator(*, db: Optional[Any] = None, objective: str = "area",
+                     model: Optional[str] = None, budget_min: float = 30.0,
+                     workdir: Optional[Path] = None,
+                     opencode_bin: str = "opencode") -> Dict[str, Any]:
+    """Launch the ``rtl-orchestrator`` session: it inspects the DB, prepares verifications
+    (``./dv-prep``) and dispatches subcircuit agents (``./dispatch``) — all launches go through
+    the depth-guarded shims. The report is tooling-derived from the manifest before/after."""
+    depth = int(os.environ.get(DISPATCH_DEPTH_ENV, "0"))
+    if depth >= DISPATCH_DEPTH_CAP:
+        raise DesignDBError(f"dispatch depth cap reached ({depth} ≥ {DISPATCH_DEPTH_CAP})")
+    model = model or os.environ.get(AGENT_MODEL_ENV)
+    if not model:
+        raise DesignDBError(f"orchestrator needs a model: pass model=... or set ${AGENT_MODEL_ENV}")
+    if shutil.which(opencode_bin) is None:
+        raise DesignDBError(f"{opencode_bin!r} not found on PATH")
+    model_spec = model.replace(":", "/", 1)
+
+    d = DesignDB.open(db, create=False)
+    before = d.read_json(d.manifest_path, {"slots": {}})
+    workdir = Path(workdir) if workdir else Path(tempfile.mkdtemp(prefix="ddb_orch_"))
+    provision_orchestrator_workspace(workdir, db=db, objective=objective,
+                                     model_spec=model_spec, budget_min=budget_min)
+    kickoff = (f"Orchestrate design-DB optimization at {d.root}. Read AGENTS.md first; inspect "
+               f"slots with `spire db ls` / the manifest, prepare verifications with ./dv-prep "
+               f"where needed, dispatch subcircuit agents with ./dispatch, and summarize. "
+               f"Objective: {objective}. You will be terminated automatically once the time "
+               f"budget runs out.")
+    env = dict(os.environ)
+    env[DISPATCH_DEPTH_ENV] = str(depth + 1)
+    env[AGENT_MODEL_ENV] = model          # nested shim launches inherit the model choice
+    cmd = f"exec {shlex.quote(opencode_bin)} run --format json -m {shlex.quote(model_spec)} " \
+          f"--agent rtl-orchestrator {shlex.quote(kickoff)}"
+    started = time.time()
+    try:
+        proc = subprocess.run(["bash", "-c", cmd], cwd=str(workdir), env=env,
+                              capture_output=True, text=True, timeout=budget_min * 60)
+        agent_note = f"agent exited rc={proc.returncode}"
+        (workdir / "opencode_session.log").write_text(proc.stdout + "\n--- stderr ---\n"
+                                                      + proc.stderr)
+    except subprocess.TimeoutExpired:
+        agent_note = f"agent terminated at the {budget_min:g}-minute budget"
+
+    after = d.read_json(d.manifest_path, {"slots": {}})
+    slots_report = {}
+    for name, entry in sorted(after.get("slots", {}).items()):
+        prev = before.get("slots", {}).get(name, {})
+        slots_report[name] = {
+            "spec_key": entry.get("spec_key"),
+            "n_designs": entry.get("n_designs", 0),
+            "n_designs_before": prev.get("n_designs", 0),
+            "selected_id": entry.get("selected_id"),
+        }
+    report = {"objective": objective, "slots": slots_report,
+              "agent": {"model": model, "note": agent_note,
+                        "duration_s": round(time.time() - started, 1),
+                        "workspace": str(workdir)}}
+    (workdir / "report.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    return report
+
+
 def main(argv=None) -> int:
     import argparse
     parser = argparse.ArgumentParser(prog="design_db_agents")
@@ -415,11 +477,21 @@ def main(argv=None) -> int:
     p.add_argument("--seed", type=int, default=0)
     p.set_defaults(kind="dv-prep")
 
+    p = sub.add_parser("orchestrate", help="launch the rtl-orchestrator session over the DB")
+    p.add_argument("--db", default=None)
+    p.add_argument("--objective", default="area")
+    p.add_argument("--model", default=None)
+    p.add_argument("--budget-min", type=float, default=30.0)
+    p.set_defaults(kind="orchestrate")
+
     args = parser.parse_args(argv)
     try:
         if args.kind == "dispatch":
             report = dispatch_subcircuit(args.slot, db=args.db, objective=args.objective,
                                          model=args.model, budget_min=args.budget_min)
+        elif args.kind == "orchestrate":
+            report = run_orchestrator(db=args.db, objective=args.objective, model=args.model,
+                                      budget_min=args.budget_min)
         else:
             report = dispatch_dv_prep(args.slot, db=args.db, model=args.model,
                                       budget_min=args.budget_min, n_vectors=args.vectors,

@@ -209,6 +209,32 @@ model: assurance by mode, the advisory/authoritative split, OpenCode permissions
 and label-based cleanup.
 
 
+## Design DB — an agent-filled library of verified subcircuits
+
+Spire ships a **design DB** (`spire.design_db`, see
+[deps/spire-hdl/docs/README_design_db.md](deps/spire-hdl/docs/README_design_db.md)): a
+content-addressed store of *slots* (subcircuits with a golden reference), where every stored
+implementation passed the slot's **frozen verification** (CEC or a golden-simulated trace tb) on
+insert, and builds *select* deterministically via `@from_design_db(objective=..., metric=...)`.
+RTLScout is the DB's filler and its agentic layer:
+
+| Command | What it does |
+|---|---|
+| `python rtlscout_cli.py fill-db --slot <key> --model <provider:model>` | Campaign filler: slot → ephemeral benchmark → `run_multirun(reeval=True)` → every passing candidate through Spire's gate (the slot's own golden is seeded first as the baseline/floor). |
+| `python rtlscout_cli.py db-score [--technology asap7]` | Stamps per-technology PPA metrics onto stored designs — enables `metric="asap7"` selection. |
+| `python rtlscout_cli.py dv-prep --slot <key>` | For unfrozen sequential slots: the `rtl-dv-prep` agent authors a *stimulus generator* (never expected outputs), tooling golden-simulates + freezes the Tier-2 verification (stimulus kept in the slot for human review). |
+| `python -m core.design_db_agents dispatch --slot <key> --model …` | Launch one `rtl-subcircuit` agent on a slot (pointer payload; `./eval` to iterate, `./db-insert` = the gate; trusted report from the DB diff). |
+| `python -m core.design_db_agents orchestrate --model …` | The `rtl-orchestrator` session: inspects slots (`spire db ls/show`), runs `./dv-prep` where needed, `./dispatch`es subcircuit agents, and the report is manifest-derived. |
+
+The decorator's generate-on-miss hook is `core.design_db_fill.rtlscout_fill`
+(`@from_design_db(fill=rtlscout_fill)`; model via `$RTLSCOUT_FILL_MODEL` or
+`make_rtlscout_fill(model=...)` — never a silent default). Trust model in one line: **agents
+propose; the shims verify** — inserts only ever pass through Spire's gate, agent launches only
+through the depth-guarded `dispatch` shim (`RTLSCOUT_DISPATCH_DEPTH`, cap 2), and reports are
+computed from the DB, never taken from agent claims. Design + decisions:
+`metadocuments/DESIGN_DB_AND_SUBAGENTS.md`.
+
+
 ## Running benchmarks
 
 > Every command here drives an LLM provider, so set your API token in `.env` first (`DEEPINFRA_API_KEY`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, …); see [Installation](#installation-details). The `--model` argument always uses **`provider:model`** syntax; providers are `deepinfra`, `anthropic`, `openrouter` (and `fake` for offline testing).
