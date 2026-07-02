@@ -3,7 +3,7 @@
 ## Status: PASS 2000/2000
 
 Full top-module port in [`context/starting_point.py`](../context/starting_point.py).
-All 5 verilog submodules inlined into one SpireHDL Module.
+All 5 verilog submodules inlined into one Spire Module.
 Final: **2000/2000 PASS, 4023 yosys_cells (-3.2% vs verilog 4155)**.
 
 ## Bugs found and fixed
@@ -58,7 +58,7 @@ own).
 
 ### Bug 3: `<<` shift widening
 
-SpireHDL's `<<` does NOT widen the source operand when the shift
+Spire's `<<` does NOT widen the source operand when the shift
 amount is variable. Verilog `shl <= src << tgt` where `shl` is 32-bit
 and `src` is 16-bit implicitly zero-extends src to 32 bits.
 

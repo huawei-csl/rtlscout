@@ -300,7 +300,7 @@ class Sky130ADPCostV2(CostMetric):
        This removes public-wire alias buffers (``assign output = reg``)
        that yosys's default ``opt_clean`` preserves for debuggability,
        fixing a ~12% ADP tax on small registered-output designs emitted
-       by SpireHDL.
+       by Spire.
     2. Optionally runs both a default and an ``abc -fast``-pre-simplified
        AIG through abc's ``dch -f; map; stime`` flow and returns the
        lower ADP (``try_both_strategies=True``, the default). This

@@ -139,7 +139,7 @@ sequenceDiagram
 ```
 
 The judge runs even on the trusted side because `evaluate()` *executes* the agent-authored
-SpireHDL `.py` — so every re-score gets a fresh workdir with the benchmark's own inputs +
+Spire `.py` — so every re-score gets a fresh workdir with the benchmark's own inputs +
 extracted design only (and, in orchestrated mode, its own `--network none` container).
 
 ### When does the authoritative re-eval run?
@@ -184,7 +184,7 @@ the agent is terminated when it's up and nudged to keep going if it stops early.
 
 OpenCode does **not** sandbox the agent; the container is the boundary. In **non-interactive**
 `opencode run`, any permission left at the default **`ask`** is **auto-rejected, and that
-aborts the run.** This actually bit us: mid-optimization the agent tried to read the SpireHDL
+aborts the run.** This actually bit us: mid-optimization the agent tried to read the Spire
 package source (an `external_directory` access) to explore multiplier architectures, hit an
 `ask`, was auto-rejected, and the run ended after 2 evals.
 
@@ -196,7 +196,7 @@ The backend therefore **never leaves a permission at `ask`**:
   the host/judge.
 - **Otherwise (single-container):** every permission is `allow` **except** network
   (`webfetch`/`websearch` → `deny`). Crucially `external_directory` is `allow` so the agent
-  can read the installed SpireHDL source. A `deny` returns "denied" and the agent keeps going;
+  can read the installed Spire source. A `deny` returns "denied" and the agent keeps going;
   only an `ask` aborts — and there are none.
 
 This policy is written **per run** into each workspace's `opencode.json` (plus the launch

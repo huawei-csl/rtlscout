@@ -214,7 +214,7 @@ def _prepare_extract_seed_dir(entry_dict: Dict[str, Any], extract_dir: Path,
 
     Returns the created directory, or None if the source file is missing.  When the
     entry's ``extracted_file`` lives in a subdir (extract_pareto --separate-dirs), sibling
-    files and dirs are carried along — especially ``.spirehdl_cache/`` and local .py deps,
+    files and dirs are carried along — especially ``.spire_cache/`` and local .py deps,
     so ``build_seed_context`` can then flow the cache into the agent workspace.
     """
     extracted_file = entry_dict.get("extracted_file", "")
@@ -280,11 +280,11 @@ def build_seed_context(benchmark: Benchmark, entry: EliteEntry) -> Path:
         for item in entry.design_dir.iterdir():
             if item.name in _SKIP_NAMES:
                 continue
-            # Whitelist `.spirehdl_cache/` so that spirehdl's content-addressed
+            # Whitelist `.spire_cache/` so that spirehdl's content-addressed
             # optimize cache (populated by the predecessor's @flowy_optimized /
             # @abc_optimized calls) flows to the seeded agent. Other dotfiles
             # (.git, .DS_Store, editor caches) remain skipped.
-            if item.name == ".spirehdl_cache" and item.is_dir():
+            if item.name == ".spire_cache" and item.is_dir():
                 shutil.copytree(item, temp_dir / item.name, dirs_exist_ok=True)
                 continue
             if item.name.startswith("."):

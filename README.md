@@ -156,7 +156,7 @@ flowchart TD
   LLM --> C
   LLM --> DONE["done<br/>(final eval)"]
   subgraph RE ["run_evaluation"]
-    C["compile .py &rarr; Verilog<br/>(SpireHDL / Amaranth)"] --> V["Verilator<br/>lint + sim"] --> Y["Yosys<br/>cost"]
+    C["compile .py &rarr; Verilog<br/>(Spire / Amaranth)"] --> V["Verilator<br/>lint + sim"] --> Y["Yosys<br/>cost"]
   end
   FT --> TR["Tool result<br/>fed back to LLM"]
   Y --> TR

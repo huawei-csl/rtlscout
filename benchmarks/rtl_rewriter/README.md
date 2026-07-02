@@ -71,7 +71,7 @@ testbench at 100% — 14/14 today.
 The yosys script we use appends `clean -purge` after `synth` before calling
 `stat`, so public alias buffers and dangling nets that yosys's default
 `opt_clean` preserves for debuggability (e.g. the `sum_reg → sum` alias
-that SpireHDL-style registered outputs leave behind) are dropped from the
+that Spire-style registered outputs leave behind) are dropped from the
 count. This only affects `wires` — `cells` is unchanged either way — and
 makes the numbers comparable across emitters that differ in how many
 named intermediates they surface.

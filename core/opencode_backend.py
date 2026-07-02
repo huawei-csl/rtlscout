@@ -165,7 +165,7 @@ summary is requested from you separately after you're stopped.
 # All opencode permission categories (v1.17.11 schema). The critical fix (handover §4.8):
 # in non-interactive `opencode run`, any permission left at the default "ask" is
 # AUTO-REJECTED and that aborts the run — which is exactly what killed a run mid-optimization
-# when the agent tried to read the SpireHDL package source (an `external_directory` access).
+# when the agent tried to read the Spire package source (an `external_directory` access).
 # So we never leave a key at "ask": everything is "allow" or "deny".
 _ALL_PERMS = ["read", "edit", "glob", "grep", "list", "bash", "task", "external_directory",
               "todowrite", "question", "webfetch", "websearch", "lsp", "doom_loop", "skill"]
@@ -184,7 +184,7 @@ def _permissions(yolo: bool) -> Dict[str, str]:
 
 def render_opencode_config(req: "BackendRequest", yolo: bool = False) -> Dict:
     """Render opencode.json. The custom 'rtl' agent gets full local tool permissions so
-    non-interactive runs apply edits AND can read the SpireHDL package source to explore
+    non-interactive runs apply edits AND can read the Spire package source to explore
     architectures (handover §4.8). The provider key is supplied via env, never here (O4)."""
     model_arg = f"{req.provider}/{req.model}"
     perms = _permissions(yolo)

@@ -6,7 +6,7 @@
 //   as a behavioral `always @*` in the gate-level netlist, which OpenROAD's STA
 //   Verilog reader rejects (STA-0171) — making the design unmeasurable.
 //   Fix: added explicit `data_out = 0;` defaults to both blocks → pure
-//   combinational logic, no latch. This mirrors the SpireHDL variant, whose
+//   combinational logic, no latch. This mirrors the Spire variant, whose
 //   encoder/decoder already use a Const(0) fallback for unmapped codes.
 //   Functionally identical for all valid 8b/10b codes (the latch's hold path is
 //   never exercised by valid input); only the baseline PPA differs from the

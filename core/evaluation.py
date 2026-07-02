@@ -1,6 +1,6 @@
 """Evaluation module combining correctness and cost."""
 
-# Output filename written by SpireHDL/Amaranth scripts.
+# Output filename written by Spire/Amaranth scripts.
 # Used in evaluation.py (compile step) and prompts.py (canonical pattern).
 SPIREHDL_VERILOG_OUTPUT = "design.v"
 AMARANTH_VERILOG_OUTPUT = "design.v"
@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env")
 
-# Timeout (seconds) for SpireHDL/Amaranth compilation subprocesses.
+# Timeout (seconds) for Spire/Amaranth compilation subprocesses.
 # Override with SPIREHDL_TIMEOUT env var (e.g. for long flowy optimizations).
 COMPILE_TIMEOUT = int(os.environ.get("SPIREHDL_TIMEOUT", "60"))
 
@@ -190,8 +190,8 @@ def _compile_spirehdl(workdir: Path, design_file: Optional[str] = None) -> tuple
         py_files = sorted(workdir.glob("*.py"))
         design_pys = [f for f in py_files if not f.name.startswith("tb")]
     if not design_pys:
-        return ('No Python design files found. Create a .py file that uses SpireHDL '
-                f'and writes Verilog via m.to_verilog_file("{SPIREHDL_VERILOG_OUTPUT}").'), ""
+        return ('No Python design files found. Create a .py file that uses Spire '
+                f'and writes Verilog via Component().to_verilog_file("{SPIREHDL_VERILOG_OUTPUT}", name="...").'), ""
 
     # Remove stale design.v so a script that runs but doesn't produce
     # output fails instead of silently reusing the old file.
@@ -218,7 +218,7 @@ def _compile_spirehdl(workdir: Path, design_file: Optional[str] = None) -> tuple
                 output = "".join(chunks)
                 all_output.append(output)
                 if proc.returncode != 0:
-                    return (f"SpireHDL compilation failed ({py_file.name}):\n{output}",
+                    return (f"Spire compilation failed ({py_file.name}):\n{output}",
                             "\n".join(all_output))
             else:
                 result = subprocess.run(
@@ -231,7 +231,7 @@ def _compile_spirehdl(workdir: Path, design_file: Optional[str] = None) -> tuple
                 if result.stderr:
                     all_output.append(result.stderr)
                 if result.returncode != 0:
-                    return (f"SpireHDL compilation failed ({py_file.name}):\n{result.stderr}",
+                    return (f"Spire compilation failed ({py_file.name}):\n{result.stderr}",
                             "\n".join(all_output))
         except (subprocess.TimeoutExpired, TimeoutError):
             # subprocess.TimeoutExpired — what subprocess.run raises on --timeout.
@@ -242,7 +242,7 @@ def _compile_spirehdl(workdir: Path, design_file: Optional[str] = None) -> tuple
             # real timeouts.
             if verbose:
                 proc.kill()
-            return f"SpireHDL compilation timed out ({py_file.name})", "\n".join(all_output)
+            return f"Spire compilation timed out ({py_file.name})", "\n".join(all_output)
     return "", "\n".join(all_output)
 
 
@@ -313,7 +313,7 @@ def evaluate(
         cost_metric: Cost metric to use. Defaults to YosysTransistorCost.
         language: Design language ('verilog' or 'spirehdl').
         design_file: Main design file name (e.g. 'design.sv' or 'design.py').
-                     For SpireHDL, only this file is compiled. For Verilog,
+                     For Spire, only this file is compiled. For Verilog,
                      all .sv/.v files are still used for simulation but this
                      identifies the primary design.
         run_cec: If True (the default) and cec_reference is given, run a
@@ -331,7 +331,7 @@ def evaluate(
 
     python_run_output = ""
 
-    # SpireHDL: run .py -> writes Verilog file(s) directly
+    # Spire: run .py -> writes Verilog file(s) directly
     if language == "spirehdl":
         compile_err, python_run_output = _compile_spirehdl(workdir, design_file)
         if compile_err:

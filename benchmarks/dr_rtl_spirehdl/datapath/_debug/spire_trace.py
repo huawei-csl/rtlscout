@@ -25,7 +25,7 @@ mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 m = mod.m
 
-from spirehdl.spirehdl_simulator import Simulator
+from spire import Simulator
 sim = Simulator(m)
 
 VECTORS = REPO / "benchmarks/dr_rtl_spirehdl/datapath/vectors.dat"

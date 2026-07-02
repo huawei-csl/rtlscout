@@ -35,14 +35,14 @@ def main():
                         help="Skip saving a workspace snapshot before each "
                              "evaluation (by default snapshots ARE saved)")
     parser.add_argument("--flowy-optimize", action="store_true",
-                        help="Enable @flowy_optimized decorator guidance in system prompt (SpireHDL only)")
+                        help="Enable @flowy_optimized decorator guidance in system prompt (Spire only)")
     parser.add_argument("--abc-optimize", action="store_true",
-                        help="Enable @abc_optimized decorator guidance in system prompt (SpireHDL only)")
+                        help="Enable @abc_optimized decorator guidance in system prompt (Spire only)")
     parser.add_argument("--arith-autoconfig", action="store_true",
-                        help="Enable replace_arithmetic_ops() guidance in system prompt (SpireHDL only)")
+                        help="Enable replace_arithmetic_ops() guidance in system prompt (Spire only)")
     parser.add_argument("--fsm-optimize", action="store_true",
                         help="Enable FSM / state-encoding optimization guidance "
-                             "(optimized_fsm / optimized_encoding) in system prompt (SpireHDL only)")
+                             "(optimized_fsm / optimized_encoding) in system prompt (Spire only)")
     parser.add_argument("--dont-touch-main-arith", action="store_true",
                         help="Tell agent to not modify core multiplier/adder configs (for later-stage arithmetic sweeps)")
     parser.add_argument("--skip-cec", action="store_true",

@@ -3,7 +3,7 @@
 ## Status: PASS 2000/2000
 
 Full top-module port in [`context/starting_point.py`](../context/starting_point.py).
-All 7 verilog submodules inlined into one SpireHDL Module.
+All 7 verilog submodules inlined into one Spire Module.
 Final: **2000/2000 PASS, 38664 cells / 37221 wires** (vs verilog
 5615 / 4156). The 6.9× cell overhead is dominated by 4 precomputed
 256-entry mux-cascade LUTs (vs the verilog's 250-LOC GF-math sBox_8).

@@ -71,7 +71,7 @@ def test_run_benchmark_simple_adder(tmp_path):
 @requires_verilator
 @requires_yosys
 def test_run_benchmark_simple_adder_spirehdl(tmp_path):
-    """Run the agent loop on simple_adder with a fake SpireHDL provider."""
+    """Run the agent loop on simple_adder with a fake Spire provider."""
     from core.benchmarks import load_benchmark
     from core.runner import run_agent_on_benchmark
 
@@ -119,7 +119,7 @@ def test_run_multirun_simple_adder(tmp_path):
 @requires_verilator
 @requires_yosys
 def test_run_multirun_simple_adder_spirehdl(tmp_path):
-    """Run multirun on simple_adder with a fake SpireHDL provider."""
+    """Run multirun on simple_adder with a fake Spire provider."""
     from core.multirun import run_multirun
 
     summary = run_multirun(

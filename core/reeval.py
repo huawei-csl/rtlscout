@@ -32,7 +32,7 @@ from core.eval_store import read_evals, select_best_eval, snapshot_best
 # testbench + data (integrity), and these are housekeeping / caches / generated outputs.
 _NEVER_FROM_AGENT = {
     "tb.sv", "obj_dir", "_cec", "_golden", "_best_meta.json",
-    "result.json", "summary.txt", "agent_evals.jsonl", ".spirehdl_cache",
+    "result.json", "summary.txt", "agent_evals.jsonl", ".spire_cache",
 }
 
 # Heuristic tamper signatures to scan session logs for (advisory; the cost/PASS

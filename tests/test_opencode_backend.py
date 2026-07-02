@@ -175,10 +175,10 @@ def test_spirehdl_agents_md_points_to_readme_not_inlined(tmp_path):
 
 
 def test_spirehdl_agents_md_no_verbose_overview(tmp_path):
-    """The verbose react 'SpireHDL Overview' prose is dropped in the OpenCode renderer."""
+    """The verbose react 'Spire Overview' prose is dropped in the OpenCode renderer."""
     from core.opencode_backend import render_agents_md
     md = render_agents_md(_make_req(tmp_path, language="spirehdl"))
-    assert "## SpireHDL Overview" not in md
+    assert "## Spire Overview" not in md
 
 
 def test_all_hdls_are_clean_no_react_cruft(tmp_path):

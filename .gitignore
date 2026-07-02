@@ -23,7 +23,7 @@ paper_plots*/
 images/
 seeds_*/
 rename/
-.spirehdl_cache/
+.spire_cache/
 obj_dir/
 .pytest_cache/
 

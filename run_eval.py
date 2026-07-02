@@ -2,7 +2,7 @@
 """Debug tool: run evaluation on an existing workspace or design file.
 
 Given a path to a design file (e.g. a .py or .sv file inside a workspace),
-this script runs the full evaluation pipeline (SpireHDL compile if needed,
+this script runs the full evaluation pipeline (Spire compile if needed,
 Verilator correctness, Yosys cost) and prints the result.
 
 The workspace directory is inferred from the file's location — it must
@@ -274,7 +274,7 @@ def main():
         ws_dir.mkdir(parents=True, exist_ok=True)
         # Copy design file
         shutil.copy2(design_path, ws_dir / design_filename)
-        # Copy local .py dependencies if SpireHDL
+        # Copy local .py dependencies if Spire
         if design_path.suffix == ".py":
             try:
                 from extract_pareto import _find_local_deps

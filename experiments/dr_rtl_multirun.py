@@ -7,7 +7,7 @@ DR-RTL benchmark. Differences from the rtl_rewriter version:
 - Cases are identified by **string names** (e.g. ``ticket``, ``router``)
   rather than integers — DR-RTL designs have descriptive names from the
   upstream DR_RTL paper.
-- Only the 6 cases whose SpireHDL port currently passes 2000/2000 are
+- Only the 6 cases whose Spire port currently passes 2000/2000 are
   in scope here: ``ticket``, ``controller``, ``router``, ``pcie``,
   ``cpu_pipe``, ``datapath``.
 - Per-case baselines are measured at runtime (the DR-RTL eval json
@@ -82,7 +82,7 @@ def _load_baselines() -> Dict[str, Dict[str, Dict[str, Any]]]:
             design = bench / "context" / (
                 "starting_point.py" if language == "spirehdl" else "starting_point.v")
             if language == "spirehdl":
-                # Emit the SpireHDL Python to Verilog in a tempdir so the cost
+                # Emit the Spire Python to Verilog in a tempdir so the cost
                 # metric sees a single .v file. Use a tempdir per measurement
                 # so concurrent baseline reads can't trample each other.
                 import subprocess, tempfile, shutil

@@ -118,7 +118,7 @@ always@(posedge clk)
 		if(!resetn)
 			begin
 				count0<=5'b0;
-				soft_reset_0<=1'b0;   // reset so gate-level flop inits to 0 (matches SpireHDL port)
+				soft_reset_0<=1'b0;   // reset so gate-level flop inits to 0 (matches Spire port)
 			end
 		else if(vld_out_0)
 			begin
@@ -145,7 +145,7 @@ always@(posedge clk)
 		if(!resetn)
 			begin
 				count1<=5'b0;
-				soft_reset_1<=1'b0;   // reset so gate-level flop inits to 0 (matches SpireHDL port)
+				soft_reset_1<=1'b0;   // reset so gate-level flop inits to 0 (matches Spire port)
 			end
 		else if(vld_out_1)
 			begin
@@ -172,7 +172,7 @@ always@(posedge clk)
 		if(!resetn)
 			begin
 				count2<=5'b0;
-				soft_reset_2<=1'b0;   // reset so gate-level flop inits to 0 (matches SpireHDL port)
+				soft_reset_2<=1'b0;   // reset so gate-level flop inits to 0 (matches Spire port)
 			end
 		else if(vld_out_2)
 			begin
@@ -452,7 +452,7 @@ always@(posedge clk)
 always@(posedge clk)
 	begin
 		if(!resetn)
-			count<=6'd0;            // reset count so gate-level flops init to 0 (matches SpireHDL port)
+			count<=6'd0;            // reset count so gate-level flops init to 0 (matches Spire port)
 
 		 else if(read_enb && !empty)
 			begin

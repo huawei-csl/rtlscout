@@ -4,4 +4,4 @@ Inputs: `in1[7:0]`, `in2[7:0]`. Outputs: `res[8:0]`.
 
 A reference implementation is provided at `context/starting_point.py`. Read it to understand the intended behavior, then produce a functionally-identical design optimized for the target cost metric.
 
-A working starting point is provided: run `starting_point.py` (SpireHDL mode) to generate a correct reference design (`design.v`). Study the context files in your workspace for implementation details, then optimize from there.
+A working starting point is provided: run `starting_point.py` (Spire mode) to generate a correct reference design (`design.v`). Study the context files in your workspace for implementation details, then optimize from there.

@@ -138,7 +138,7 @@ python run_multirun.py [options]
 | `--language` | verilog | `verilog`, `spirehdl`, or `amaranth` |
 | `--runs-root` | auto | Output directory (default: `runs/multirun_<timestamp>`) |
 | `--seed-from` | none | Path to a previous `multirun_summary.json` or its directory to seed the elite pool |
-| `--flowy-optimize` | off | Enable `@flowy_optimized` decorator guidance in system prompt (SpireHDL only). Requires Flowy/Mockturtle/ABC installed — see `docs/flowy_setup.md` |
+| `--flowy-optimize` | off | Enable `@flowy_optimized` decorator guidance in system prompt (Spire only). Requires Flowy/Mockturtle/ABC installed — see `docs/flowy_setup.md` |
 
 ## Resuming from a previous run
 
@@ -185,7 +185,7 @@ How it works:
 
 > **Note:** The previous run's workdirs must still exist on disk — the pool entries reference design files by path.
 
-## SpireHDL optimize cache propagation
+## Spire optimize cache propagation
 
  `@abc_optimized` populates a content-addressed disk cache at `<workspace>/.spirehdl_cache/` (SHA of AIG + decorator kwargs). Cache reuse across the various execution seams is:
 

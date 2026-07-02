@@ -28,6 +28,6 @@ requires_openroad = pytest.mark.skipif(
 )
 
 requires_spirehdl = pytest.mark.skipif(
-    importlib.util.find_spec("spirehdl") is None,
-    reason="spirehdl not installed",
+    importlib.util.find_spec("spire") is None,
+    reason="spire not installed",
 )

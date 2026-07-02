@@ -14,7 +14,7 @@ suggested.
 
 NOT YET INTEGRATED. The top module (`dcpu16_cpu`) still needs translation.
 """
-from spirehdl.spirehdl import UInt, Const, Wire, Register, mux, cat
+from spire.expr import UInt, Const, Wire, Register, mux, cat
 
 
 # ============================================================================

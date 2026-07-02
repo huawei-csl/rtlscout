@@ -8,7 +8,7 @@ loop's mechanics (the in-house ``create_file``/``run_evaluation``/``done`` tool 
 the "ignore those tool notes" override the react prompts needed is unnecessary here.
 
 Per-language differences are captured in ``_CFG``:
-  - SpireHDL: inline the curated hints (``deps/spire-hdl/docs/hints.md``) + point at the
+  - Spire: inline the curated hints (``deps/spire-hdl/docs/hints.md``) + point at the
     spire-hdl READMEs; supports the optimization-decorator flags.
   - Amaranth: a short inline note (its API isn't universally known and has no readable
     in-repo docs) + point at the reference designs.
@@ -29,16 +29,17 @@ if TYPE_CHECKING:
 
 # spire-hdl ships topic READMEs next to its main one — pointed at (not inlined) so a
 # shell-capable agent reads what it needs on demand.
+# README.md is at the spire-hdl root; the topic READMEs live under docs/ (Spire >= 0.2.0).
 _SPIRE_DOC_READMES = [
-    ("README.md", "main SpireHDL overview — start here"),
-    ("README_arithmetic_generator.md", "configurable multiplier/adder generators"),
-    ("README_arithmetic_optimization.md", "arithmetic architecture optimization"),
-    ("README_optimization_decorators.md", "@abc_optimized / @flowy_optimized / etc."),
-    ("README_fsm_optimization.md", "FSM / state-encoding optimization"),
-    ("README_state_machines.md", "state machines"),
-    ("README_aggregate_types.md", "structs / arrays / aggregate types"),
-    ("README_memories.md", "memories"),
-    ("README_custom_verilog.md", "embedding custom Verilog"),
+    ("README.md", "main Spire overview — start here"),
+    ("docs/README_arithmetic_generator.md", "configurable multiplier/adder generators"),
+    ("docs/README_arithmetic_optimization.md", "arithmetic architecture optimization"),
+    ("docs/README_optimization_decorators.md", "@abc_optimized / @flowy_optimized / etc."),
+    ("docs/README_fsm_optimization.md", "FSM / state-encoding optimization"),
+    ("docs/README_state_machines.md", "state machines"),
+    ("docs/README_composite_types.md", "structs / arrays / composite types"),
+    ("docs/README_memories.md", "memories"),
+    ("docs/README_custom_verilog.md", "embedding custom Verilog"),
 ]
 
 _VERILOG_ESSENTIALS = (
@@ -77,7 +78,7 @@ _CFG = {
                      essentials=_VERILOG_ESSENTIALS, opt_flags=False),
     "amaranth": dict(hdl="Amaranth HDL (Python → Verilog)", refs=AMARANTH_REFERENCES,
                      doc_readmes=[], essentials=_AMARANTH_ESSENTIALS, opt_flags=False),
-    "spirehdl": dict(hdl="SpireHDL (Python EDSL → Verilog)", refs=SPIREHDL_REFERENCES,
+    "spirehdl": dict(hdl="Spire HDL (Python EDSL → Verilog)", refs=SPIREHDL_REFERENCES,
                      doc_readmes=_SPIRE_DOC_READMES, essentials=None, opt_flags=True),
 }
 
@@ -111,13 +112,13 @@ def _objective(req: "BackendRequest", metric_name: str, cfg: dict) -> str:
 
 
 def _essentials(cfg: dict) -> str:
-    """Concise HDL essentials. SpireHDL inlines the curated hints file (headings demoted);
+    """Concise HDL essentials. Spire inlines the curated hints file (headings demoted);
     verilog/amaranth use a short inline note."""
     if cfg["essentials"] is not None:
         return cfg["essentials"]
     if _HINTS_PATH.exists():
         return _demote_headings(_HINTS_PATH.read_text().strip())
-    return (f"## SpireHDL essentials\n\nRead `{_HINTS_PATH}` for the key API + common mistakes, "
+    return (f"## Spire essentials\n\nRead `{_HINTS_PATH}` for the key API + common mistakes, "
             f"then the READMEs below.")
 
 
@@ -145,7 +146,7 @@ def _optimization_guidance(req: "BackendRequest", cfg: dict) -> str:
         return ""
 
     def R(name):
-        return f"`{_SPIRE / name}`"
+        return f"`{_SPIRE / 'docs' / name}`"
 
     items = []
     if req.abc_optimize:
@@ -169,7 +170,7 @@ def _optimization_guidance(req: "BackendRequest", cfg: dict) -> str:
     if not items:
         return ""
     return ("## Optimization guidance (enabled for this run)\n\n"
-            "These synthesis-aware capabilities are highlighted. You already have the SpireHDL READMEs "
+            "These synthesis-aware capabilities are highlighted. You already have the Spire READMEs "
             "and source pointed at above — read the referenced doc for the exact API; the notes "
             "below are the emphasis.\n\n" + "\n".join(items))
 

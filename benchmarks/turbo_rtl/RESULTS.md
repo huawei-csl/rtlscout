@@ -22,7 +22,7 @@ Library: `/prog/OpenROAD-flow-scripts/tools/OpenROAD/test/sky130hd/sky130_fd_sc_
 Seven benchmarks selected from `benchmarks/final_benchmark_samples.zip` — five combinational plus two sequential (register-based). Each exists in two parallel forms sharing the same `tb.sv` / `vectors.dat` / `metadata.json`:
 
 - `benchmarks/turbo_rtl/<name>/` — Verilog, starting point is `context/starting_point.v` (golden from the zip, verbatim).
-- `benchmarks/turbo_rtl_spirehdl/<name>/` — SpireHDL, starting point is `context/starting_point.py` (hand-translated from the golden, mirroring every `assign` as a `Wire(…)` and every `reg` as a `Register(…)`).
+- `benchmarks/turbo_rtl_spirehdl/<name>/` — Spire, starting point is `context/starting_point.py` (hand-translated from the golden, mirroring every `assign` as a `Wire(…)` and every `reg` as a `Register(…)`).
 
 Testbenches were generated at benchmark-creation time by compiling the golden `.v` against a 32-bit-LFSR probe in verilator (seeds `0xDEADBEEF` and `0xCAFEBABE`, 2000 random cases), capturing the input/output pairs into `vectors.dat`, and writing a data-driven `tb.sv` that `$sscanf`s each line and checks `dut.<output> === expected_<output>`. For sequential benchmarks the probe toggles `clk`, holds reset for 3 cycles, then feeds a new input combination and samples outputs on every rising clock edge; the tb.sv mirrors the same protocol. Generator scripts: `/tmp/turbo_rtl_gen.py` (combinational) and `/tmp/turbo_rtl_seq_gen.py` (sequential) — not committed; see `benchmarks/turbo_rtl/README.md` for the full procedure.
 
@@ -68,7 +68,7 @@ Reference numbers come from `final_benchmark_samples.json` (the paper's own yosy
 
 ⏱ = sequential (clocked).
 
-**Note on SpireHDL starting points:** after the first round of runs we rewrote every `starting_point.py` to mirror the reference Verilog `assign`-for-`assign` — each intermediate `wire` from the golden becomes an explicit `m.wire(UInt(W), "name"); name <<= expr` in SpireHDL. This closes the width-inflation gap on `bcd_to_bin_16b` (4,283,419 → 3,359,772, a 22% drop that puts it within 2% of the verilog starting point). The other four benchmarks synthesize to the same netlist as their verilog siblings either way — yosys/abc collapses the redundant aliases — so their numbers didn't change, but the spirehdl source now tracks the golden one-for-one. See `benchmarks/turbo_rtl/README.md` §"Write a SpireHDL starting point that mirrors the verilog `assign` structure" for the convention.
+**Note on Spire starting points:** after the first round of runs we rewrote every `starting_point.py` to mirror the reference Verilog `assign`-for-`assign` — each intermediate `wire` from the golden becomes an explicit `m.wire(UInt(W), "name"); name <<= expr` in Spire. This closes the width-inflation gap on `bcd_to_bin_16b` (4,283,419 → 3,359,772, a 22% drop that puts it within 2% of the verilog starting point). The other four benchmarks synthesize to the same netlist as their verilog siblings either way — yosys/abc collapses the redundant aliases — so their numbers didn't change, but the spirehdl source now tracks the golden one-for-one. See `benchmarks/turbo_rtl/README.md` §"Write a Spire starting point that mirrors the verilog `assign` structure" for the convention.
 
 **Observation:** our yosys+abc `dch -f; map; topo; upsize; dnsize` flow already produces lower ADP than the paper's `ppa_opt` on every benchmark, before an agent has touched anything. The agent campaigns below should refine these numbers further.
 
@@ -236,7 +236,7 @@ done; wait
 | `gda_adder_n8m8p2` | V |   3.732 | 3.732  (**0.0%**) | 3.732 (0.0%)   | 89.15 | 89.15 (0.0%) |
 | `gda_adder_n8m8p2` | S |   3.747 | 3.747  (**0.0%**) | 3.747 (0.0%)   | 89.15 | 89.15 (0.0%) |
 
-**Verilog vs SpireHDL, using precise area:**
+**Verilog vs Spire, using precise area:**
 
 | Benchmark / metric | V best | S best | V vs S |
 |---|---:|---:|:---|
@@ -252,11 +252,11 @@ done; wait
 The integer-metric version of this section previously claimed "33% area improvement, tie between languages". Both numbers were rounding artefacts:
 - The real encoder area gain is **12.2% (verilog) / 6.6% (spirehdl)**, not 33%.
 - Neither language ties under precise area — verilog outperforms on area, spirehdl on delay. Both gaps are small (3% / 0.4%).
-- SpireHDL's starting point was actually **better than verilog's** on encoder (2.668 vs 2.756) — a fact hidden by integer rounding. The verilog agent then made a bigger optimization (12.2% vs 6.6%), ending at a lower final number.
+- Spire's starting point was actually **better than verilog's** on encoder (2.668 vs 2.756) — a fact hidden by integer rounding. The verilog agent then made a bigger optimization (12.2% vs 6.6%), ending at a lower final number.
 
 **Side observation — area/delay trade-off on spirehdl encoder:** the spirehdl `delay` campaign got to 83.15 ps (the best delay of any run), but it **spent area** to do so: area climbed from the 2.668 starting point to 2.858 (+7.1%). This is an honest A/D trade-off that the agent made while single-mindedly optimizing delay, and it's only visible because the precise area metric shows the regression. The verilog `delay` campaign was tamer — 84.89 → 83.45 ps with area going 2.756 → 2.537 (area actually shrank as a side-effect).
 
-This is consistent with the round-2 root-cause analysis above. The three spirehdl emission overheads I documented (BLIF buffer tax on registered outputs, `_maybe_share` over-sharing, output-truncation slice node) all hurt the **`yosys-abc stime` flow** — which is a fast structural mapping pass that does *local* rewriting within named-wire boundaries. The OpenROAD STA path (`abc -D <delay> -constr ...` then `read_verilog` of the abc-mapped netlist into OpenROAD `sta`) does its synthesis at a different stage with different aggressiveness, and evidently DOES collapse those alias chains and slice nodes during its mapping. The result is that the same SpireHDL code that paid a tax under `sky130_adp` now produces an indistinguishable final netlist from the verilog version.
+This is consistent with the round-2 root-cause analysis above. The three spirehdl emission overheads I documented (BLIF buffer tax on registered outputs, `_maybe_share` over-sharing, output-truncation slice node) all hurt the **`yosys-abc stime` flow** — which is a fast structural mapping pass that does *local* rewriting within named-wire boundaries. The OpenROAD STA path (`abc -D <delay> -constr ...` then `read_verilog` of the abc-mapped netlist into OpenROAD `sta`) does its synthesis at a different stage with different aggressiveness, and evidently DOES collapse those alias chains and slice nodes during its mapping. The result is that the same Spire code that paid a tax under `sky130_adp` now produces an indistinguishable final netlist from the verilog version.
 
 A few specific notes (using precise area):
 
@@ -266,7 +266,7 @@ A few specific notes (using precise area):
 
 ### Why does the language gap close under `area`/`delay`?
 
-The `sky130_adp` flow is `yosys synth → write_blif → yosys-abc strash; dch -f; map; topo; upsize; dnsize; stime`. It maps the **input BLIF as given**, doing local rewrites within the AIG nodes. SpireHDL's emit pollutes the AIG with explicit alias buffer nodes (Cause 1 above), named cut-wires from `_maybe_share` (Cause 2), and explicit slice-truncation nodes (Cause 3) — all of which `dch -f` respects as boundaries.
+The `sky130_adp` flow is `yosys synth → write_blif → yosys-abc strash; dch -f; map; topo; upsize; dnsize; stime`. It maps the **input BLIF as given**, doing local rewrites within the AIG nodes. Spire's emit pollutes the AIG with explicit alias buffer nodes (Cause 1 above), named cut-wires from `_maybe_share` (Cause 2), and explicit slice-truncation nodes (Cause 3) — all of which `dch -f` respects as boundaries.
 
 The `area` / `delay` flow goes through `tech_eval`'s OpenROAD pipeline:
 
@@ -275,19 +275,19 @@ yosys: read; synth -top; abc -D <target_delay> -constr <…> -liberty <asap7_lib
 OpenROAD STA: read_lef; read_lib; read_verilog <netlist>; link_design; create_clock; …; report
 ```
 
-The key call here is `abc -D <delay> -constr <constr> -liberty <…>` *inside yosys*, which runs abc's full delay-driven mapping flow against the standard cell library — including aggressive constant propagation, buffer collapsing, and structural rewriting. After that yosys writes a clean post-mapped Verilog netlist that OpenROAD STA reads back; OpenROAD then does its own opt passes before reporting area and delay. Most of the structural barriers SpireHDL introduces evidently get folded away by abc's delay-driven mapping inside yosys — they don't survive into the OpenROAD-side netlist.
+The key call here is `abc -D <delay> -constr <constr> -liberty <…>` *inside yosys*, which runs abc's full delay-driven mapping flow against the standard cell library — including aggressive constant propagation, buffer collapsing, and structural rewriting. After that yosys writes a clean post-mapped Verilog netlist that OpenROAD STA reads back; OpenROAD then does its own opt passes before reporting area and delay. Most of the structural barriers Spire introduces evidently get folded away by abc's delay-driven mapping inside yosys — they don't survive into the OpenROAD-side netlist.
 
 **Practical takeaway:** if you care about cross-language fairness under our agent harness, the `area` / `delay` metrics give a more honest comparison than `sky130_adp`. The `sky130_adp` flow is faster and library-flexible, but its lack of don't-care propagation and structural-cut sensitivity penalises spirehdl's emission patterns specifically. Until the three library fixes proposed in the round-2 analysis are made, `sky130_adp` understates spirehdl's true synthesis quality.
 
-## Why is SpireHDL worse? — Round 1 analysis (Sonnet 20-step, OUTDATED)
+## Why is Spire worse? — Round 1 analysis (Sonnet 20-step, OUTDATED)
 
-> **Note (kept for the record).** This section reflects the round-1 Sonnet 20-step results. Two of the three causes it identifies (width inflation in `bcd_to_bin_16b`; redundant aliased wires from `_maybe_share`) are still real but were partially addressed by rewriting the SpireHDL starting points to mirror the verilog `assign`-for-`assign` (and by the round-2 retry with explicit `Wire(...)` cut-points). The third cause (agent strategy miss on `rgb_diff_check`) flipped sign in round 2 — Opus spirehdl found a bit-level rewrite that verilog missed, so spirehdl now WINS that benchmark. **For the current (round 2) analysis, see "Why is SpireHDL still worse — Round 2 analysis (Opus 30-step)" further down.**
+> **Note (kept for the record).** This section reflects the round-1 Sonnet 20-step results. Two of the three causes it identifies (width inflation in `bcd_to_bin_16b`; redundant aliased wires from `_maybe_share`) are still real but were partially addressed by rewriting the Spire starting points to mirror the verilog `assign`-for-`assign` (and by the round-2 retry with explicit `Wire(...)` cut-points). The third cause (agent strategy miss on `rgb_diff_check`) flipped sign in round 2 — Opus spirehdl found a bit-level rewrite that verilog missed, so spirehdl now WINS that benchmark. **For the current (round 2) analysis, see "Why is Spire still worse — Round 2 analysis (Opus 30-step)" further down.**
 
-SpireHDL ties on `const_mult_3853`, narrowly beats verilog on `encoder_8b10b` (49.7k vs 50.3k), and loses on the other three: `gda_adder` (+12%), `bcd_to_bin` (+17.6%), `rgb_diff_check` (+3%). Cross-reading the chat logs and the final `design_*.py` / `design_*.sv` files in `runs/turbo_rtl_sky130_adp/`, three independent root causes emerged:
+Spire ties on `const_mult_3853`, narrowly beats verilog on `encoder_8b10b` (49.7k vs 50.3k), and loses on the other three: `gda_adder` (+12%), `bcd_to_bin` (+17.6%), `rgb_diff_check` (+3%). Cross-reading the chat logs and the final `design_*.py` / `design_*.sv` files in `runs/turbo_rtl_sky130_adp/`, three independent root causes emerged:
 
-### 1. SpireHDL's automatic width growth hurts arithmetic trees (bcd_to_bin)
+### 1. Spire's automatic width growth hurts arithmetic trees (bcd_to_bin)
 
-The SpireHDL starting point already evaluates at **4,283,419** ADP while the verilog one is **3,288,027** — a 30% gap **before** the agent does anything. Looking at the emitted Verilog from the spirehdl version's best design (`design_tree2.py`):
+The Spire starting point already evaluates at **4,283,419** ADP while the verilog one is **3,288,027** — a 30% gap **before** the agent does anything. Looking at the emitted Verilog from the spirehdl version's best design (`design_tree2.py`):
 
 ```verilog
 wire [19:0] sig_1;
@@ -298,7 +298,7 @@ assign sig_1 = (((numeros[19:16] * 14'd10000) + high_pair) + low_triple_1);
 assign operador = sig_1[15:0];
 ```
 
-SpireHDL's `d4 * 10000` widens `UInt(4) * UInt(14) → UInt(18)`, each subsequent `+` widens by one, and the final `operador <<= ...` truncates from 20 bits down to 16. The 16 bits of "headroom" create extra carry logic that yosys then has to prune.
+Spire's `d4 * 10000` widens `UInt(4) * UInt(14) → UInt(18)`, each subsequent `+` widens by one, and the final `operador <<= ...` truncates from 20 bits down to 16. The 16 bits of "headroom" create extra carry logic that yosys then has to prune.
 
 The best verilog design does the opposite — **it forces every intermediate to 16 bits up front**:
 
@@ -310,14 +310,14 @@ assign v3 = 16'd1000  * {12'b0, numeros[15:12]};
 assign operador = s024 + s13;
 ```
 
-The agent's SpireHDL system prompt actually warns about width inference — but only in the context of `cat()` packing, not arithmetic trees. Sonnet read the warning, tried Horner's method and shift-and-add as algorithmic refactors, and never thought to wrap each intermediate with an explicit `m.wire(UInt(16), "v4"); v4 <<= (...)` to create a 16-bit cut-point.
+The agent's Spire system prompt actually warns about width inference — but only in the context of `cat()` packing, not arithmetic trees. Sonnet read the warning, tried Horner's method and shift-and-add as algorithmic refactors, and never thought to wrap each intermediate with an explicit `m.wire(UInt(16), "v4"); v4 <<= (...)` to create a 16-bit cut-point.
 
-**"But doesn't yosys optimize out the extra MSBs?"** No — verified empirically with two minimal SpireHDL designs (see `/tmp/width_test/`):
+**"But doesn't yosys optimize out the extra MSBs?"** No — verified empirically with two minimal Spire designs (see `/tmp/width_test/`):
 
 | Variant | Area | Delay (ps) | ADP |
 |---|---:|---:|---:|
-| SpireHDL wide — current starting point (natural width growth) | 3,035.41 | 1,411.15 | **4,283,419** |
-| SpireHDL narrow — explicit `m.wire(UInt(16))` at every stage     | 2,325.98 | 1,212.13 | **2,819,390** |
+| Spire wide — current starting point (natural width growth) | 3,035.41 | 1,411.15 | **4,283,419** |
+| Spire narrow — explicit `m.wire(UInt(16))` at every stage     | 2,325.98 | 1,212.13 | **2,819,390** |
 
 Same logical function, same test vectors, same `Sky130ADPCost` flow. The one-line-per-wire fix drops ADP by **34%**, beats the spirehdl agent's 20-step best (3,268,515) by 14%, and lands within 1.4% of the verilog agent's best (2,779,155) **with zero agent iteration**.
 
@@ -325,11 +325,11 @@ So yosys's `opt` / `opt_clean` / `opt_expr` passes and abc's `dch -f; map` do **
 
 This means:
 - The "agent should have tried explicit width cut-points" point isn't just theoretical — it would have worked.
-- SpireHDL's default behavior (let arithmetic widths grow, truncate at output) is a real footgun for area-optimized synthesis, not just an aesthetic issue. A library-side fix would be for `m.output(...) <<= expr` to insert an implicit truncation wire at the output width when the expression is wider. That would close the gap without any user change.
+- Spire's default behavior (let arithmetic widths grow, truncate at output) is a real footgun for area-optimized synthesis, not just an aesthetic issue. A library-side fix would be for `m.output(...) <<= expr` to insert an implicit truncation wire at the output width when the expression is wider. That would close the gap without any user change.
 
-### 2. SpireHDL's `_maybe_share` inflates the preliminary netlist (gda_adder)
+### 2. Spire's `_maybe_share` inflates the preliminary netlist (gda_adder)
 
-Both best designs encode the *same* 8-bit approximate-adder CLA algorithm. Logically identical. But the emitted Verilog from the SpireHDL version reveals an artifact:
+Both best designs encode the *same* 8-bit approximate-adder CLA algorithm. Logically identical. But the emitted Verilog from the Spire version reveals an artifact:
 
 ```verilog
 assign sig_15 = in2[5];   // g5 uses it
@@ -339,7 +339,7 @@ assign sig_14 = in2[5];   // s5 uses it again
 
 `_maybe_share` in `spirehdl/spirehdl.py:65` creates a **fresh wire** every time a sub-expression gets referenced for the second time in a row — so `in2[5]`, `in2[6]`, `in2[7]` each end up as three distinct named wires. Functionally a no-op (yosys collapses them in `opt`), but the starting netlist has ~50 extra aliases that `dch -f; map` has to navigate. On this benchmark it lands in a slightly worse local optimum (area 312 → 335, delay 209 → 219).
 
-Also, the verilog best expresses the XOR sum bit as `(cp[0] + in1[2] + in2[2]) & 1'b1` (a 3-operand add that yosys reduces to a full-adder sum bit). The SpireHDL best uses the literal `in1[2] ^ in2[2] ^ cp1` — logically identical but yosys's front-end handles it via a different rewrite path and produces slightly more gates.
+Also, the verilog best expresses the XOR sum bit as `(cp[0] + in1[2] + in2[2]) & 1'b1` (a 3-operand add that yosys reduces to a full-adder sum bit). The Spire best uses the literal `in1[2] ^ in2[2] ^ cp1` — logically identical but yosys's front-end handles it via a different rewrite path and produces slightly more gates.
 
 ### 3. Agent strategy diverges across languages (rgb_diff_check)
 
@@ -352,23 +352,23 @@ wire y_inside = (y[7:5] == 3'b000 && y[4:0] < 5'd24)
 
 The 8-bit comparator shrinks to a 3-bit equality plus a 5-bit comparator — cheaper cells. Applied to `u_inside` and `v_inside` too. Net gain: 2,539,030 → 2,464,238 (3%).
 
-The SpireHDL agent never explored this rewrite. It stopped after 1 eval at the starting-point cost and spent the rest of its steps on approaches that all either broke correctness or didn't improve. Not a SpireHDL limitation — the same trick translates trivially (`(y[5:8] == 0) & (y[0:5] < 24) | ...`) — just a strategy miss in that particular run.
+The Spire agent never explored this rewrite. It stopped after 1 eval at the starting-point cost and spent the rest of its steps on approaches that all either broke correctness or didn't improve. Not a Spire limitation — the same trick translates trivially (`(y[5:8] == 0) & (y[0:5] < 24) | ...`) — just a strategy miss in that particular run.
 
 ### Synthesis
 
-It's **not** that SpireHDL generates intrinsically worse RTL. The three losing campaigns each have a different fixable problem:
+It's **not** that Spire generates intrinsically worse RTL. The three losing campaigns each have a different fixable problem:
 
-1. **(bcd)** Explicit width-cutpoints in SpireHDL: `m.wire(UInt(16), "v4"); v4 <<= expr` at every arithmetic step. The system prompt mentions this trick but ties it to `cat()`-packing; the agent didn't generalize.
+1. **(bcd)** Explicit width-cutpoints in Spire: `m.wire(UInt(16), "v4"); v4 <<= expr` at every arithmetic step. The system prompt mentions this trick but ties it to `cat()`-packing; the agent didn't generalize.
 2. **(gda)** `_maybe_share` creates redundant aliased wires. Low-level library issue — harmless in the abstract but occasionally knocks synth into a worse local optimum. Could be fixed by sharing by expression *value* instead of *reference count*, or by tightening the aliasing in `_create_new_shared_wire`.
-3. **(rgb)** Agent strategy difference. A longer step budget (or an elite-pool seeded run via `run_multirun.py`) would very likely find the bit-pattern rewrite in SpireHDL too.
+3. **(rgb)** Agent strategy difference. A longer step budget (or an elite-pool seeded run via `run_multirun.py`) would very likely find the bit-pattern rewrite in Spire too.
 
-Notably, **SpireHDL already beat the paper's `ppa_opt` on all 5 benchmarks** — it's just losing a rematch vs. its own verilog sibling in 3 of them. A second-stage `run_multirun.py` campaign with `--flowy-optimize` / `--abc-optimize` would probably close the gap further; the current results are from single-run `run_benchmark.py` with no synthesis decorators.
+Notably, **Spire already beat the paper's `ppa_opt` on all 5 benchmarks** — it's just losing a rematch vs. its own verilog sibling in 3 of them. A second-stage `run_multirun.py` campaign with `--flowy-optimize` / `--abc-optimize` would probably close the gap further; the current results are from single-run `run_benchmark.py` with no synthesis decorators.
 
-## Why is SpireHDL still worse — Round 2 analysis (Opus 30-step)
+## Why is Spire still worse — Round 2 analysis (Opus 30-step)
 
 > **Correction (added later).** This section originally claimed three spirehdl-side root causes. After deeper testing, **Cause 1 (the "registered output buffer tax") was actually a `Sky130ADPCost` script bug, not a spirehdl issue** — yosys's default `opt_clean` deliberately preserves named (public) wires for debuggability, and the `Sky130ADPCost` yosys script never invoked `clean -purge` to drop alias buffers. Adding `clean -purge` to the script (committed in `core/cost.py`) makes the alias-buffer chain vanish and brings `adder_4bit_reg` spirehdl from 53,427 → 47,217 ADP — a 11.6% win that puts it narrowly *ahead* of the verilog winner (47,630). **Causes 2 and 3 (named-wire explosion + output-truncation slice) are confirmed spirehdl emission issues** and survive the purge — re-evaluating the encoder and bcd_to_bin spirehdl bests under the patched metric gives byte-identical numbers. The original three-cause analysis is preserved verbatim below for the record; the "Correction summary" subsection at the very end of this section reconciles everything against the post-patch reality.
 
-In round 2 SpireHDL loses on **4 of 7** benchmarks (encoder_8b10b +7.8%, bcd_to_bin_16b +16.2%, adder_4bit_reg +12.2%, avg4_reg +5.9%), ties on **2** (gda_adder_n8m8p2, const_mult_3853), and **wins outright on 1** (rgb_diff_check, −10.0%). I dug into the chat logs, the per-step `design_*.{py,sv}` files in `runs/turbo_rtl_30/`, and ran controlled empirical experiments to nail down the root causes. **Three concrete spirehdl mechanisms explain the regressions** — all are library-level, none are agent-strategy issues. (See the correction note above and the "Correction summary" at the end of this section.)
+In round 2 Spire loses on **4 of 7** benchmarks (encoder_8b10b +7.8%, bcd_to_bin_16b +16.2%, adder_4bit_reg +12.2%, avg4_reg +5.9%), ties on **2** (gda_adder_n8m8p2, const_mult_3853), and **wins outright on 1** (rgb_diff_check, −10.0%). I dug into the chat logs, the per-step `design_*.{py,sv}` files in `runs/turbo_rtl_30/`, and ran controlled empirical experiments to nail down the root causes. **Three concrete spirehdl mechanisms explain the regressions** — all are library-level, none are agent-strategy issues. (See the correction note above and the "Correction summary" at the end of this section.)
 
 ### Cause 1 — registered outputs pay a "BLIF buffer tax" (adder_4bit_reg, avg4_reg)
 
@@ -376,7 +376,7 @@ In round 2 SpireHDL loses on **4 of 7** benchmarks (encoder_8b10b +7.8%, bcd_to_
 
 The difference is in the emitted Verilog's **register output style**:
 
-| Verilog winner | SpireHDL emit |
+| Verilog winner | Spire emit |
 |---|---|
 | `output reg [3:0] sum` | `output [3:0] sum; reg [3:0] sum_reg; assign sum = sum_reg;` |
 | `always @(posedge clk) sum[0] <= …` | `always @(posedge clk) sum_reg <= …; assign sum = sum_reg;` |
@@ -389,7 +389,7 @@ yosys post-synth cell counts (both forms): 36 cells, identical mix
 
 After yosys-abc dch -f; map; stime against sky130_fd_sc_hd__ff_n40C_1v95.lib:
   Verilog `output reg`:                    27 gates, area 143.89, delay 331.02 ps → ADP 47,631
-  SpireHDL-style `reg foo; assign sum=foo`: 39 gates, area 197.69, delay 344.53 ps → ADP 68,113
+  Spire-style `reg foo; assign sum=foo`: 39 gates, area 197.69, delay 344.53 ps → ADP 68,113
   ────────────────────────────────────────────────────────────────────────
   Penalty:                                 +12 gates, +37% area, +12% ADP
 ```
@@ -437,7 +437,7 @@ wire  L03_2;   assign L03_2 = (((~in_8b[2]) & L03) & L03_1); // full expr
 
 Each of those named wires becomes an **optimization barrier** for abc's `dch -f` rewriting pass (abc preserves named net boundaries by default — it can rewrite *within* a node's fan-in cone but won't merge fan-ins across named cuts). With ~50 cuts in the encoder netlist vs ~14 in the verilog version, abc's search space is severely restricted.
 
-This is responsible for the +7.8% encoder gap and the small gda_adder discrepancy. **It is the same root cause that the round-1 analysis identified** (the "redundant aliased wires" point), but rewriting the SpireHDL starting points to use `Wire(...)` explicitly didn't fix it — agent-driven optimization re-introduces the over-sharing as the design grows.
+This is responsible for the +7.8% encoder gap and the small gda_adder discrepancy. **It is the same root cause that the round-1 analysis identified** (the "redundant aliased wires" point), but rewriting the Spire starting points to use `Wire(...)` explicitly didn't fix it — agent-driven optimization re-introduces the over-sharing as the design grows.
 
 **Possible library fix:** change the threshold in `_maybe_share` from "share on second sighting" to "share on third sighting" (or only share at fan-out > 2), and don't force-share inside `fit_width` unless the source is itself a complex subgraph. Alternatively, run a post-emit pass that inlines wires whose driver is a single bit-slice or a single unary op.
 
@@ -545,7 +545,7 @@ Spirehdl now wins outright on 2 of 7 benchmarks (rgb_diff_check, adder_4bit_reg)
 
 Round-1 campaigns saved their best designs under `runs/turbo_rtl_sky130_adp/<benchmark>/claude-sonnet-4-5/<timestamp>/best_design/`, with a `_best_meta.json` recording which file (`design_opt<n>.sv` for verilog, `design_opt<n>.py` or `design_tree2.py` etc. for spirehdl) achieved the best cost. Round-2 best designs live under `runs/turbo_rtl_30/<benchmark>/claude-opus-4-6/<timestamp>/best_design/` with the same `_best_meta.json` convention. Timestamp mapping for round 1 (the earlier timestamp is always the verilog run for each benchmark):
 
-| Benchmark | Verilog run | SpireHDL run |
+| Benchmark | Verilog run | Spire run |
 |---|---|---|
 | `encoder_8b10b`    | `20260414_133130/best_design/design_opt5.sv` | `20260414_133458/best_design/design_opt2.py` |
 | `gda_adder_n8m8p2` | `20260414_133451/best_design/design_opt8.sv` | `20260414_133500/best_design/design_opt1.py` |
@@ -557,4 +557,4 @@ Round-1 campaigns saved their best designs under `runs/turbo_rtl_sky130_adp/<ben
 
 - The `sky130_adp` yosys+abc flow is already aggressive (`dch -f; map; topo; upsize; dnsize`), and it starts from a lower ADP than the paper's `ppa_opt` on every benchmark above. The agent's job is incremental refinement — rewriting the algorithm to shrink area or critical depth further. With only 20 steps the headroom is modest.
 - All 5 picks are **combinational** so the random-stimulus tb flow doesn't need cycle-by-cycle capture; the tb compares outputs at `#1` after each input assignment. Adding sequential benchmarks would require a different probe tb.
-- The SpireHDL `rgb_diff_check` starting point initially failed 18/2002 vectors due to a spirehdl `cast(unsigned_concat, SInt(wider))` footgun — `Resize` picks the extension mode from the *source* type, so the cast zero-extended instead of sign-extending. Fixed by doing the sign extension explicitly in bit-space via `cat(x, x[msb])`. Not a spirehdl bug per se, but an API surprise worth documenting. See `benchmarks/turbo_rtl/README.md` §SpireHDL translation pitfalls.
+- The Spire `rgb_diff_check` starting point initially failed 18/2002 vectors due to a spirehdl `cast(unsigned_concat, SInt(wider))` footgun — `Resize` picks the extension mode from the *source* type, so the cast zero-extended instead of sign-extending. Fixed by doing the sign extension explicitly in bit-space via `cat(x, x[msb])`. Not a spirehdl bug per se, but an API surprise worth documenting. See `benchmarks/turbo_rtl/README.md` §Spire translation pitfalls.

@@ -11,6 +11,6 @@ __pycache__
 **/__pycache__
 *.pyc
 .pytest_cache
-.spirehdl_cache
+.spire_cache
 imgs
 internal_docs

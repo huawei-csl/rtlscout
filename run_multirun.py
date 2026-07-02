@@ -65,15 +65,15 @@ def main():
                              "(from extract_pareto.py), or best_designs.json "
                              "(from extract_best_designs.py)")
     parser.add_argument("--flowy-optimize", action="store_true",
-                        help="Enable @flowy_optimized decorator guidance in system prompt (SpireHDL only)")
+                        help="Enable @flowy_optimized decorator guidance in system prompt (Spire only)")
     parser.add_argument("--abc-optimize", action="store_true",
-                        help="Enable @abc_optimized decorator guidance in system prompt (SpireHDL only)")
+                        help="Enable @abc_optimized decorator guidance in system prompt (Spire only)")
     parser.add_argument("--arith-autoconfig", action="store_true",
-                        help="Enable replace_arithmetic_ops() guidance in system prompt (SpireHDL only)")
+                        help="Enable replace_arithmetic_ops() guidance in system prompt (Spire only)")
     parser.add_argument("--dont-touch-main-arith", action="store_true",
                         help="Tell agent to not modify core multiplier/adder configs (for later-stage arithmetic sweeps)")
     parser.add_argument("--fsm-optimize", action="store_true",
-                        help="Enable FSM / state-encoding optimization guidance (optimized_fsm / optimized_encoding) in the system prompt (SpireHDL only)")
+                        help="Enable FSM / state-encoding optimization guidance (optimized_fsm / optimized_encoding) in the system prompt (Spire only)")
     parser.add_argument("--skip-cec", action="store_true",
                         help="Skip the combinational equivalence check (yosys-abc cec). "
                              "CEC runs by default against the benchmark's golden_reference "

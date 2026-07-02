@@ -1,4 +1,4 @@
-# Debugging the `router` SpireHDL port
+# Debugging the `router` Spire port
 
 ## Result: PASS 2000/2000 after 3 bugs found
 

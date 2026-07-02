@@ -1,10 +1,10 @@
 # `dr_rtl_spirehdl` benchmarks
 
-SpireHDL mirror of `benchmarks/dr_rtl/` for **5 of the largest portable
+Spire mirror of `benchmarks/dr_rtl/` for **5 of the largest portable
 designs + 1 anti-pattern design + a warmup** (7 of 20 total). Each
 `<case>/` mirrors its `benchmarks/dr_rtl/<case>/` sibling, with
 `context/starting_point.v` replaced by `context/starting_point.py` (a
-SpireHDL script that emits the same `design.v`).
+Spire script that emits the same `design.v`).
 
 The 3 ARM/Z80 CPUs (`tv80`, `arm_cpu1`, `arm_cpu2`) are explicitly out
 of scope as multi-day full-instruction-decoder ports. The remaining 10
@@ -145,7 +145,7 @@ The single most common bug encountered while porting was `cat` ordering
 - **Verilog `{a, b}`**: `a` at MSB position, `b` at LSB position.
   In `wire [W-1:0] x = {a, b}`: `x[W-1:N] = a`, `x[N-1:0] = b` where
   `N` is the width of `b`.
-- **SpireHDL `cat(a, b)`**: `a` at LSB position, `b` at MSB position.
+- **Spire `cat(a, b)`**: `a` at LSB position, `b` at MSB position.
   In a `cat(a, b)` of widths `(Wa, Wb)`: `result[0:Wa] = a`,
   `result[Wa:Wa+Wb] = b`.
 
@@ -227,7 +227,7 @@ benchmarks/dr_rtl_spirehdl/<case>/
   tb.sv                             # BIT-IDENTICAL copy from benchmarks/dr_rtl/<case>/   ← HARD INVARIANT
   vectors.dat                       # BIT-IDENTICAL copy from benchmarks/dr_rtl/<case>/   ← HARD INVARIANT
   context/
-    starting_point.py               # hand-written SpireHDL — done for all 7 ported cases
+    starting_point.py               # hand-written Spire — done for all 7 ported cases
   _debug/                            # debug artifacts (DEBUGGING.md, traces, helpers).
                                      # NB: any path containing a `_*` segment is skipped
                                      # by core/benchmarks.py and core/runner.py — these

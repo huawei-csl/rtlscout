@@ -1,6 +1,6 @@
-# DR_RTL → SpireHDL porting notes
+# DR_RTL → Spire porting notes
 
-Running write-up for `benchmarks/dr_rtl_spirehdl/` — the SpireHDL mirror of
+Running write-up for `benchmarks/dr_rtl_spirehdl/` — the Spire mirror of
 `benchmarks/dr_rtl/`. Scope of this iteration: **5 largest portable designs**
 (`datapath` 1064 LOC, `cpu_pipe` 926, `pcie` 923, `i2c` 915, `router` 594);
 the 3 ARM/Z80 CPUs (`tv80`, `arm_cpu1`, `arm_cpu2`) are explicitly out of
@@ -72,7 +72,7 @@ Module breakdown:
 register.
 
 **Memory array (`router_fifo`):** the 16×9-bit `fifo` array gets
-addressed via `read_ptr` and `write_ptr`. SpireHDL translation:
+addressed via `read_ptr` and `write_ptr`. Spire translation:
 ```python
 fifo = [Register(UInt(9), init=0, name=f"fifo_{i}") for i in range(16)]
 # Read: mux on read_ptr to select among the 16 registers
@@ -260,7 +260,7 @@ r <<= mux(<is_reset_active>, <init>, <next_val>)
 ```
 
 **Width discipline** (`turbo_rtl/README.md:243-253`): set each wire to
-its verilog-declared width. SpireHDL arithmetic grows widths by
+its verilog-declared width. Spire arithmetic grows widths by
 default (`UInt(n)+UInt(n) → UInt(n+1)`, `*` produces `n+m` bits);
 truncation only happens at the final `output <<=`. Use explicit
 `Wire(UInt(W), name="X"); X <<= expr` at every stage to force the
