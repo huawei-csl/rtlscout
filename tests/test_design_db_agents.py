@@ -117,6 +117,7 @@ def test_dispatch_e2e_with_stub_agent(db, tmp_path, monkeypatch):
     stub.write_text(
         "#!/usr/bin/env bash\n"
         "echo \"$RTLSCOUT_DISPATCH_DEPTH\" > depth.txt\n"
+        "echo \"$SPIREHDL_DB_PATH\" > dbenv.txt\n"
         "cat > design.v <<'VEOF'\n" + distinct + "VEOF\n"
         "./eval design.v > eval_out.json\n"
         "./db-insert design.v > insert_out.json\n")
@@ -130,9 +131,29 @@ def test_dispatch_e2e_with_stub_agent(db, tmp_path, monkeypatch):
     assert report["best"]["design_id"]                        # floor or agent — deterministic argmin
     assert (w / "report.json").exists() and (w / "opencode_session.log").exists()
     assert (w / "depth.txt").read_text().strip() == "1"       # the guard incremented
+    assert Path((w / "dbenv.txt").read_text().strip()) == db  # `spire db` in-session sees this DB
     manifest = json.loads((db / VERSION_DIR / "manifest.json").read_text())
     assert any(e.get("selected_id") for e in manifest["slots"].values()
                if e["spec_key"] == key)                        # report recorded the selection
+
+
+def test_dispatch_budget_timeout_writes_partial_log(db, tmp_path, monkeypatch):
+    """A budget-terminated agent must still yield the partial session log + the trusted report
+    (TimeoutExpired carries the captured streams as bytes — the real-run crash of smoke #2)."""
+    key = _adder_slot()
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    stub = bin_dir / "opencode"
+    stub.write_text("#!/usr/bin/env bash\necho partial-transcript\nsleep 30\n")
+    stub.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}:{os.environ['PATH']}")
+
+    w = tmp_path / "dispatch_ws"
+    report = dispatch_subcircuit(key, model="stub:model", budget_min=0.02, workdir=w)
+    assert "terminated at the 0.02-minute budget" in report["agent"]["note"]
+    assert "partial-transcript" in (w / "opencode_session.log").read_text()
+    assert report["seeded"].startswith("original:") and report["n_designs"] == 1
+    assert (w / "report.json").exists()                       # the report survives the timeout
 
 
 def test_provision_orchestrator(db, tmp_path):

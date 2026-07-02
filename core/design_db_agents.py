@@ -31,12 +31,38 @@ from typing import Any, Dict, Optional
 
 from spire.design_db import (DesignDB, DesignDBError, pareto_front, seed_original,
                              select_design)
+from spire.design_db.store import DB_ENV
 from spire.design_db.verify import VerificationError
 
 DISPATCH_DEPTH_ENV = "RTLSCOUT_DISPATCH_DEPTH"
 DISPATCH_DEPTH_CAP = 2
 AGENT_MODEL_ENV = "RTLSCOUT_FILL_MODEL"        # same knob as the campaign filler
 _REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _agent_env(depth: int, model: str, db_root: Path) -> Dict[str, str]:
+    env = dict(os.environ)
+    env[DISPATCH_DEPTH_ENV] = str(depth + 1)
+    env[AGENT_MODEL_ENV] = model              # nested shim launches inherit the model choice
+    env[DB_ENV] = str(db_root)                # `spire db ...` inside the session hits the same DB
+    return env
+
+
+def _run_agent_session(cmd: str, workdir: Path, env: Dict[str, str], budget_min: float) -> str:
+    """Run one opencode session; always leave opencode_session.log in the workspace."""
+    def _txt(x: Any) -> str:
+        # TimeoutExpired carries the captured streams as *bytes* even under text=True
+        return x.decode(errors="replace") if isinstance(x, bytes) else (x or "")
+    try:
+        proc = subprocess.run(["bash", "-c", cmd], cwd=str(workdir), env=env,
+                              capture_output=True, text=True, timeout=budget_min * 60)
+        note = f"agent exited rc={proc.returncode}"
+        out, err = proc.stdout, proc.stderr
+    except subprocess.TimeoutExpired as exc:
+        note = f"agent terminated at the {budget_min:g}-minute budget"
+        out, err = _txt(exc.stdout), _txt(exc.stderr)
+    (workdir / "opencode_session.log").write_text(out + "\n--- stderr ---\n" + err)
+    return note
 
 
 # --- rendering ----------------------------------------------------------------------------------
@@ -328,22 +354,11 @@ def dispatch_subcircuit(spec_key: str, *, db: Optional[Any] = None, objective: s
     kickoff = (f"Optimize design-DB slot {spec_key}. Read AGENTS.md first; the slot files are on "
                f"disk. Objective: minimize {objective}. Use ./eval to iterate and ./db-insert to "
                f"submit. You will be terminated automatically once the time budget runs out.")
-    env = dict(os.environ)
-    env[DISPATCH_DEPTH_ENV] = str(depth + 1)
-    env[AGENT_MODEL_ENV] = model          # nested shim launches inherit the model choice
+    env = _agent_env(depth, model, d.root)
     cmd = f"exec {shlex.quote(opencode_bin)} run --format json -m {shlex.quote(model_spec)} " \
           f"--agent rtl-subcircuit {shlex.quote(kickoff)}"
     started = time.time()
-    try:
-        proc = subprocess.run(["bash", "-c", cmd], cwd=str(workdir), env=env,
-                              capture_output=True, text=True, timeout=budget_min * 60)
-        agent_note = f"agent exited rc={proc.returncode}"
-        (workdir / "opencode_session.log").write_text(proc.stdout + "\n--- stderr ---\n"
-                                                      + proc.stderr)
-    except subprocess.TimeoutExpired as exc:
-        agent_note = f"agent terminated at the {budget_min:g}-minute budget"
-        (workdir / "opencode_session.log").write_text(
-            (exc.stdout or "") + "\n--- stderr ---\n" + (exc.stderr or ""))
+    agent_note = _run_agent_session(cmd, workdir, env, budget_min)
 
     report = build_report(spec_key, db=db, objective=objective, before_ids=before)
     report["seeded"] = seeded
@@ -371,6 +386,7 @@ def dispatch_dv_prep(spec_key: str, *, db: Optional[Any] = None, model: Optional
         raise DesignDBError(f"{opencode_bin!r} not found on PATH")
     model_spec = model.replace(":", "/", 1)
 
+    d = DesignDB.open(db, create=False)
     workdir = Path(workdir) if workdir else Path(tempfile.mkdtemp(prefix="ddb_dvprep_"))
     provision_dv_prep_workspace(spec_key, workdir, db=db, model_spec=model_spec,
                                 budget_min=budget_min)
@@ -378,22 +394,11 @@ def dispatch_dv_prep(spec_key: str, *, db: Optional[Any] = None, model: Optional
                f"first. Deliverable: stimulus.py with generate(ports, n_vectors, seed); validate "
                f"it with ./check-stimulus. You will be terminated automatically once the time "
                f"budget runs out.")
-    env = dict(os.environ)
-    env[DISPATCH_DEPTH_ENV] = str(depth + 1)
-    env[AGENT_MODEL_ENV] = model          # nested shim launches inherit the model choice
+    env = _agent_env(depth, model, d.root)
     cmd = f"exec {shlex.quote(opencode_bin)} run --format json -m {shlex.quote(model_spec)} " \
           f"--agent rtl-dv-prep {shlex.quote(kickoff)}"
     started = time.time()
-    try:
-        proc = subprocess.run(["bash", "-c", cmd], cwd=str(workdir), env=env,
-                              capture_output=True, text=True, timeout=budget_min * 60)
-        agent_note = f"agent exited rc={proc.returncode}"
-        (workdir / "opencode_session.log").write_text(proc.stdout + "\n--- stderr ---\n"
-                                                      + proc.stderr)
-    except subprocess.TimeoutExpired as exc:
-        agent_note = f"agent terminated at the {budget_min:g}-minute budget"
-        (workdir / "opencode_session.log").write_text(
-            (exc.stdout or "") + "\n--- stderr ---\n" + (exc.stderr or ""))
+    agent_note = _run_agent_session(cmd, workdir, env, budget_min)
 
     report: Dict[str, Any] = {"spec_key": spec_key, "frozen": None,
                               "agent": {"model": model, "note": agent_note,
@@ -406,7 +411,6 @@ def dispatch_dv_prep(spec_key: str, *, db: Optional[Any] = None, model: Optional
                                                n_vectors=n_vectors, seed=seed, db=db)
         # Record honest authorship (spire tags stimulus files "human"; this one is agent-authored).
         verification["stimulus_author"] = "agent:rtl-dv-prep"
-        d = DesignDB.open(db, create=False)
         d.write_json(d.slot_dir(spec_key) / "verification.json", verification)
         shutil.copyfile(stimulus, d.slot_dir(spec_key) / "stimulus.py")   # review artifact
         report["frozen"] = verification
@@ -445,25 +449,14 @@ def run_orchestrator(*, db: Optional[Any] = None, objective: str = "area",
                f"budget runs out.")
     if kickoff_extra:
         kickoff += " " + kickoff_extra
-    env = dict(os.environ)
-    env[DISPATCH_DEPTH_ENV] = str(depth + 1)
-    env[AGENT_MODEL_ENV] = model          # nested shim launches inherit the model choice
+    env = _agent_env(depth, model, d.root)
     nested = workdir / "nested"           # child dispatch/dv-prep workspaces land here
     nested.mkdir(parents=True, exist_ok=True)
     env["TMPDIR"] = str(nested)
     cmd = f"exec {shlex.quote(opencode_bin)} run --format json -m {shlex.quote(model_spec)} " \
           f"--agent rtl-orchestrator {shlex.quote(kickoff)}"
     started = time.time()
-    try:
-        proc = subprocess.run(["bash", "-c", cmd], cwd=str(workdir), env=env,
-                              capture_output=True, text=True, timeout=budget_min * 60)
-        agent_note = f"agent exited rc={proc.returncode}"
-        (workdir / "opencode_session.log").write_text(proc.stdout + "\n--- stderr ---\n"
-                                                      + proc.stderr)
-    except subprocess.TimeoutExpired as exc:
-        agent_note = f"agent terminated at the {budget_min:g}-minute budget"
-        (workdir / "opencode_session.log").write_text(
-            (exc.stdout or "") + "\n--- stderr ---\n" + (exc.stderr or ""))
+    agent_note = _run_agent_session(cmd, workdir, env, budget_min)
 
     after = d.read_json(d.manifest_path, {"slots": {}})
     slots_report = {}
