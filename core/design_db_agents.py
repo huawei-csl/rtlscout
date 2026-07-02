@@ -18,6 +18,10 @@ filesystem — no design files travel through the agent channel.
 """
 from __future__ import annotations
 
+import contextlib
+import difflib
+import io
+import itertools
 import json
 import os
 import shlex
@@ -196,6 +200,51 @@ automatically once it runs out.
 """
 
 
+def render_designer_agents_md(db_root: Path, objective: str, budget_min: float) -> str:
+    return f"""# Task — improve a full design through the design DB (rtl-designer)
+
+Mission: reduce the **{objective}** (tooling metric: estimated transistors) of the full design in
+`design.py` in this workspace, preserving its function exactly. You do it *indirectly*: slot the
+design's subcircuits into the design DB at `{db_root}`, have subcircuit agents fill the slots with
+verified better implementations, and recompile — the best admitted design splices in
+automatically. Budget ≈ **{budget_min:g} minutes** total; you will be terminated automatically
+once it runs out.
+
+## Tools
+
+- `./compile` — compiles `design.py` (its `build()`), prints JSON: the full-design
+  `transistors` count and the `slots` table (name → spec_key, n_designs, selected_id). This is
+  the only measurement that counts.
+- `./dispatch <spec_key> --objective {objective} --budget-min N` — the only way to start a
+  subcircuit agent on a slot. Blocks until that agent finishes; prints the trusted report JSON.
+- `./dv-prep <spec_key> --budget-min N --vectors 64` — only needed for a *sequential* slot with
+  no frozen verification (combinational slots are CEC-gated automatically).
+- `spire db ls` / `spire db show <name|key> --pareto` — inspect the DB.
+
+## Workflow
+
+1. Read `design.py`. Slot candidates are its small pure helper functions computing signals
+   (e.g. `def f(a, b): return a * b`) — called from `build()` on spire expressions.
+2. Decorate each candidate with `@from_design_db(objective="{objective}")` and add the one
+   import `from spire.design_db import from_design_db`. **Change nothing else.**
+3. `./compile` — registers the slots. First run prints "no admitted design … using the original
+   logic" notes: that is normal. Note the baseline `transistors` and the slot spec_keys.
+4. For each slot, once, sequentially: `./dispatch <spec_key> --objective {objective}
+   --budget-min 3`. The command blocks for minutes — wait for its JSON; read it before moving on.
+5. `./compile` again — selections splice in. Compare `transistors` with step 3.
+6. Summarize: per-slot outcome (from the dispatch reports) and full-design transistors
+   before → after (from the two compiles). Use only tooling-printed numbers.
+
+## Rules
+
+- `design.py` edits: the decorators + the one import, nothing else. No logic, port, or `build()`
+  changes — your diff is part of the reviewed report.
+- Never write into `{db_root}` by hand; inserts happen only through the subagents' gate.
+- Dispatch each slot once; if a dispatch fails, note it — do not retry.
+- Never invent numbers: `./compile` and the dispatch reports are the ground truth.
+"""
+
+
 def render_agent_opencode_config(model_spec: str, agent_name: str) -> Dict[str, Any]:
     """opencode.json for a slot-agent session — same permission posture as the `rtl` agent."""
     from core.opencode_backend import _permissions
@@ -262,6 +311,28 @@ def provision_orchestrator_workspace(workdir: Path, *, db: Optional[Any] = None,
         render_orchestrator_agents_md(d.root, objective, budget_min))
     (workdir / "opencode.json").write_text(
         json.dumps(render_agent_opencode_config(model_spec, "rtl-orchestrator"), indent=2) + "\n")
+    _write_shim(workdir / "dispatch",
+                f"core.design_db_agents dispatch --db {shlex.quote(str(d.root))} --slot")
+    _write_shim(workdir / "dv-prep",
+                f"core.design_db_agents dv-prep --db {shlex.quote(str(d.root))} --slot")
+    return workdir
+
+
+def provision_designer_workspace(design_file: Path, workdir: Path, *, db: Optional[Any] = None,
+                                 objective: str = "area", model_spec: str = "openrouter/model",
+                                 budget_min: float = 30.0) -> Path:
+    """Copy the design file into the workspace (the agent edits the copy, never the original)
+    + AGENTS.md + opencode.json + the compile/dispatch/dv-prep shims."""
+    d = DesignDB.open(db, create=True)          # the designer may bootstrap an empty DB
+    workdir = Path(workdir)
+    workdir.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(design_file, workdir / "design.py")
+    (workdir / "AGENTS.md").write_text(render_designer_agents_md(d.root, objective, budget_min))
+    (workdir / "opencode.json").write_text(
+        json.dumps(render_agent_opencode_config(model_spec, "rtl-designer"), indent=2) + "\n")
+    _write_shim(workdir / "compile",
+                f"core.design_db_agents compile-design --db {shlex.quote(str(d.root))} "
+                f"--file {shlex.quote(str(workdir / 'design.py'))}")
     _write_shim(workdir / "dispatch",
                 f"core.design_db_agents dispatch --db {shlex.quote(str(d.root))} --slot")
     _write_shim(workdir / "dv-prep",
@@ -476,6 +547,133 @@ def run_orchestrator(*, db: Optional[Any] = None, objective: str = "area",
     return report
 
 
+# --- the full-design designer role ----------------------------------------------------------------
+
+_COMPILE_SEQ = itertools.count()
+
+
+def compile_design(design_file: Path, *, db: Optional[Any] = None) -> Dict[str, Any]:
+    """Tooling-trusted compile of a spire design file (must define ``build() -> Netlist``):
+    runs ``build()`` (``@from_design_db`` functions register their slots and splice the current
+    selection), emits Verilog, and stamps the same heavy transistor metric the DB stamps on slot
+    designs. Returns transistors + slot snapshot + the Verilog text."""
+    import importlib.util
+    design_file = Path(design_file).resolve()
+    d = DesignDB.open(db, create=True)
+    old_env = os.environ.get(DB_ENV)
+    os.environ[DB_ENV] = str(d.root)            # the file's decorators resolve to this DB
+    buf = io.StringIO()
+    try:
+        spec = importlib.util.spec_from_file_location(
+            f"_ddb_design_{next(_COMPILE_SEQ)}", design_file)
+        mod = importlib.util.module_from_spec(spec)
+        with contextlib.redirect_stdout(buf):
+            spec.loader.exec_module(mod)
+            if not hasattr(mod, "build"):
+                raise DesignDBError(f"{design_file} defines no build() -> Netlist")
+            verilog = mod.build().to_verilog()
+            from spire.helpers import extract_yosys_heavy_metrics_from_verilog
+            heavy = extract_yosys_heavy_metrics_from_verilog(verilog.splitlines())
+    finally:
+        if old_env is None:
+            os.environ.pop(DB_ENV, None)
+        else:
+            os.environ[DB_ENV] = old_env
+    manifest = d.read_json(d.manifest_path, {"slots": {}})
+    slots = {name: {"spec_key": e.get("spec_key"), "n_designs": e.get("n_designs", 0),
+                    "selected_id": e.get("selected_id")}
+             for name, e in sorted(manifest.get("slots", {}).items())}
+    notes = [ln for ln in buf.getvalue().splitlines() if ln.startswith("[spire.design_db]")]
+    return {"design_file": str(design_file), "db": str(d.root),
+            "transistors": int(heavy["estimated_num_transistors"]),
+            "slots": slots, "notes": notes, "verilog": verilog}
+
+
+def run_designer(design_file: Path, *, db: Optional[Any] = None, objective: str = "area",
+                 model: Optional[str] = None, budget_min: float = 30.0,
+                 workdir: Optional[Path] = None, kickoff_extra: str = "",
+                 opencode_bin: str = "opencode") -> Dict[str, Any]:
+    """Launch the full-design ``rtl-designer`` session: the agent decorates the subcircuit
+    functions in a *copy* of the design file, compiles, fills the slots through the gated
+    subagents, recompiles, and summarizes. Trust: slot inserts stay hard-gated; the design-file
+    edit is soft-gated — the unified diff is embedded in the report for human review; the
+    before/after transistor numbers come from tooling compiles, never from the agent."""
+    depth = int(os.environ.get(DISPATCH_DEPTH_ENV, "0"))
+    if depth >= DISPATCH_DEPTH_CAP:
+        raise DesignDBError(f"dispatch depth cap reached ({depth} ≥ {DISPATCH_DEPTH_CAP})")
+    model = model or os.environ.get(AGENT_MODEL_ENV)
+    if not model:
+        raise DesignDBError(f"designer needs a model: pass model=... or set ${AGENT_MODEL_ENV}")
+    if shutil.which(opencode_bin) is None:
+        raise DesignDBError(f"{opencode_bin!r} not found on PATH")
+    model_spec = model.replace(":", "/", 1)
+
+    design_file = Path(design_file).resolve()
+    d = DesignDB.open(db, create=True)
+    before_manifest = d.read_json(d.manifest_path, {"slots": {}})
+    workdir = Path(workdir) if workdir else Path(tempfile.mkdtemp(prefix="ddb_designer_"))
+    workdir.mkdir(parents=True, exist_ok=True)
+
+    baseline = compile_design(design_file, db=d.root)       # trusted baseline, pristine file
+    (workdir / "baseline.v").write_text(baseline.pop("verilog"))
+
+    provision_designer_workspace(design_file, workdir, db=d.root, objective=objective,
+                                 model_spec=model_spec, budget_min=budget_min)
+    kickoff = (f"Improve the full design in design.py of this workspace through the design DB at "
+               f"{d.root}. Read AGENTS.md first and follow its workflow: decorate the subcircuit "
+               f"helper functions, ./compile, fill each slot with ./dispatch (./dv-prep first "
+               f"only if a slot is sequential and unverified), ./compile again, then summarize "
+               f"per-slot and full-design results. Objective: {objective}. You will be "
+               f"terminated automatically once the time budget runs out.")
+    if kickoff_extra:
+        kickoff += " " + kickoff_extra
+    env = _agent_env(depth, model, d.root)
+    nested = workdir / "nested"                 # child dispatch/dv-prep workspaces land here
+    nested.mkdir(parents=True, exist_ok=True)
+    env["TMPDIR"] = str(nested)
+    cmd = f"exec {shlex.quote(opencode_bin)} run --format json -m {shlex.quote(model_spec)} " \
+          f"--agent rtl-designer {shlex.quote(kickoff)}"
+    started = time.time()
+    agent_note = _run_agent_session(cmd, workdir, env, budget_min)
+
+    edited = workdir / "design.py"
+    final = final_error = None
+    try:                                        # the agent may have broken the file — report it
+        final = compile_design(edited, db=d.root)
+        (workdir / "final.v").write_text(final.pop("verilog"))
+    except Exception as exc:
+        final_error = f"{type(exc).__name__}: {exc}"
+    diff = "".join(difflib.unified_diff(
+        design_file.read_text().splitlines(keepends=True),
+        edited.read_text().splitlines(keepends=True),
+        fromfile="design.py (original)", tofile="design.py (agent)"))
+
+    after_manifest = d.read_json(d.manifest_path, {"slots": {}})
+    slots_report = {}
+    for name, entry in sorted(after_manifest.get("slots", {}).items()):
+        prev = before_manifest.get("slots", {}).get(name, {})
+        slots_report[name] = {
+            "spec_key": entry.get("spec_key"),
+            "n_designs": entry.get("n_designs", 0),
+            "n_designs_before": prev.get("n_designs", 0),
+            "selected_id": entry.get("selected_id"),
+        }
+    report = {
+        "objective": objective, "design_file": str(design_file),
+        "baseline_transistors": baseline["transistors"],
+        "final_transistors": final["transistors"] if final else None,
+        "improvement_transistors": (baseline["transistors"] - final["transistors"])
+                                   if final else None,
+        "final_compile_error": final_error,
+        "slots": slots_report, "design_diff": diff,
+        "notes": {"baseline": baseline["notes"], "final": final["notes"] if final else []},
+        "agent": {"model": model, "note": agent_note,
+                  "duration_s": round(time.time() - started, 1), "workspace": str(workdir)},
+    }
+    (workdir / "report.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    return report
+
+
 def main(argv=None) -> int:
     import argparse
     parser = argparse.ArgumentParser(prog="design_db_agents")
@@ -504,6 +702,19 @@ def main(argv=None) -> int:
     p.add_argument("--budget-min", type=float, default=30.0)
     p.set_defaults(kind="orchestrate")
 
+    p = sub.add_parser("compile-design", help="compile a spire design file + stamp transistors")
+    p.add_argument("--file", required=True)
+    p.add_argument("--db", default=None)
+    p.set_defaults(kind="compile-design")
+
+    p = sub.add_parser("designer", help="launch the full-design rtl-designer session")
+    p.add_argument("--file", required=True)
+    p.add_argument("--db", default=None)
+    p.add_argument("--objective", default="area")
+    p.add_argument("--model", default=None)
+    p.add_argument("--budget-min", type=float, default=30.0)
+    p.set_defaults(kind="designer")
+
     args = parser.parse_args(argv)
     try:
         if args.kind == "dispatch":
@@ -512,6 +723,12 @@ def main(argv=None) -> int:
         elif args.kind == "orchestrate":
             report = run_orchestrator(db=args.db, objective=args.objective, model=args.model,
                                       budget_min=args.budget_min)
+        elif args.kind == "compile-design":
+            report = compile_design(args.file, db=args.db)
+            report.pop("verilog", None)          # keep the shim output lean
+        elif args.kind == "designer":
+            report = run_designer(args.file, db=args.db, objective=args.objective,
+                                  model=args.model, budget_min=args.budget_min)
         else:
             report = dispatch_dv_prep(args.slot, db=args.db, model=args.model,
                                       budget_min=args.budget_min, n_vectors=args.vectors,

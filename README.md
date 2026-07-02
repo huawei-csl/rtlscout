@@ -225,6 +225,7 @@ RTLScout is the DB's filler and its agentic layer:
 | `python rtlscout_cli.py dv-prep --slot <key>` | For unfrozen sequential slots: the `rtl-dv-prep` agent authors a *stimulus generator* (never expected outputs), tooling golden-simulates + freezes the Tier-2 verification (stimulus kept in the slot for human review). |
 | `python -m core.design_db_agents dispatch --slot <key> --model …` | Launch one `rtl-subcircuit` agent on a slot (pointer payload; `./eval` to iterate, `./db-insert` = the gate; trusted report from the DB diff). |
 | `python -m core.design_db_agents orchestrate --model …` | The `rtl-orchestrator` session: inspects slots (`spire db ls/show`), runs `./dv-prep` where needed, `./dispatch`es subcircuit agents, and the report is manifest-derived. |
+| `python -m core.design_db_agents designer --file <design.py> --model …` | The full loop on one design file (must define `build() -> Netlist`): the `rtl-designer` agent places the `@from_design_db` decorators in a *copy* of the file, `./compile`s it (slots register), fills each slot via `./dispatch`, and recompiles (selections splice in). Report: tooling-compiled transistors before → after + the design-file diff for human review. |
 
 The decorator's generate-on-miss hook is `core.design_db_fill.rtlscout_fill`
 (`@from_design_db(fill=rtlscout_fill)`; model via `$RTLSCOUT_FILL_MODEL` or
