@@ -18,10 +18,7 @@ filesystem — no design files travel through the agent channel.
 """
 from __future__ import annotations
 
-import contextlib
 import difflib
-import io
-import itertools
 import json
 import os
 import shlex
@@ -182,7 +179,7 @@ automatically once it runs out.
 - `./dv-prep <spec_key> [--budget-min N]` — for an *unfrozen sequential slot*: launches the
   stimulus-authoring agent, then tooling freezes the sim verification. Run it **before**
   dispatching an optimizer at such a slot.
-- `spire db verify --slot <key> …` — if a slot has no frozen verification, choose one explicitly
+- `spire db set-verification --slot <key> …` — if a slot has no frozen verification, choose one explicitly
   (`--auto` for the sim harness; CEC is the combinational default). Never guess: the command's
   errors list the options.
 
@@ -212,9 +209,10 @@ once it runs out.
 
 ## Tools
 
-- `./compile` — compiles `design.py` (its `build()`), prints JSON: the full-design
-  `transistors` count and the `slots` table (name → spec_key, n_designs, selected_id). This is
-  the only measurement that counts.
+- `./compile` — runs `design.py` (which fires the `@from_design_db` decorators — slots register,
+  selections splice — and writes `design.v`), then measures it. Prints JSON: the full-design
+  `cost` (+ `cost_metric`) and the `slots` table (name → spec_key, n_designs, selected_id). This
+  is the only measurement that counts.
 - `./dispatch <spec_key> --objective {objective} --budget-min N` — the only way to start a
   subcircuit agent on a slot. Blocks until that agent finishes; prints the trusted report JSON.
 - `./dv-prep <spec_key> --budget-min N --vectors 64` — only needed for a *sequential* slot with
@@ -224,15 +222,16 @@ once it runs out.
 ## Workflow
 
 1. Read `design.py`. Slot candidates are its small pure helper functions computing signals
-   (e.g. `def f(a, b): return a * b`) — called from `build()` on spire expressions.
+   (e.g. `def f(a, b): return a * b`) — called from `build()` on spire expressions. (The file
+   already writes `design.v` when run — leave that as is.)
 2. Decorate each candidate with `@from_design_db(objective="{objective}")` and add the one
    import `from spire.design_db import from_design_db`. **Change nothing else.**
 3. `./compile` — registers the slots. First run prints "no admitted design … using the original
-   logic" notes: that is normal. Note the baseline `transistors` and the slot spec_keys.
+   logic" notes: that is normal. Note the baseline `cost` and the slot spec_keys.
 4. For each slot, once, sequentially: `./dispatch <spec_key> --objective {objective}
    --budget-min 3`. The command blocks for minutes — wait for its JSON; read it before moving on.
-5. `./compile` again — selections splice in. Compare `transistors` with step 3.
-6. Summarize: per-slot outcome (from the dispatch reports) and full-design transistors
+5. `./compile` again — selections splice in. Compare `cost` with step 3.
+6. Summarize: per-slot outcome (from the dispatch reports) and full-design `cost`
    before → after (from the two compiles). Use only tooling-printed numbers.
 
 ## Rules
@@ -286,7 +285,7 @@ def provision_slot_workspace(spec_key: str, workdir: Path, *, db: Optional[Any] 
     verification = d.read_json(slot / "verification.json", None)
     if verification is None:
         raise DesignDBError("slot has no frozen verification — freeze one first "
-                            "(spire db verify --slot <key> …)")
+                            "(spire db set-verification --slot <key> …)")
     workdir = Path(workdir)
     workdir.mkdir(parents=True, exist_ok=True)
     (workdir / "AGENTS.md").write_text(render_subcircuit_agents_md(
@@ -319,7 +318,8 @@ def provision_orchestrator_workspace(workdir: Path, *, db: Optional[Any] = None,
 
 
 def provision_designer_workspace(design_file: Path, workdir: Path, *, db: Optional[Any] = None,
-                                 objective: str = "area", model_spec: str = "openrouter/model",
+                                 objective: str = "area", technology: Optional[str] = None,
+                                 model_spec: str = "openrouter/model",
                                  budget_min: float = 30.0) -> Path:
     """Copy the design file into the workspace (the agent edits the copy, never the original)
     + AGENTS.md + opencode.json + the compile/dispatch/dv-prep shims."""
@@ -330,9 +330,10 @@ def provision_designer_workspace(design_file: Path, workdir: Path, *, db: Option
     (workdir / "AGENTS.md").write_text(render_designer_agents_md(d.root, objective, budget_min))
     (workdir / "opencode.json").write_text(
         json.dumps(render_agent_opencode_config(model_spec, "rtl-designer"), indent=2) + "\n")
+    tech_arg = f" --technology {shlex.quote(technology)}" if technology else ""
     _write_shim(workdir / "compile",
                 f"core.design_db_agents compile-design --db {shlex.quote(str(d.root))} "
-                f"--file {shlex.quote(str(workdir / 'design.py'))}")
+                f"--file {shlex.quote(str(workdir / 'design.py'))}{tech_arg}")
     _write_shim(workdir / "dispatch",
                 f"core.design_db_agents dispatch --db {shlex.quote(str(d.root))} --slot")
     _write_shim(workdir / "dv-prep",
@@ -549,50 +550,57 @@ def run_orchestrator(*, db: Optional[Any] = None, objective: str = "area",
 
 # --- the full-design designer role ----------------------------------------------------------------
 
-_COMPILE_SEQ = itertools.count()
 
+def compile_design(design_file: Path, *, db: Optional[Any] = None,
+                   technology: Optional[str] = None) -> Dict[str, Any]:
+    """Compile a spire design file through RTLScout's **native evaluator** and measure it.
 
-def compile_design(design_file: Path, *, db: Optional[Any] = None) -> Dict[str, Any]:
-    """Tooling-trusted compile of a spire design file (must define ``build() -> Netlist``):
-    runs ``build()`` (``@from_design_db`` functions register their slots and splice the current
-    selection), emits Verilog, and stamps the same heavy transistor metric the DB stamps on slot
-    designs. Returns transistors + slot snapshot + the Verilog text."""
-    import importlib.util
+    ``evaluate(language="spirehdl", …)`` runs ``design.py`` as a subprocess (which, inheriting
+    ``$SPIREHDL_DB_PATH``, fires the ``@from_design_db`` decorators — slots register, selections
+    splice — and writes ``design.v`` via ``to_verilog_file``), then measures the result with the
+    cost metric. Correctness is **not** checked (``run_rtl_sim=False``, ``run_cec=False``): each
+    spliced slot is already verified-equivalent to its golden, and the composed design has no
+    benchmark reference. Measures transistors by default (fast); ``technology`` selects the PPA
+    (OpenROAD) area flow. Returns the cost + slot snapshot + the generated Verilog."""
+    from core.cost import make_cost_metric
+    from core.evaluation import SPIREHDL_VERILOG_OUTPUT, evaluate
     design_file = Path(design_file).resolve()
     d = DesignDB.open(db, create=True)
+    metric = (make_cost_metric("area", technology=technology, run_netlist_sim=False)
+              if technology else make_cost_metric("transistors"))
     old_env = os.environ.get(DB_ENV)
-    os.environ[DB_ENV] = str(d.root)            # the file's decorators resolve to this DB
-    buf = io.StringIO()
+    os.environ[DB_ENV] = str(d.root)            # the design subprocess's decorators resolve here
     try:
-        spec = importlib.util.spec_from_file_location(
-            f"_ddb_design_{next(_COMPILE_SEQ)}", design_file)
-        mod = importlib.util.module_from_spec(spec)
-        with contextlib.redirect_stdout(buf):
-            spec.loader.exec_module(mod)
-            if not hasattr(mod, "build"):
-                raise DesignDBError(f"{design_file} defines no build() -> Netlist")
-            verilog = mod.build().to_verilog()
-            from spire.helpers import extract_yosys_heavy_metrics_from_verilog
-            heavy = extract_yosys_heavy_metrics_from_verilog(verilog.splitlines())
+        with tempfile.TemporaryDirectory(prefix="ddb_compile_") as td:
+            w = Path(td)
+            shutil.copyfile(design_file, w / "design.py")
+            result = evaluate(w, cost_metric=metric, language="spirehdl",
+                              design_file="design.py", run_rtl_sim=False, run_cec=False)
+            vpath = w / SPIREHDL_VERILOG_OUTPUT
+            verilog = vpath.read_text() if vpath.exists() else ""
+            py_out = result.python_run_output or ""
     finally:
         if old_env is None:
             os.environ.pop(DB_ENV, None)
         else:
             os.environ[DB_ENV] = old_env
+    if not result.cost.ok:
+        raise DesignDBError(f"compile/measure failed: {result.cost.error or py_out[-400:] or 'no design.v produced (design.py must to_verilog_file())'}")
     manifest = d.read_json(d.manifest_path, {"slots": {}})
     slots = {name: {"spec_key": e.get("spec_key"), "n_designs": e.get("n_designs", 0),
                     "selected_id": e.get("selected_id")}
              for name, e in sorted(manifest.get("slots", {}).items())}
-    notes = [ln for ln in buf.getvalue().splitlines() if ln.startswith("[spire.design_db]")]
+    notes = [ln for ln in py_out.splitlines() if ln.startswith("[spire.design_db]")]
     return {"design_file": str(design_file), "db": str(d.root),
-            "transistors": int(heavy["estimated_num_transistors"]),
+            "cost": result.cost_value, "cost_metric": result.cost_metric_name,
+            "stats": dict(result.cost.stats or {}),
             "slots": slots, "notes": notes, "verilog": verilog}
 
 
 def run_designer(design_file: Path, *, db: Optional[Any] = None, objective: str = "area",
-                 model: Optional[str] = None, budget_min: float = 30.0,
-                 workdir: Optional[Path] = None, kickoff_extra: str = "",
-                 opencode_bin: str = "opencode") -> Dict[str, Any]:
+                 technology: Optional[str] = None, model: Optional[str] = None,
+                 budget_min: float = 30.0, workdir: Optional[Path] = None,
+                 kickoff_extra: str = "", opencode_bin: str = "opencode") -> Dict[str, Any]:
     """Launch the full-design ``rtl-designer`` session: the agent decorates the subcircuit
     functions in a *copy* of the design file, compiles, fills the slots through the gated
     subagents, recompiles, and summarizes. Trust: slot inserts stay hard-gated; the design-file
@@ -614,11 +622,12 @@ def run_designer(design_file: Path, *, db: Optional[Any] = None, objective: str 
     workdir = Path(workdir) if workdir else Path(tempfile.mkdtemp(prefix="ddb_designer_"))
     workdir.mkdir(parents=True, exist_ok=True)
 
-    baseline = compile_design(design_file, db=d.root)       # trusted baseline, pristine file
+    baseline = compile_design(design_file, db=d.root, technology=technology)   # trusted baseline
     (workdir / "baseline.v").write_text(baseline.pop("verilog"))
 
     provision_designer_workspace(design_file, workdir, db=d.root, objective=objective,
-                                 model_spec=model_spec, budget_min=budget_min)
+                                 technology=technology, model_spec=model_spec,
+                                 budget_min=budget_min)
     kickoff = (f"Improve the full design in design.py of this workspace through the design DB at "
                f"{d.root}. Read AGENTS.md first and follow its workflow: decorate the subcircuit "
                f"helper functions, ./compile, fill each slot with ./dispatch (./dv-prep first "
@@ -639,7 +648,7 @@ def run_designer(design_file: Path, *, db: Optional[Any] = None, objective: str 
     edited = workdir / "design.py"
     final = final_error = None
     try:                                        # the agent may have broken the file — report it
-        final = compile_design(edited, db=d.root)
+        final = compile_design(edited, db=d.root, technology=technology)
         (workdir / "final.v").write_text(final.pop("verilog"))
     except Exception as exc:
         final_error = f"{type(exc).__name__}: {exc}"
@@ -658,12 +667,13 @@ def run_designer(design_file: Path, *, db: Optional[Any] = None, objective: str 
             "n_designs_before": prev.get("n_designs", 0),
             "selected_id": entry.get("selected_id"),
         }
+    b_cost, f_cost = baseline["cost"], (final["cost"] if final else None)
     report = {
         "objective": objective, "design_file": str(design_file),
-        "baseline_transistors": baseline["transistors"],
-        "final_transistors": final["transistors"] if final else None,
-        "improvement_transistors": (baseline["transistors"] - final["transistors"])
-                                   if final else None,
+        "cost_metric": baseline["cost_metric"],
+        "baseline_cost": b_cost,
+        "final_cost": f_cost,
+        "improvement": (b_cost - f_cost) if (b_cost is not None and f_cost is not None) else None,
         "final_compile_error": final_error,
         "slots": slots_report, "design_diff": diff,
         "notes": {"baseline": baseline["notes"], "final": final["notes"] if final else []},
@@ -702,15 +712,19 @@ def main(argv=None) -> int:
     p.add_argument("--budget-min", type=float, default=30.0)
     p.set_defaults(kind="orchestrate")
 
-    p = sub.add_parser("compile-design", help="compile a spire design file + stamp transistors")
+    p = sub.add_parser("compile-design",
+                       help="compile a spire design file (native spirehdl eval) + measure cost")
     p.add_argument("--file", required=True)
     p.add_argument("--db", default=None)
+    p.add_argument("--technology", default=None,
+                   help="measure PPA area under this technology (default: fast transistors)")
     p.set_defaults(kind="compile-design")
 
     p = sub.add_parser("designer", help="launch the full-design rtl-designer session")
     p.add_argument("--file", required=True)
     p.add_argument("--db", default=None)
     p.add_argument("--objective", default="area")
+    p.add_argument("--technology", default=None)
     p.add_argument("--model", default=None)
     p.add_argument("--budget-min", type=float, default=30.0)
     p.set_defaults(kind="designer")
@@ -724,11 +738,12 @@ def main(argv=None) -> int:
             report = run_orchestrator(db=args.db, objective=args.objective, model=args.model,
                                       budget_min=args.budget_min)
         elif args.kind == "compile-design":
-            report = compile_design(args.file, db=args.db)
+            report = compile_design(args.file, db=args.db, technology=args.technology)
             report.pop("verilog", None)          # keep the shim output lean
         elif args.kind == "designer":
             report = run_designer(args.file, db=args.db, objective=args.objective,
-                                  model=args.model, budget_min=args.budget_min)
+                                  technology=args.technology, model=args.model,
+                                  budget_min=args.budget_min)
         else:
             report = dispatch_dv_prep(args.slot, db=args.db, model=args.model,
                                       budget_min=args.budget_min, n_vectors=args.vectors,

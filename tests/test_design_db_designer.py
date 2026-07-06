@@ -36,6 +36,10 @@ def build():
     y = m.output(UInt(9), "y")
     y <<= add8(a, b)
     return m
+
+
+if __name__ == "__main__":
+    build().to_verilog_file("design.v")   # native spirehdl eval reads design.v (name = Netlist's)
 '''
 
 DESIGNER_EDIT = '''\
@@ -87,7 +91,8 @@ esac
     report = run_designer(design, model="stub:model", objective="area", budget_min=5, workdir=ws)
 
     assert report["final_compile_error"] is None
-    assert report["baseline_transistors"] > 0 and report["final_transistors"] is not None
+    assert report["baseline_cost"] > 0 and report["final_cost"] is not None
+    assert report["cost_metric"]                               # measured natively (transistors)
     assert "@from_design_db" in report["design_diff"]          # the agent's edit, for review
     assert design.read_text() == DESIGN_SRC                    # the original file is untouched
 
