@@ -216,12 +216,42 @@ Spire ships a **design DB** (`spire.design_db`, see
 content-addressed store of *slots* (subcircuits with a golden reference), where every stored
 implementation passed the slot's **frozen verification** (CEC or a golden-simulated trace tb) on
 insert, and builds *select* deterministically via `@from_design_db(objective=..., metric=...)`.
-RTLScout is the DB's filler and its agentic layer:
+RTLScout is the DB's filler and its agentic layer.
+
+### Skill-based flow (default in every `--agent-backend opencode` run)
+
+Every standard OpenCode run (`run_benchmark.py` / `run_multirun.py --agent-backend opencode`,
+both sandbox modes) is provisioned with design-DB capabilities automatically — no extra command:
+
+- **Skills** at `.opencode/skills/` (copied from [core/skills/](core/skills/)) —
+  `design-db-inspect` (slots/designs/Pareto + how to judge results), `design-db-insert` /
+  `design-db-eval` (spire-first: submit/check `cand.py` candidates through the gate),
+  `design-db-dv-prep` (verification prep for sequential slots), `design-db-dispatch`
+  (delegation protocol), `design-db-score` (on-demand technology PPA, measure-and-store or
+  `--dry-run`). Actions are plain `spire db …` commands wherever spire has them.
+- **Subagents** in the rendered `opencode.json` — `rtl-subcircuit` and `rtl-dv-prep`
+  (`mode: subagent`, hidden, **task tool denied** = structural recursion cap), delegated to via
+  the primary agent's task tool; results are read from the DB (`spire db show --pareto`), never
+  from subagent claims.
+- **DB location**: a per-run `./design_db` auto-creates in the workspace (default), or set
+  `$SPIREHDL_DB_PATH` to share one library across runs — forwarded into orchestrated agent
+  containers with a writable mount. Shared DB + `--max-concurrent > 1` is not yet supported
+  (per-slot index writes are unlocked); keep shared-DB runs sequential.
+
+Trust model unchanged: agents propose, spire's gate disposes — inserts only via
+`spire db insert` (verify → dedup → metric-stamp → admit), frozen verifications are immutable,
+and technology PPA enters only through the measure-and-store `db-score` (never hand-typed).
+
+### Legacy subprocess launchers
+
+> **Deprecation note:** the command-driven variant below predates the skill-based flow and will
+> be deprecated once the skill flow is validated; it remains supported for unattended campaigns
+> (it is the only variant with a hard per-child wall-clock kill).
 
 | Command | What it does |
 |---|---|
 | `python rtlscout_cli.py fill-db --slot <key> --model <provider:model>` | Campaign filler: slot → ephemeral benchmark → `run_multirun(reeval=True)` → every passing candidate through Spire's gate (the slot's own golden is seeded first as the baseline/floor). |
-| `python rtlscout_cli.py db-score [--technology asap7]` | Stamps per-technology PPA metrics onto stored designs — enables `metric="asap7"` selection. |
+| `python rtlscout_cli.py db-score [--slot K --design ID --technology asap7 --dry-run]` | Measures per-technology PPA on stored designs and annotates the DB (enables `metric="asap7"` selection); `--design` scopes to one design, `--dry-run` measures without writing. *(Not legacy — this command backs the `design-db-score` skill.)* |
 | `python rtlscout_cli.py dv-prep --slot <key>` | For unfrozen sequential slots: the `rtl-dv-prep` agent authors a *stimulus generator* (never expected outputs), tooling golden-simulates + freezes the Tier-2 verification (stimulus kept in the slot for human review). |
 | `python -m core.design_db_agents dispatch --slot <key> --model …` | Launch one `rtl-subcircuit` agent on a slot (pointer payload; `./eval` to iterate, `./db-insert` = the gate; trusted report from the DB diff). |
 | `python -m core.design_db_agents orchestrate --model …` | The `rtl-orchestrator` session: inspects slots (`spire db ls/show`), runs `./dv-prep` where needed, `./dispatch`es subcircuit agents, and the report is manifest-derived. |
