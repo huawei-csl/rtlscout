@@ -241,11 +241,16 @@ def rtlscout_fill(spec_key: str, db_root: Optional[Any] = None, objective: str =
 def score_designs(spec_keys: Optional[Sequence[str]] = None, *, db: Optional[Any] = None,
                   technology: str = "asap7", target_delay: float = 500.0,
                   run_netlist_sim: bool = False, force: bool = False,
-                  max_designs: Optional[int] = None) -> Dict[str, Any]:
-    """Stamp per-technology PPA metrics onto stored designs (non-agentic enrichment).
+                  max_designs: Optional[int] = None,
+                  designs: Optional[Sequence[str]] = None,
+                  dry_run: bool = False) -> Dict[str, Any]:
+    """Measure per-technology PPA on stored designs and (unless ``dry_run``) annotate the DB.
 
     Adds ``metrics[<technology>] = {area, delay, ...}`` to each design's ``metrics.json`` and the
     slot ``index.json`` — after this, ``select_design(..., metric=technology)`` works.
+    ``designs`` limits scoring to the named design_ids (or unique prefixes) within the selected
+    slots. ``dry_run`` runs the same cost flow but **writes nothing** — the measured values are
+    only returned (report ``measured``), for looking at numbers without committing them.
     """
     from core.cost import make_cost_metric
     metric = make_cost_metric("area", target_delay=target_delay, technology=technology,
@@ -255,13 +260,26 @@ def score_designs(spec_keys: Optional[Sequence[str]] = None, *, db: Optional[Any
     keys = list(spec_keys) if spec_keys else \
         sorted(p.name for p in d.v1.iterdir() if p.is_dir()) if d.v1.is_dir() else []
     scored, skipped, failed = 0, 0, []
+    measured: Dict[str, Dict[str, Any]] = {}
     for key in keys:
         slot = d.slot_dir(key)
         index = d.read_json(slot / "index.json", {})
+        wanted = None
+        if designs is not None:                 # exact ids or unique prefixes, within this slot
+            wanted = set()
+            for ref in designs:
+                hits = [did for did in index if did == ref or did.startswith(ref)]
+                if len(hits) == 1:
+                    wanted.add(hits[0])
+                elif len(hits) > 1:
+                    raise DesignDBError(f"ambiguous design ref {ref!r} in slot {key[:12]}…: "
+                                        f"{len(hits)} matches")
         for design_id in sorted(index):
+            if wanted is not None and design_id not in wanted:
+                continue
             if max_designs is not None and scored >= max_designs:
                 break
-            if not force and technology in (index[design_id].get("metrics") or {}):
+            if not dry_run and not force and technology in (index[design_id].get("metrics") or {}):
                 skipped += 1
                 continue
             design_v = slot / "designs" / design_id / "design.v"
@@ -284,7 +302,11 @@ def score_designs(spec_keys: Optional[Sequence[str]] = None, *, db: Optional[Any
             if values["adp"] is None and values["area"] is not None and values["delay"] is not None:
                 values["adp"] = values["area"] * values["delay"]
             values = {k: v for k, v in values.items() if v is not None}
-            # spire owns the write (metrics.json + index mirror, schema, reserved-name guard)
-            annotate(key, design_id, tech=technology, values=values, raw=stats, force=True, db=db)
+            measured[design_id] = values
+            if not dry_run:
+                # spire owns the write (metrics.json + index mirror, schema, reserved-name guard)
+                annotate(key, design_id, tech=technology, values=values, raw=stats, force=True,
+                         db=db)
             scored += 1
-    return {"technology": technology, "scored": scored, "skipped": skipped, "failed": failed}
+    return {"technology": technology, "scored": scored, "skipped": skipped, "failed": failed,
+            "dry_run": dry_run, "measured": measured}

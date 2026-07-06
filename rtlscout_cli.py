@@ -54,14 +54,19 @@ def main(argv=None) -> int:
     v.add_argument("--vectors", type=int, default=256)
     v.add_argument("--seed", type=int, default=0)
 
-    s = sub.add_parser("db-score", help="stamp per-technology PPA metrics onto stored designs")
+    s = sub.add_parser("db-score", help="measure per-technology PPA on stored designs and "
+                                        "annotate the DB (or --dry-run to just print numbers)")
     s.add_argument("--db", default=None)
     s.add_argument("--slot", action="append", default=None, help="limit to slot(s); default all")
+    s.add_argument("--design", action="append", default=None,
+                   help="limit to design_id(s) or unique prefixes within the selected slot(s)")
     s.add_argument("--technology", default="asap7")
     s.add_argument("--target-delay", type=float, default=500.0)
     s.add_argument("--netlist-sim", action="store_true", help="re-simulate the synthesized netlist")
     s.add_argument("--force", action="store_true", help="re-score even if already stamped")
     s.add_argument("--max-designs", type=int, default=None)
+    s.add_argument("--dry-run", action="store_true",
+                   help="measure only: print the values, write nothing to the DB")
 
     args = parser.parse_args(argv)
 
@@ -99,7 +104,8 @@ def main(argv=None) -> int:
         from core.design_db_fill import score_designs
         report = score_designs(args.slot, db=args.db, technology=args.technology,
                                target_delay=args.target_delay, run_netlist_sim=args.netlist_sim,
-                               force=args.force, max_designs=args.max_designs)
+                               force=args.force, max_designs=args.max_designs,
+                               designs=args.design, dry_run=args.dry_run)
         print(json.dumps(report, indent=2))
         return 0 if not report["failed"] else 1
 

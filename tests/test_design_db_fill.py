@@ -76,6 +76,17 @@ def test_rtlscout_fill_hook(db, monkeypatch):
 def test_db_score_asap7(db):
     key = _adder_slot()
     seed_original(key)
+
+    # --dry-run measures and returns values but writes nothing (and ignores the already-stamped
+    # skip logic — it is a pure measurement)
+    dry = score_designs([key], technology="asap7", run_netlist_sim=False, dry_run=True)
+    assert dry["dry_run"] is True and dry["scored"] == 1 and not dry["failed"], dry
+    (dry_values,) = dry["measured"].values()
+    assert dry_values["area"] > 0
+    index = json.loads((db / VERSION_DIR / key / "index.json").read_text())
+    assert "asap7" not in (next(iter(index.values()))["metrics"] or {}), \
+        "dry-run must not annotate"
+
     report = score_designs([key], technology="asap7", run_netlist_sim=False, max_designs=1)
     assert report["scored"] == 1 and not report["failed"], report
     index = json.loads((db / VERSION_DIR / key / "index.json").read_text())
@@ -87,3 +98,9 @@ def test_db_score_asap7(db):
     # idempotent: second run skips
     again = score_designs([key], technology="asap7", run_netlist_sim=False)
     assert again["scored"] == 0 and again["skipped"] >= 1
+
+    # --design scopes to one design_id (unique prefix); force re-scores just that one
+    design_id = next(iter(index))
+    scoped = score_designs([key], technology="asap7", run_netlist_sim=False,
+                           designs=[design_id[:12]], force=True)
+    assert scoped["scored"] == 1 and list(scoped["measured"]) == [design_id]
