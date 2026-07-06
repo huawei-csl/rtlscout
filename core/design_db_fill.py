@@ -157,14 +157,14 @@ def fill_slot(spec_key: str, *, model: str, db: Optional[Any] = None,
     """Run an RTLScout campaign against one slot and admit every passing candidate.
 
     Raises ``DesignDBError`` for unusable slots (unknown / unverified — freeze a verification
-    first: ``spire db verify --slot <key> …``).
+    first: ``spire db set-verification --slot <key> …``).
     """
     d, slot, spec = _load_slot(db, spec_key)
     verification = d.read_json(slot / "verification.json", None)
     if verification is None:
         raise DesignDBError(
             "slot has no frozen verification — freeze one first: "
-            "spire db verify --slot <key> [--cec | --auto | --stimulus <file>]")
+            "spire db set-verification --slot <key> [--cec | --auto | --stimulus <file>]")
 
     report = FillReport(spec_key=spec_key)
     if seed_baseline:
