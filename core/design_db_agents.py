@@ -102,10 +102,15 @@ you will be terminated automatically once the time budget runs out, so use your 
 
 ## Workflow
 
-1. Write your implementation to `design.v` in this workspace.
-2. `./eval design.v` — the advisory check (the same verification the gate runs). Iterate.
-3. `./db-insert design.v` — the authoritative gate: it re-verifies, dedups structurally, stamps
-   metrics, and admits. Rejections tell you why. **Only admitted designs count.**
+1. **Author in spire** (the ecosystem's design language; Verilog is only the intermediate
+   representation): write `design.py` in this workspace defining `build() -> Netlist/Component`
+   — `starting_point.py` shows the current implementation in exactly that form. The gate
+   elaborates it and stores your python source with the design. If you must, authoring
+   `design.v` directly is also accepted (no source stored then).
+2. `./eval design.py` — the advisory check (the same verification the gate runs). Iterate.
+3. `./db-insert design.py` — the authoritative gate: it elaborates, re-verifies, dedups
+   structurally, stamps metrics, and admits. Rejections tell you why. **Only admitted designs
+   count.**
 4. Submit several structurally *different* correct designs if you can — the DB keeps them all and
    selection later picks per objective (area/delay Pareto matters, not just one winner).
 

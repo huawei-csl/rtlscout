@@ -10,12 +10,10 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import tempfile
 from pathlib import Path
 
-from spire.design_db import DesignDB, insert_design
-from spire.design_db.verify import VerificationError, cec_check
-from spire.design_db.verify_sim import run_frozen_tb
+from spire.design_db import DesignDB, DesignDBError, insert_design
+from spire.design_db.verify import VerificationError
 
 
 def _print(obj) -> None:
@@ -23,29 +21,20 @@ def _print(obj) -> None:
 
 
 def _cmd_eval(args: argparse.Namespace) -> int:
-    d = DesignDB.open(args.db, create=False)
-    slot = d.slot_dir(args.slot)
-    verification = d.read_json(slot / "verification.json", None)
-    if verification is None:
-        _print({"verdict": "ERROR", "reason": "slot has no frozen verification"})
-        return 1
-    design = Path(args.design)
-    if not design.exists():
-        _print({"verdict": "ERROR", "reason": f"design file not found: {design}"})
-        return 1
+    """Advisory check — delegates to spire's ``check_design`` (the read-only sibling of the gate),
+    so it accepts exactly what ``insert`` accepts: a spire ``.py`` (elaborated) or Verilog."""
+    from spire.design_db import check_design
+    from spire.design_db.verify import CECInapplicable, SlotUnverified
     try:
-        with tempfile.TemporaryDirectory(prefix="ddb_eval_") as td:
-            if verification.get("method") == "cec":
-                cec_check(design, slot / "golden.v", Path(td),
-                          budget_s=args.budget or verification.get("budget_s", 120.0))
-            else:
-                run_frozen_tb(args.slot, design, Path(td), db=args.db,
-                              budget_s=args.budget or verification.get("sim_budget_s", 300.0))
+        result = check_design(args.slot, Path(args.design), db=args.db, budget_s=args.budget)
+    except (SlotUnverified, CECInapplicable, DesignDBError) as exc:   # setup, not a verdict
+        _print({"verdict": "ERROR", "reason": str(exc).splitlines()[0][:300]})
+        return 1
     except VerificationError as exc:
-        _print({"verdict": "FAIL", "method": verification.get("method"),
+        _print({"verdict": "FAIL", "type": type(exc).__name__,
                 "reason": str(exc).splitlines()[0][:300]})
         return 2
-    _print({"verdict": "PASS", "method": verification.get("method"),
+    _print({"verdict": "PASS", "method": result.get("method"),
             "note": "advisory only — ./db-insert runs the authoritative gate and admits"})
     return 0
 
