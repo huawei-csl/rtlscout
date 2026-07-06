@@ -241,6 +241,14 @@ def test_cost_note_injected_into_prompt():
 
 # ── Integration: starting point end-to-end ───────────────────────────────────
 
+# The matmul benchmark assets are not tracked in the repo, so these tests can only
+# run on checkouts that have them (e.g. not in CI).
+requires_matmul_benchmark = pytest.mark.skipif(
+    not (MATMUL_ROOT / "tb.sv").exists(),
+    reason="matmul benchmark assets not present in this checkout",
+)
+
+
 def _stage_matmul_workspace(tmp_path: Path) -> Path:
     workdir = tmp_path / "workspace"
     workdir.mkdir()
@@ -251,6 +259,7 @@ def _stage_matmul_workspace(tmp_path: Path) -> Path:
     return workdir
 
 
+@requires_matmul_benchmark
 @requires_verilator
 @requires_spirehdl
 def test_run_eval_matmul_cycles(tmp_path):
@@ -277,6 +286,7 @@ def test_run_eval_matmul_cycles(tmp_path):
     assert set(result.metrics()) == {"cycles"}
 
 
+@requires_matmul_benchmark
 @requires_verilator
 @requires_yosys
 @requires_openroad
