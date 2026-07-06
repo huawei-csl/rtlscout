@@ -1,0 +1,10 @@
+Design a combinational module named sat_mac4: inputs a and b are 4-bit unsigned, input c is
+8-bit unsigned, output y is 8-bit unsigned. y = c + a*b, saturating at 255 (if the true sum
+exceeds 255, y must be 255).
+
+The workspace contains a working spire starting point (starting_point.py) — this design is
+authored in spire (Python HDL), and its helper subcircuits (the 4x4 multiplier, the saturating
+adder) are natural design-DB slots. Consider using the design-db-* skills: decorate the helpers
+with @from_design_db, evaluate to register the slots, dispatch each slot to the rtl-subcircuit
+subagent to collect verified cheaper implementations, then re-evaluate so the selections splice
+in. Minimize the transistor cost while staying correct.
