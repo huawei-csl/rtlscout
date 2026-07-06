@@ -219,6 +219,67 @@ def test_render_opencode_config(tmp_path):
     # Key must NOT be embedded in the config (handover O4).
     assert "OPENROUTER_API_KEY" not in json.dumps(cfg)
 
+    # Design-DB subagents ride along: mode subagent, hidden, task tool denied (structural
+    # depth cap); the primary rtl agent keeps its task allowance.
+    for name in ("rtl-subcircuit", "rtl-dv-prep"):
+        sub = cfg["agent"][name]
+        assert sub["mode"] == "subagent" and sub["hidden"] is True
+        assert sub["tools"]["task"] is False
+        assert sub["permission"]["task"] == "deny"
+        assert sub["model"] == "openrouter/z-ai/glm-4.6"
+    assert cfg["agent"]["rtl"]["permission"]["task"] == "allow"
+    assert cfg["permission"]["task"] == "allow"
+
+
+def test_agents_md_contains_design_db_section(tmp_path):
+    from core.opencode_backend import render_agents_md
+    md = render_agents_md(_make_req(tmp_path))
+    assert "## Design DB" in md
+    assert "design-db-dispatch" in md and "design-db-inspect" in md
+    assert "spire db insert" in md                       # the gate is named, hand-edits banned
+
+
+def test_run_provisions_skills(tmp_path):
+    """A backend run (fake sandbox, no LLM) leaves the skill pack in the workspace."""
+    from core.design_db_skills import SKILL_NAMES
+    _run_with_fake(tmp_path, [{"stdout": _SID, "returncode": 0}], wall_clock_s=0)
+    skills = tmp_path / "wd" / "workspace" / ".opencode" / "skills"
+    for name in SKILL_NAMES:
+        assert (skills / name / "SKILL.md").exists()
+    assert (skills / "design-db-score" / "scripts" / "db-score").exists()
+
+
+def test_container_sandbox_mounts_rw_args(tmp_path, monkeypatch):
+    """SandboxSpec.mounts_rw becomes writable identity -v flags (no docker needed — capture
+    the constructed argv)."""
+    from core.agent_backend import RunLimits
+    from core.sandbox import ContainerSandbox, SandboxSpec
+
+    captured = {}
+
+    def fake_run(argv, **kwargs):
+        captured["argv"] = argv
+        class R:  # minimal CompletedProcess stand-in
+            returncode = 0
+            stdout = ""
+            stderr = ""
+        return R()
+
+    import core.sandbox as sb
+    monkeypatch.setattr(sb.subprocess, "run", fake_run)
+    box = ContainerSandbox(work_root=tmp_path, host_repo=tmp_path, image="rtlscout:latest",
+                           session_id="t" * 8, role="agent", run_index=0)
+    db_root = tmp_path / "shared_db"
+    db_root.mkdir()
+    spec = SandboxSpec(workdir=tmp_path, limits=RunLimits(max_steps=1, wall_clock_s=5),
+                       env={"SPIREHDL_DB_PATH": str(db_root)}, mounts_rw=(db_root,))
+    box.run_command(["true"], spec)
+    argv = captured["argv"]
+    assert f"{db_root.resolve()}:{db_root.resolve()}" in argv     # writable identity mount
+    assert f"SPIREHDL_DB_PATH={db_root}" in argv                  # env forwarded via -e
+    ro = [a for a in argv if str(a).endswith(":ro")]
+    assert ro, "repo ro mount still present"
+
 
 def test_write_eval_config_and_wrapper(tmp_path):
     from core.opencode_backend import write_eval_config, write_eval_wrapper

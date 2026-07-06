@@ -39,6 +39,8 @@ class SandboxSpec:
     network: str = "none"                           # "none" | provider-allowlist | ...
     limits: Optional["RunLimits"] = None
     env: Optional[dict] = None                       # extra env (e.g. provider key) for command runs
+    mounts_rw: Sequence[Path] = field(default_factory=tuple)  # extra writable identity mounts
+    #   (container mode only; e.g. a shared $SPIREHDL_DB_PATH design DB — LocalSandbox ignores)
 
 
 @dataclass
@@ -193,6 +195,9 @@ class ContainerSandbox:
             "-v", f"{self.host_repo}:{self.host_repo}:ro",
             "-w", str(Path(spec.workdir).resolve()),
         ]
+        for extra in spec.mounts_rw:            # e.g. a shared design DB — writable identity mount
+            p = Path(extra).resolve()
+            docker += ["-v", f"{p}:{p}"]
         if self.cpus:
             docker += ["--cpus", str(self.cpus)]
         if self.memory:
