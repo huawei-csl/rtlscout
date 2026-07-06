@@ -108,7 +108,7 @@ def test_dv_prep_e2e_with_stub_agent(db, tmp_path, monkeypatch):
 
     # the frozen verification now gates real inserts
     res = insert_design(key, CORRECT_SEQ_V, source="test")
-    assert res.metrics["intrinsic"]["aig_latches"] > 0
+    assert res.metrics["aig"]["metrics"]["aig_latches"] > 0
     from spire.design_db import VerificationFailed
     with pytest.raises(VerificationFailed):
         insert_design(key, CORRECT_SEQ_V.replace("assign dout = q;",

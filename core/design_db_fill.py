@@ -250,6 +250,7 @@ def score_designs(spec_keys: Optional[Sequence[str]] = None, *, db: Optional[Any
     from core.cost import make_cost_metric
     metric = make_cost_metric("area", target_delay=target_delay, technology=technology,
                               run_netlist_sim=run_netlist_sim)
+    from spire.design_db import annotate
     d = DesignDB.open(db)
     keys = list(spec_keys) if spec_keys else \
         sorted(p.name for p in d.v1.iterdir() if p.is_dir()) if d.v1.is_dir() else []
@@ -257,12 +258,10 @@ def score_designs(spec_keys: Optional[Sequence[str]] = None, *, db: Optional[Any
     for key in keys:
         slot = d.slot_dir(key)
         index = d.read_json(slot / "index.json", {})
-        changed = False
         for design_id in sorted(index):
             if max_designs is not None and scored >= max_designs:
                 break
-            entry = index[design_id]
-            if not force and technology in (entry.get("metrics") or {}):
+            if not force and technology in (index[design_id].get("metrics") or {}):
                 skipped += 1
                 continue
             design_v = slot / "designs" / design_id / "design.v"
@@ -278,20 +277,14 @@ def score_designs(spec_keys: Optional[Sequence[str]] = None, *, db: Optional[Any
                 failed.append(f"{design_id}: {getattr(cost, 'error', 'cost evaluation failed')}")
                 continue
             stats = dict(cost.stats or {})
-            tech = {"area": stats.get("area"),
-                    "delay": stats.get("delay", stats.get("runtime")),
-                    "adp": stats.get("adp", stats.get("area_delay_product")),
-                    "edap": stats.get("edap")}
-            if tech["adp"] is None and tech["area"] is not None and tech["delay"] is not None:
-                tech["adp"] = tech["area"] * tech["delay"]
-            tech = {k: v for k, v in tech.items() if v is not None}
-            tech["raw"] = stats
-            metrics = entry.setdefault("metrics", {})
-            metrics[technology] = tech
-            mfile = slot / "designs" / design_id / "metrics.json"
-            d.write_json(mfile, metrics)
-            changed = True
+            values = {"area": stats.get("area"),
+                      "delay": stats.get("delay", stats.get("runtime")),
+                      "adp": stats.get("adp", stats.get("area_delay_product")),
+                      "edap": stats.get("edap")}
+            if values["adp"] is None and values["area"] is not None and values["delay"] is not None:
+                values["adp"] = values["area"] * values["delay"]
+            values = {k: v for k, v in values.items() if v is not None}
+            # spire owns the write (metrics.json + index mirror, schema, reserved-name guard)
+            annotate(key, design_id, tech=technology, values=values, raw=stats, force=True, db=db)
             scored += 1
-        if changed:
-            d.write_json(slot / "index.json", index)
     return {"technology": technology, "scored": scored, "skipped": skipped, "failed": failed}

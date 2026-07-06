@@ -80,7 +80,8 @@ def test_db_score_asap7(db):
     assert report["scored"] == 1 and not report["failed"], report
     index = json.loads((db / VERSION_DIR / key / "index.json").read_text())
     entry = next(iter(index.values()))
-    assert entry["metrics"]["asap7"]["area"] > 0
+    assert entry["metrics"]["asap7"]["metrics"]["area"] > 0            # self-describing block
+    assert entry["metrics"]["asap7"]["objectives"]["area"] == "area"
     sel = select_design(key, objective="area", metric="asap7")
     assert sel is not None and sel.metric == "asap7"
     # idempotent: second run skips
