@@ -609,6 +609,9 @@ Then register it in `COST_METRICS` and `make_cost_metric()`, or pass it directly
 
 ## Paper Experiments
 
+> **Note:** The experiments reported in the paper were performed with earlier versions of this repository, e.g.
+> commit [`d0f9b1a`](https://github.com/huawei-csl/rtlscout/commit/d0f9b1ad2f290c458e5853132b0fa35ce0854693).
+
 ### The optimization pipeline
 
 The paper builds each design with a multi-phase optimization pipeline (up to four phases):
