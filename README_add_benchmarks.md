@@ -2,7 +2,7 @@
 
 How to add your own benchmark to RTL Scout — generated from spire-hdl or authored by hand. For the list of built-in benchmarks see the [main README](README.md#basic-benchmarks).
 
-For a worked example of integrating an external benchmark suite (including Verilog and SpireHDL variants, test-vector generation, and the `sky130_adp` cost metric), see [`benchmarks/turbo_rtl/README.md`](benchmarks/turbo_rtl/README.md).
+For a worked example of integrating an external benchmark suite (including Verilog and Spire variants, test-vector generation, and the `sky130_adp` cost metric), see [`benchmarks/turbo_rtl/README.md`](benchmarks/turbo_rtl/README.md).
 
 ## Option A: generate from spire-hdl
 
@@ -56,7 +56,7 @@ A benchmark is **discovered** only if its directory contains `description.txt`, 
 
 ### `description.txt`
 
-Plain text. The whole file is embedded verbatim into the LLM system prompt as `## Specification`. Keep it language-neutral — the framework adds language-specific guidance (Verilog / SpireHDL / Amaranth) around it based on `--language`. Include the module name, port widths, and the expected behavior; mention any constraints (e.g. "must support subnormals", "active-low reset"). If you use Verilog/SV literals (`3'b000`, `8'h00`, …) to express behavior, label that section as such (see `benchmarks/alu8/description.txt` for an example).
+Plain text. The whole file is embedded verbatim into the LLM system prompt as `## Specification`. Keep it language-neutral — the framework adds language-specific guidance (Verilog / Spire / Amaranth) around it based on `--language`. Include the module name, port widths, and the expected behavior; mention any constraints (e.g. "must support subnormals", "active-low reset"). If you use Verilog/SV literals (`3'b000`, `8'h00`, …) to express behavior, label that section as such (see `benchmarks/alu8/description.txt` for an example).
 
 ### `metadata.json`
 
@@ -78,9 +78,9 @@ Schema:
 - `golden_reference` *(optional)* — path (relative to the benchmark dir) to a known-correct reference that the candidate design is checked against by **combinational equivalence checking (CEC)** via `yosys-abc cec`. CEC is **on by default** (disable per-run with `--skip-cec`) but only fires when this field is present; without it, correctness is gated by `tb.sv` alone. CEC runs *after* the testbench passes — it's an additional formal gate, not a replacement — so it proves equivalence across **all** inputs rather than the testbench's sampled vectors. Omit the field for benchmarks with no trustworthy reference.
 - `golden_reference_language` *(optional, default `"spirehdl"`)* — how to turn `golden_reference` into Verilog for CEC:
   - **`.v` / `.sv`** — used directly; the `_language` value is ignored. **The reference's module must be named `module_name`** (CEC synthesizes the golden with the *design's* top name — there is no separate reference-top field), so rename it if the source module differs.
-  - **`.py`** — compiled to Verilog at run setup by the SpireHDL (default) or Amaranth compiler, selected by this field (`"spirehdl"` / `"amaranth"`). Use this to point `golden_reference` straight at a SpireHDL/Amaranth design — e.g. the same `context/starting_point.py` you ship as the starting point (its `to_verilog_file("design.v")` produces a module named `module_name`, so no rename is needed). A compile failure raises a clear error rather than silently skipping the gate.
+  - **`.py`** — compiled to Verilog at run setup by the Spire (default) or Amaranth compiler, selected by this field (`"spirehdl"` / `"amaranth"`). Use this to point `golden_reference` straight at a Spire/Amaranth design — e.g. the same `context/starting_point.py` you ship as the starting point (its `to_verilog_file("design.v")` produces a module named `module_name`, so no rename is needed). A compile failure raises a clear error rather than silently skipping the gate.
 
-  **`.v`/`.sv` vs `.py`:** prefer a `.v`/`.sv` golden when you have an **independent** oracle in a *different* source than the target language (e.g. adding a Verilog design as a SpireHDL benchmark — the original Verilog is the authoritative spec, independent of the SpireHDL implementation, so CEC cross-checks the translation). Reach for a `.py` golden when your only trustworthy reference *is* the target-language design itself: pointing at `starting_point.py` avoids a duplicated hand-maintained `.v` and keeps a single source of truth, at the cost that CEC then verifies *optimizations preserve the starting point's behavior* rather than cross-checking the starting point itself (a bug already in the starting point would pass CEC, though the independent `tb.sv` oracle would still catch it).
+  **`.v`/`.sv` vs `.py`:** prefer a `.v`/`.sv` golden when you have an **independent** oracle in a *different* source than the target language (e.g. adding a Verilog design as a Spire benchmark — the original Verilog is the authoritative spec, independent of the Spire implementation, so CEC cross-checks the translation). Reach for a `.py` golden when your only trustworthy reference *is* the target-language design itself: pointing at `starting_point.py` avoids a duplicated hand-maintained `.v` and keeps a single source of truth, at the cost that CEC then verifies *optimizations preserve the starting point's behavior* rather than cross-checking the starting point itself (a bug already in the starting point would pass CEC, though the independent `tb.sv` oracle would still catch it).
 - other keys may be added when fit 
 
 Generators may add an extra `"generator": { ... }` block for provenance — that's optional and ignored at runtime.
@@ -109,7 +109,7 @@ Omit the `context/` directory entirely if the benchmark is meant to be solved fr
 
 **Important:** if you ship a `context/` directory, mention it explicitly in `description.txt`. The agent does not list its workspace by default — if the spec doesn't tell it the files exist, it will write a fresh design from scratch and ignore them. Append a note like:
 
-> A working starting point is provided: run `starting_point.py` (SpireHDL mode) to generate a correct reference design (`design.v`). Study the context files in your workspace for implementation details, then optimize from there.
+> A working starting point is provided: run `starting_point.py` (Spire mode) to generate a correct reference design (`design.v`). Study the context files in your workspace for implementation details, then optimize from there.
 
 Adapt the wording to whatever entry-point and language make sense for your benchmark (`add_benchmark.py` does this automatically when its generators ship context files — see `benchmarks/fpmul_f16/description.txt` for an example).
 

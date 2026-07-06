@@ -11,16 +11,17 @@ from core.evaluation import SPIREHDL_VERILOG_OUTPUT, AMARANTH_VERILOG_OUTPUT
 # Optimization decorators README (read once at import time from spire-hdl)
 # ---------------------------------------------------------------------------
 
-_opt_dec_path = Path(__file__).parent.parent / "deps" / "spire-hdl" / "README_optimization_decorators.md"
+# The topic READMEs live under deps/spire-hdl/docs/ in Spire >= 0.2.0.
+_opt_dec_path = Path(__file__).parent.parent / "deps" / "spire-hdl" / "docs" / "README_optimization_decorators.md"
 _OPTIMIZATION_DECORATORS_MD = _opt_dec_path.read_text()
 
-_arith_opt_path = Path(__file__).parent.parent / "deps" / "spire-hdl" / "README_arithmetic_optimization.md"
+_arith_opt_path = Path(__file__).parent.parent / "deps" / "spire-hdl" / "docs" / "README_arithmetic_optimization.md"
 _ARITHMETIC_OPTIMIZATION_MD = _arith_opt_path.read_text()
 
-_fsm_opt_path = Path(__file__).parent.parent / "deps" / "spire-hdl" / "README_fsm_optimization.md"
+_fsm_opt_path = Path(__file__).parent.parent / "deps" / "spire-hdl" / "docs" / "README_fsm_optimization.md"
 _FSM_OPTIMIZATION_MD = _fsm_opt_path.read_text()
 
-_state_machines_path = Path(__file__).parent.parent / "deps" / "spire-hdl" / "README_state_machines.md"
+_state_machines_path = Path(__file__).parent.parent / "deps" / "spire-hdl" / "docs" / "README_state_machines.md"
 _STATE_MACHINES_MD = _state_machines_path.read_text()
 
 
@@ -57,71 +58,78 @@ VERILOG_REFERENCES = [
     },
 ]
 
+# spire-hdl is an in-repo submodule; resolve its reference files relative to the repo root
+# (via __file__) so they load regardless of where the repo is mounted — devcontainer
+# (/workspaces/rtl_scout), single-container, or an identity-mounted orchestrated container.
+# (Previously these were hard-coded to /workspaces/rtl_scout, which only resolved under the
+# pinned devcontainer mount and showed "(... not found)" elsewhere.)
+_SPIRE = Path(__file__).resolve().parent.parent / "deps" / "spire-hdl"
+
 SPIREHDL_REFERENCES = [
     {
         "name": "README.md",
         "path": str(Path(__file__).parent / "spirehdl_readme.md"),
-        "description": "SpireHDL project README",
+        "description": "Spire HDL project README",
         "lang": "markdown",
     },
     {
-        "name": "spirehdl.py",
-        "path": "/workspaces/rtl_scout/deps/spire-hdl/src/spirehdl/spirehdl.py",
-        "description": "Core SpireHDL DSL source (signals, types, operators)",
+        "name": "component_example.py",
+        "path": str(_SPIRE / "testing/examples/component_example.py"),
+        "description": "Example: defining Components with IORecord IO, hierarchy, and simulation",
         "lang": "python",
     },
     {
-        "name": "spirehdl_module.py",
-        "path": "/workspaces/rtl_scout/deps/spire-hdl/src/spirehdl/spirehdl_module.py",
-        "description": "SpireHDL Module class (ports, wires, Verilog emission)",
+        "name": "expr.py",
+        "path": str(_SPIRE / "src/spire/expr.py"),
+        "description": "Core Spire DSL source (signals, types, operators, Const/mux/cat)",
+        "lang": "python",
+    },
+    {
+        "name": "component.py",
+        "path": str(_SPIRE / "src/spire/component.py"),
+        "description": "Spire Component class (IO, Verilog emission)",
         "lang": "python",
     },
     {
         "name": "prefix_adder_clean.py",
-        "path": "/workspaces/rtl_scout/deps/spire-hdl/src/spirehdl/arithmetic/prefix_adders/prefix_adder_clean.py",
+        "path": str(_SPIRE / "src/spire/arithmetic/prefix_adders/prefix_adder_clean.py"),
         "description": "Prefix adder builder and classic topologies (Kogge-Stone, Slansky, etc.)",
         "lang": "python",
     },
     {
         "name": "sign_magnitude.py",
-        "path": "/workspaces/rtl_scout/deps/spire-hdl/src/spirehdl/arithmetic/encoding/sign_magnitude.py",
+        "path": str(_SPIRE / "src/spire/arithmetic/encoding/sign_magnitude.py"),
         "description": "Two's complement / sign-magnitude encoder and decoder components",
         "lang": "python",
     },
     {
         "name": "direct_expression_basics.py",
-        "path": "/workspaces/rtl_scout/deps/spire-hdl/testing/examples/direct_expression_basics.py",
+        "path": str(_SPIRE / "testing/examples/direct_expression_basics.py"),
         "description": "Example: direct arithmetic expressions, constants, mux usage",
         "lang": "python",
     },
-    # {
-    #     "name": "rv32i.py",
-    #     "path": "/workspaces/rtl_scout/deps/spire-hdl/testing/riscv/rv32i.py",
-    #     "description": "Example: minimal RISC-V RV32I",
-    #     "lang": "python",
-    # },
     {
-        "name": "sprout_sequential_mac.py",
-        "path": "/workspaces/rtl_scout/deps/spire-hdl/testing/basic_examples/sprout_sequential_mac.py",
+        "name": "sequential_mac.py",
+        "path": str(_SPIRE / "testing/basic_examples/sequential_mac.py"),
         "description": "Example: sequential multiply-accumulate (MAC) with clock and reset",
         "lang": "python",
     },
     # Optional matmul-accumulate core examples (included only when files exist)
     {
         "name": "matmul_accumulate_core.py",
-        "path": "/workspaces/rtl_scout/deps/spire-hdl/src/spirehdl/cores/matmul_accumulate/matmul_accumulate_core.py",
+        "path": str(_SPIRE / "src/spire/cores/matmul_accumulate/matmul_accumulate_core.py"),
         "description": "Core: matrix multiply-accumulate implementation",
         "lang": "python"
     },
     {
         "name": "matmul_accumulate_core_fused.py",
-        "path": "/workspaces/rtl_scout/deps/spire-hdl/src/spirehdl/cores/matmul_accumulate/matmul_accumulate_core_fused.py",
+        "path": str(_SPIRE / "src/spire/cores/matmul_accumulate/matmul_accumulate_core_fused.py"),
         "description": "Core: fused matrix multiply-accumulate implementation",
         "lang": "python"
     },
     {
         "name": "test_matmul_accumulate_core_fused.py",
-        "path": "/workspaces/rtl_scout/deps/spire-hdl/testing/matmul_accumulate_core/test_matmul_accumulate_core_fused.py",
+        "path": str(_SPIRE / "testing/matmul_accumulate_core/test_matmul_accumulate_core_fused.py"),
         "description": "Example: test/usage of the fused matmul-accumulate core",
         "lang": "python"
     },
@@ -161,6 +169,10 @@ def _build_references_block(registry: List[dict]) -> str:
             f"```{ref['lang']}\n{ref['content']}\n```"
         )
     return "\n\n".join(sections)
+
+
+# (The OpenCode reference-pointer block + per-HDL AGENTS.md assembly live in
+# core/agents_md.py — the react prompts below inline their references instead.)
 
 
 # ---------------------------------------------------------------------------
@@ -325,11 +337,15 @@ def _build_optimization_guidance(abc_optimize: bool, flowy_optimize: bool,
             parts.append(arith_dec)
 
     # --- Stacking decorators ---
-    # Only relevant when the agent has a *partner* decorator to stack with —
-    # i.e. `--abc-optimize` or `--flowy-optimize`. With just `--arith-autoconfig`,
-    # `@arithmetic_optimized` stands alone (no outer decorator to wrap it with),
-    # so the stacking section would be noise.
-    if abc_optimize or flowy_optimize:
+    # This subsection is entirely about wrapping the inner @arithmetic_optimized
+    # decorator with an outer one (@abc_optimized / @flowy_optimized) — its code
+    # example and benchmark numbers all reference @arithmetic_optimized. So it is
+    # only meaningful when BOTH sides are documented: an outer decorator
+    # (--abc-optimize / --flowy-optimize) AND the inner one (--arith-autoconfig).
+    # Without --arith-autoconfig it would leak @arithmetic_optimized (its name and
+    # a usage example) into the prompt without that decorator's own guidance, so
+    # the whole subsection is suppressed in that case.
+    if (abc_optimize or flowy_optimize) and arith_autoconfig:
         stacking = _extract_md_section(_OPTIMIZATION_DECORATORS_MD, "Stacking decorators")
         if stacking:
             # The README's stacking example uses @abc_optimized as the outer
@@ -374,8 +390,10 @@ _REFERENCES_HEADER = (
 
 def build_system_prompt(description: str, cost_metric_name: str, extra: str = "",
                         target_delay_is_settable: bool = False,
-                        max_steps: int = 20) -> str:
+                        max_steps: int = 20, cost_metric_note: str = "") -> str:
     references_block = _build_references_block(VERILOG_REFERENCES)
+    cost_note_block = (f"\n\n**Cost metric `{cost_metric_name}`:** {cost_metric_note}"
+                       if cost_metric_note else "")
 
     run_eval_line = (
         f"- run_evaluation(filename[, target_delay]): Run evaluation on the given design file. "
@@ -393,7 +411,7 @@ def build_system_prompt(description: str, cost_metric_name: str, extra: str = ""
     creativity_block = _CREATIVITY_AND_EVAL_BLOCK.format(cost_metric_name=cost_metric_name)
     important_common = _IMPORTANT_COMMON.format(max_steps=max_steps)
 
-    return f"""You are an RTL (Register Transfer Level) design agent. Your task is to create a Verilog/SystemVerilog design that satisfies the given specification, is functionally correct, and has minimal cost ({cost_metric_name}).
+    return f"""You are an RTL (Register Transfer Level) design agent. Your task is to create a Verilog/SystemVerilog design that satisfies the given specification, is functionally correct, and has minimal cost ({cost_metric_name}).{cost_note_block}
 
 ## Specification
 {description}
@@ -429,18 +447,23 @@ def build_spirehdl_system_prompt(description: str, cost_metric_name: str, extra:
                                   abc_optimize: bool = False,
                                   arith_autoconfig: bool = False,
                                   dont_touch_main_arith: bool = False,
-                                  fsm_optimize: bool = False) -> str:
+                                  fsm_optimize: bool = False,
+                                  cost_metric_note: str = "") -> str:
+    # The react loop inlines the reference sources. (The OpenCode path uses the lean
+    # pointer-based renderer in core.agents_md instead.)
     references_block = _build_references_block(SPIREHDL_REFERENCES)
+    cost_note_block = (f"\n\n**Cost metric `{cost_metric_name}`:** {cost_metric_note}"
+                       if cost_metric_note else "")
 
     run_eval_line = (
-        f"- run_evaluation(filename[, target_delay]): Run the given SpireHDL .py file "
-        f"(which writes Verilog via m.to_verilog_file), "
+        f"- run_evaluation(filename[, target_delay]): Run the given Spire .py file "
+        f"(which writes Verilog via Component().to_verilog_file(...)), "
         f"then run evaluation (correctness via Verilator + cost via Yosys {cost_metric_name}). "
         f"The filename must be your main design file (e.g. 'design.py'). "
         f"Optionally pass target_delay ({target_delay_time_unit}) to override the synthesis timing constraint."
         if target_delay_is_settable else
-        f"- run_evaluation(filename): Run the given SpireHDL .py file "
-        f"(which writes Verilog via m.to_verilog_file), "
+        f"- run_evaluation(filename): Run the given Spire .py file "
+        f"(which writes Verilog via Component().to_verilog_file(...)), "
         f"then run evaluation (correctness via Verilator + cost via Yosys {cost_metric_name}). "
         f"The filename must be your main design file (e.g. 'design.py')."
     )
@@ -450,61 +473,98 @@ def build_spirehdl_system_prompt(description: str, cost_metric_name: str, extra:
     creativity_block = _CREATIVITY_AND_EVAL_BLOCK.format(cost_metric_name=cost_metric_name)
     important_common = _IMPORTANT_COMMON.format(max_steps=max_steps)
 
-    return f"""You are an RTL design agent using SpireHDL, a Python EDSL for hardware description. Your task is to create a design that satisfies the given specification, is functionally correct, and has minimal cost ({cost_metric_name}).
+    return f"""You are an RTL design agent using Spire, a Python EDSL for hardware description. Your task is to create a design that satisfies the given specification, is functionally correct, and has minimal cost ({cost_metric_name}).{cost_note_block}
 
 ## Specification
 {description}
 
-## SpireHDL Overview
-SpireHDL is a Python embedded DSL that generates synthesizable Verilog. You write a Python script that constructs a hardware Module using the SpireHDL API, then writes Verilog to a file via `m.to_verilog_file("{SPIREHDL_VERILOG_OUTPUT}")`.
+## Spire Overview
+Spire is a Python embedded DSL that generates synthesizable Verilog. You write a Python script that defines a hardware `Component` using the Spire API, then writes Verilog to a file via `Component().to_verilog_file("{SPIREHDL_VERILOG_OUTPUT}", name="<module_name>")`.
 
 ### Canonical Pattern
 ```python
-from spirehdl.spirehdl_module import Module
-from spirehdl.spirehdl import UInt, Bool, SInt, Const, mux, cat
+from spire import Component, IORecord, Input, Output, UInt, SInt, Bool
+from spire.expr import Const, mux, cat
 
-m = Module("mult8", with_clock=False, with_reset=False)
-a = m.input(UInt(8), "a")
-b = m.input(UInt(8), "b")
-p = m.output(UInt(16), "p")
+class Mult8(Component):
+    def __init__(self):
+        # Declare IO with IORecord: the field name becomes the signal name,
+        # Input/Output set the direction and the bit-precise type.
+        self.io = IORecord(
+            a=Input(UInt(8)),
+            b=Input(UInt(8)),
+            p=Output(UInt(16)),
+        )
+        self.elaborate()
 
-p <<= a * b
+    def elaborate(self):
+        # Drive outputs with <<=; intermediate expressions need no explicit wires.
+        self.io.p <<= self.io.a * self.io.b
 
-m.to_verilog_file("{SPIREHDL_VERILOG_OUTPUT}")
+# `name` sets the emitted Verilog module name and MUST match the specification.
+Mult8().to_verilog_file("{SPIREHDL_VERILOG_OUTPUT}", name="mult8")
 ```
 
 ### Key API
-- `Module(name, with_clock=False, with_reset=False)` — Create a module
-- `m.input(UInt(N), "name")` — Declare input port
-- `m.output(UInt(N), "name")` — Declare output port
-- `m.wire(UInt(N), "name")` — Declare internal wire
-- `signal <<= expr` — Drive a signal (combinational assignment)
-- Types: `UInt(N)`, `SInt(N)`, `Bool()`
-- `Const(value, type)` — Constant literal, e.g. `Const(0, UInt(1))`, `Const(3, SInt(8))`
+- `class MyDesign(Component)` — subclass `Component`. In `__init__`, set `self.io = IORecord(...)` then call `self.elaborate()`; put the logic in `elaborate(self)`.
+- `IORecord(a=Input(UInt(8)), s=Output(UInt(9)), ...)` — declare ports. The keyword name becomes the signal name; `Input`/`Output` set the direction and type. Access ports as `self.io.a`, `self.io.s`.
+- `self.io.out <<= expr` — Drive a signal (combinational assignment).
+- Types: `UInt(N)`, `SInt(N)`, `Bool()` — `UInt(N)`/`SInt(N)` take **exactly one** argument (the width N).
+- `Const(value, type)` — Constant literal, e.g. `Const(0, UInt(1))`, `Const(3, SInt(8))` (import from `spire.expr`).
+- `Wire(UInt(N))` / `Register(UInt(N), init=0)` — optional internal wire / clocked register (import from `spire`). **No need to pass a name** — names are auto-inferred from the Python variable.
 - Operators: `+`, `-`, `*`, `&`, `|`, `^`, `~`, `<<`, `>>`, `==`, `!=`, `<`, `<=`, `>`, `>=`
-- `mux(sel, a, b)` — Ternary: sel ? a : b
-- `cat(a, b, ...)` — Concatenation (LSB first, i.e. `cat(a, b)` places `a` in lower bits and `b` in higher bits)
+- `mux(sel, a, b)` — Ternary: sel ? a : b (import from `spire.expr`).
+- `cat(a, b, ...)` — Concatenation, LSB first: `cat(a, b)` places `a` in lower bits and `b` in higher bits (import from `spire.expr`).
 - `signal[i]` — Bit select; `signal[lo:hi]` — Bit slice (Python-style, exclusive upper bound). **Do NOT use Verilog's `+:` part-select syntax** — write `signal[lo : lo+N]`, not `signal[lo +: N]`.
-- `m.to_verilog_file("{SPIREHDL_VERILOG_OUTPUT}")` — Write Verilog directly to a file. Pass `simplify=True` (e.g. `m.to_verilog_file("{SPIREHDL_VERILOG_OUTPUT}", simplify=True)`) to run a peephole simplification pass before emission (constant folding, boolean identities, trivial-mux collapse, mux-tree guard substitution). It often shrinks the output and can improve synthesis quality, but it adds significant compile time and may time out on larger or more complex circuits. Default is off.
-- mostly no need to declare wires for intermediate expressions; just create them inline: a = b + c, vs a = m.wire(UInt(8), "a"); a <<= b + c.
+- `Component().to_verilog_file("{SPIREHDL_VERILOG_OUTPUT}", name="<module_name>")` — Write Verilog directly to a file. Pass `simplify=True` to run a peephole simplification pass before emission (constant folding, boolean identities, trivial-mux collapse, mux-tree guard substitution). It often shrinks the output and can improve synthesis quality, but it adds significant compile time and may time out on larger or more complex circuits. Default is off.
+- Mostly no need to declare wires for intermediate expressions; just create them inline: `t = b + c`, versus `t = Wire(UInt(8)); t <<= b + c`.
+
+### Sequential Designs (clock / reset)
+Use `Register` for state and drive it with `<<=`. Pass `with_clock=True` (and `with_reset=True` when registers have a reset value) to `to_verilog_file`:
+```python
+from spire import Component, IORecord, Input, Output, UInt
+from spire.expr import Register
+
+class Mac(Component):
+    def __init__(self):
+        self.io = IORecord(a=Input(UInt(16)), b=Input(UInt(16)), acc_out=Output(UInt(32)))
+        self.elaborate()
+
+    def elaborate(self):
+        acc = Register(UInt(32), init=0)          # name auto-inferred as "acc"
+        acc <<= acc + self.io.a * self.io.b
+        self.io.acc_out <<= acc
+
+Mac().to_verilog_file("{SPIREHDL_VERILOG_OUTPUT}", name="mac", with_clock=True, with_reset=True)
+```
+
+### Hierarchical Designs
+Instantiate a sub-`Component`, wire its `.io`, and its logic is embedded automatically:
+```python
+adder = Adder(width=8)      # some other Component subclass
+adder.io.a <<= self.io.x
+adder.io.b <<= self.io.y
+self.io.sum <<= adder.io.sum
+```
 
 ### Common Mistakes — Avoid These
 - **WRONG slicing syntax**: Do NOT use Verilog's `+:` part-select. Write `signal[lo : lo+N]`, not `signal[lo +: N]`.
 - **Width packing bug**: See "Signal Width Inference" below.
+- **Do NOT bypass Spire**: express the whole design through the API — never write Verilog directly from Python (no `open(...).write(...)` / string templates).
 
 ### Signal Width Inference — CRITICAL for correct output packing
-SpireHDL automatically infers signal widths from arithmetic expressions. The result of an addition or multiplication may be **wider than you expect** (e.g., summing four 8-bit products gives a 10-bit value, then adding a 10-bit operand gives 11 or 12 bits). When you pass signals to `cat()`, the concatenation uses each signal's **inferred width**, not the output port's target width.
+Spire automatically infers signal widths from arithmetic expressions. The result of an addition or multiplication may be **wider than you expect** (e.g., summing four 8-bit products gives a 10-bit value, then adding a 10-bit operand gives 11 or 12 bits). When you pass signals to `cat()`, the concatenation uses each signal's **inferred width**, not the output port's target width.
 
-**Common pitfall (bug)**: If you compute `y[i][j] = sum_of_products + c[i][j]` and the inferred width is 12 bits, then `cat(*results)` packs elements at 12-bit strides. But if the specification requires 11-bit element strides in the output bus, the packed output will be wrong — every element will be at the wrong bit offset.
+**Common pitfall (bug)**: If you compute `results[k] = sum_of_products + c[k]` and the inferred width is 12 bits, then `cat(*results)` packs elements at 12-bit strides. But if the specification requires 11-bit element strides in the output bus, the packed output will be wrong — every element will be at the wrong bit offset.
 
 **Fix**: Before packing with `cat()`, explicitly truncate each element to the required bit width using slicing:
 ```python
 # Correct: truncate each result to exactly 11 bits
-y <<= cat(*[result[0:11] for result in results])
+self.io.y <<= cat(*[result[0:11] for result in results])
 ```
 Tip: If necessary, check the generated Verilog wire widths to verify element sizes match the specification.
 
-### SpireHDL API Notes
+### Spire API Notes
 - `UInt(N)` takes **exactly one argument** (the bit-width N). Use `Const(value, UInt(N))` to create a constant signal.
 - When accumulating signals in a loop, prefer starting from the first signal element rather than from a zero constant, to avoid an unnecessary adder level:
   ```python
@@ -514,25 +574,11 @@ Tip: If necessary, check the generated Verilog wire widths to verify element siz
       sum_val = sum_val + a_elem[i][k] * b_elem[k][j]
   result = sum_val + c_elem[i][j]
   ```
-- To force an intermediate result to a specific bit width, assign it to a named wire: `w = m.wire(UInt(N), "name"); w <<= expr` — this tells SpireHDL (and Yosys) the exact width, which can affect synthesis quality. Named wires create explicit cut-points in the circuit, helping Yosys optimise each stage independently. For a 4-input multiply-accumulate this looks like:
-  ```python
-  # Pre-declare all products as explicit 8-bit wires, then build the adder tree:
-  prod = [[[m.wire(UInt(8), f"p_{{i}}_{{k}}_{{j}}") for j in range(4)] for k in range(4)] for i in range(4)]
-  for i in range(4):
-      for k in range(4):
-          for j in range(4):
-              prod[i][k][j] <<= a_elem[i][k] * b_elem[k][j]
-  # Then for each output element (i,j), build the adder tree:
-  s01 = m.wire(UInt(9),  f"s{{i}}{{j}}_01"); s01 <<= prod[i][0][j] + prod[i][1][j]
-  s23 = m.wire(UInt(9),  f"s{{i}}{{j}}_23"); s23 <<= prod[i][2][j] + prod[i][3][j]
-  sp  = m.wire(UInt(10), f"sp{{i}}{{j}}");   sp  <<= s01 + s23
-  result = sp + c_elem   # 11-bit final (truncate before cat)
-  ```
-  Precomputing all products as explicit 8-bit wires before the adder tree has been observed to give better delay than computing products inline. Note that the exact ordering and naming of wire declarations can also slightly affect synthesis timing, so it is worth trying variations.
+- To force an intermediate result to a specific bit width, assign it to an explicit `Wire`: `w = Wire(UInt(N)); w <<= expr` — this tells Spire (and Yosys) the exact width, which can affect synthesis quality. Explicit wires create cut-points in the circuit, helping Yosys optimise each stage independently. Precomputing products as explicit wires before an adder tree has been observed to give better delay than computing products inline; exact ordering can also slightly affect synthesis timing, so it is worth trying variations.
 
 ### How It Works
-1. You create a `.py` file (e.g. `design.py`) using the SpireHDL API
-2. Your script writes Verilog directly via `m.to_verilog_file("{SPIREHDL_VERILOG_OUTPUT}")`
+1. You create a `.py` file (e.g. `design.py`) using the Spire API
+2. Your script writes Verilog directly via `Component().to_verilog_file("{SPIREHDL_VERILOG_OUTPUT}", name="<module_name>")`
 3. The framework runs your script; the generated Verilog file is evaluated for correctness and cost
 4. You can split helpers across multiple `.py` files — your working directory is on the Python path, so plain imports work: from helper import build_adder
 
@@ -550,8 +596,8 @@ Tip: If necessary, check the generated Verilog wire widths to verify element siz
 
 ## Important
 {important_common}
-- Your Python file MUST write Verilog using `m.to_verilog_file("{SPIREHDL_VERILOG_OUTPUT}")`.
-- You MUST use the SpireHDL API to describe your design. Do NOT bypass SpireHDL by writing Verilog directly from Python (e.g. via `open(...).write(...)` or string templates). The entire design must be expressed through SpireHDL constructs.
+- Your Python file MUST write Verilog using `Component().to_verilog_file("{SPIREHDL_VERILOG_OUTPUT}", name="<module_name>")`.
+- You MUST use the Spire API to describe your design. Do NOT bypass Spire by writing Verilog directly from Python (e.g. via `open(...).write(...)` or string templates). The entire design must be expressed through Spire constructs.
 - The generated Verilog module name and ports must match the specification exactly.
 - You may split logic across multiple `.py` files — your working directory is on the Python path, so plain imports work: `from helper import build_adder`.
 - IMPORTANT: Use Python features creatively — recursion, loops, helper functions, classes, optimization routines, debug prints, in-code analysis to pick the best variant, etc. are all fair game when constructing the hardware logic.
@@ -588,8 +634,10 @@ AMARANTH_REFERENCES = [
 
 def build_amaranth_system_prompt(description: str, cost_metric_name: str, extra: str = "",
                                   target_delay_is_settable: bool = False,
-                                  max_steps: int = 20) -> str:
+                                  max_steps: int = 20, cost_metric_note: str = "") -> str:
     references_block = _build_references_block(AMARANTH_REFERENCES)
+    cost_note_block = (f"\n\n**Cost metric `{cost_metric_name}`:** {cost_metric_note}"
+                       if cost_metric_note else "")
 
     run_eval_line = (
         f"- run_evaluation(filename[, target_delay]): Run the given Amaranth .py file "
@@ -609,7 +657,7 @@ def build_amaranth_system_prompt(description: str, cost_metric_name: str, extra:
     creativity_block = _CREATIVITY_AND_EVAL_BLOCK.format(cost_metric_name=cost_metric_name)
     important_common = _IMPORTANT_COMMON.format(max_steps=max_steps)
 
-    return f"""You are an RTL design agent using Amaranth HDL, a Python library for hardware description. Your task is to create a design that satisfies the given specification, is functionally correct, and has minimal cost ({cost_metric_name}).
+    return f"""You are an RTL design agent using Amaranth HDL, a Python library for hardware description. Your task is to create a design that satisfies the given specification, is functionally correct, and has minimal cost ({cost_metric_name}).{cost_note_block}
 
 ## Specification
 {description}

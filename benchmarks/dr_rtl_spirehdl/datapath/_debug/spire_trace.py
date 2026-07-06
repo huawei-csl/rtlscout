@@ -23,9 +23,9 @@ os.chdir(tmpdir)
 spec = importlib.util.spec_from_file_location("dp_design", START)
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
-m = mod.m
+m = mod.Datapath().to_netlist("datapath", with_clock=True)
 
-from spirehdl.spirehdl_simulator import Simulator
+from spire import Simulator
 sim = Simulator(m)
 
 VECTORS = REPO / "benchmarks/dr_rtl_spirehdl/datapath/vectors.dat"

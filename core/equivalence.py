@@ -153,7 +153,7 @@ def resolve_golden_reference(benchmark, dest_dir: Path) -> Optional[Path]:
     - None / missing            -> None (CEC disabled for this benchmark).
     - ``.v`` / ``.sv``          -> returned directly (used in place).
     - ``.py``                   -> copied into *dest_dir*, compiled to a golden
-                                   ``.v`` via the SpireHDL/Amaranth compiler
+                                   ``.v`` via the Spire/Amaranth compiler
                                    selected by ``golden_reference_language``,
                                    and returned as ``dest_dir/golden.v``.
 

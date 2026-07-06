@@ -1,4 +1,4 @@
-# Debugging the `pcie` SpireHDL port
+# Debugging the `pcie` Spire port
 
 ## Result: PASS 2000/2000 first try, no debug needed
 
@@ -53,7 +53,7 @@ as two Python dicts (`ENCODER` and `DECODER`).
 
 ### Module-by-module port
 
-All 7 modules inlined as Python helper functions in a single SpireHDL
+All 7 modules inlined as Python helper functions in a single Spire
 `Module`. Each helper takes its input signals and returns the output
 signal. The top is then 8 lines of helper calls wiring the chain
 together.

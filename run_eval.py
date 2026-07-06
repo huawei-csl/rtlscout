@@ -2,7 +2,7 @@
 """Debug tool: run evaluation on an existing workspace or design file.
 
 Given a path to a design file (e.g. a .py or .sv file inside a workspace),
-this script runs the full evaluation pipeline (SpireHDL compile if needed,
+this script runs the full evaluation pipeline (Spire compile if needed,
 Verilator correctness, Yosys cost) and prints the result.
 
 The workspace directory is inferred from the file's location — it must
@@ -13,6 +13,10 @@ Usage:
   python run_eval.py runs/fpmul_f16/.../workspace/starting_point.py --language spirehdl
   python run_eval.py runs/fpmul_f16/.../workspace/design.sv --language verilog
   python run_eval.py runs/fpmul_f16/.../workspace/design.py --cost-metric delay --target-delay 500
+  python run_eval.py design.aig --benchmark benchmarks/mac_2x8s_sat16 --cost-metric area
+      (AIG input: with symbols -> sim+cost; symbol-less -> RTL sim skipped automatically)
+  python run_eval.py design.sv --benchmark ... --cost-metric area --skip-rtl-sim
+      (--skip-rtl-sim: skip the RTL sim only; cost + CEC-vs-golden still run; any language)
 """
 
 import argparse
@@ -43,6 +47,79 @@ def _infer_top_module(workdir: Path) -> str | None:
     return matches[0] if matches else None
 
 
+def _aig_to_verilog(aig_path: Path, out_v: Path, top_module: str) -> bool:
+    """Convert an AIGER (.aig/.aag) file to Verilog at *out_v*.
+
+    Returns True if the AIG carried an I/O symbol table and named wide ports were
+    reconstructed (so functional sim/CEC are valid); False for a symbol-less AIG, which
+    is written as a bare positional module (cost-only — its I/O mapping can't be
+    recovered). Generic: ports come from whatever symbols exist, no benchmark assumptions.
+    """
+    import subprocess
+    core_v = out_v.parent / "_aig_core.v"
+    subprocess.run(["yosys", "-q", "-p",
+                    f"read_aiger -module_name aig_core {aig_path}; write_verilog {core_v}"],
+                   capture_output=True, text=True)
+    if not core_v.exists():
+        raise RuntimeError(f"yosys read_aiger failed for {aig_path}")
+    text = core_v.read_text()
+    widths: dict = {}
+    for d, nm, idx in re.findall(r"^\s*(input|output)\s+\\(\w+)\[(\d+)\]\s*;", text, re.M):
+        widths[(d, nm)] = max(widths.get((d, nm), 0), int(idx))
+    # scalar named ports, excluding yosys auto-names (_<digits>_) used for symbol-less AIGs
+    scalars = {(d, nm) for d, nm in re.findall(r"^\s*(input|output)\s+\\?(\w+)\s*;", text, re.M)
+               if (d, nm) not in widths and not re.fullmatch(r"_\d+_", nm)}
+    if not widths and not scalars:                       # symbol-less -> bare positional module
+        core_v.unlink()
+        subprocess.run(["yosys", "-q", "-p",
+                        f"read_aiger -module_name {top_module} {aig_path}; write_verilog {out_v}"],
+                       capture_output=True, text=True)
+        return False
+    ports, conns = [], []                                # named symbols -> wide-port wrapper
+    for (d, nm), hi in sorted(widths.items()):
+        ports.append(f"{d} [{hi}:0] {nm}")
+        conns += [f".\\{nm}[{k}] ({nm}[{k}])" for k in range(hi + 1)]
+    for (d, nm) in sorted(scalars):
+        ports.append(f"{d} {nm}")
+        conns.append(f".{nm} ({nm})")
+    wrapper = (f"module {top_module}(" + ", ".join(ports) + ");\n  aig_core u (\n    "
+               + ",\n    ".join(conns) + "\n  );\nendmodule\n")
+    out_v.write_text(text + "\n" + wrapper)
+    core_v.unlink()
+    # flatten wrapper+core into ONE module so every cost metric (incl. non-flattening ones
+    # like `transistors`) sees a single flat design with the named wide ports.
+    subprocess.run(["yosys", "-q", "-p",
+                    f"read_verilog {out_v}; hierarchy -top {top_module}; flatten; "
+                    f"write_verilog {out_v}"], capture_output=True, text=True)
+    return True
+
+
+def _prepare_aig_input(args, design_path: Path, workdir: Path) -> tuple:
+    """Reconstruct an AIG (.aig/.aag) into ``design.v`` in *workdir* and configure *args*
+    for the verilog pipeline. The caller invokes this only for AIG inputs.
+
+    Top module name: ``--top-module``, else ``--benchmark``'s module_name, else the AIG's
+    file stem (sanitized to a valid identifier). The stem default is fine for a cost-only
+    run, where the name is just a label — but for sim/CEC it must match the testbench DUT.
+
+    Returns ``(design_filename, force_cost_only)``: the filename becomes ``"design.v"``
+    and ``force_cost_only`` is True for a symbol-less AIG (its I/O mapping can't be
+    recovered, so the RTL sim must be skipped).
+    """
+    aig_top = args.top_module
+    if aig_top is None and args.benchmark:
+        from core.benchmarks import load_benchmark
+        aig_top = load_benchmark(Path(args.benchmark).resolve()).module_name
+    if not aig_top:                          # fall back to the AIG file stem
+        aig_top = re.sub(r"\W", "_", design_path.stem) or "top"
+        print(f"(no --top-module/--benchmark; using AIG file stem as top module: {aig_top})")
+
+    symboled = _aig_to_verilog(design_path, workdir / "design.v", aig_top)
+    args.language = "verilog"
+    args.top_module = aig_top
+    return "design.v", not symboled   # symbol-less -> force cost-only (no recoverable I/O)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Run evaluation on a design file (for debugging)",
@@ -56,6 +133,9 @@ def main():
                         help="Target delay in ps for PPA metrics (default: 500)")
     parser.add_argument("--technology", default="asap7",
                         help="Process technology for PPA metrics: asap7, nangate45, freepdk45 (default: asap7)")
+    parser.add_argument("--energy-exp", type=float, default=1.0,
+                        help="For --cost-metric edap: exponent k in edap = energy**k * runtime * area. "
+                             "k=1 balanced EDAP, k>1 weights data-movement/reuse harder, k=0 == adp (default: 1.0)")
     parser.add_argument("--top-module", default=None,
                         help="Design top module name (default: auto-detect from description)")
     parser.add_argument("--workdir", default=None,
@@ -66,6 +146,17 @@ def main():
                         help="Skip the combinational equivalence check (yosys-abc cec). "
                              "CEC runs by default when --benchmark has a golden_reference "
                              "in metadata.json, and gates pass/fail on it")
+    parser.add_argument("--skip-netlist-sim", action="store_true",
+                        help="For PPA metrics (area/delay/power/runtime/adp/area_delay_product), "
+                             "skip re-simulating the synthesized gate-level netlist against tb.sv. "
+                             "This is the slow step for large designs; skipping it makes synthesis+STA "
+                             "run in seconds. Only safe when RTL correctness already covers the design.")
+    parser.add_argument("--skip-rtl-sim", action="store_true",
+                        help="Skip the RTL correctness simulation only. Cost still runs, and CEC "
+                             "still runs against a golden reference (orthogonal to the sim). Works "
+                             "for any language (verilog/spirehdl/amaranth/AIG); the spire/amaranth "
+                             "compile still runs. Implied for symbol-less AIG inputs (no recoverable "
+                             "I/O, so those can't run CEC either).")
     parser.add_argument("--json", action="store_true", help="Output result as JSON")
     parser.add_argument("--save-to", default=None, type=Path,
                         help="Save result.json + workspace/ to this directory "
@@ -79,6 +170,14 @@ def main():
 
     workdir = Path(args.workdir).resolve() if args.workdir else design_path.parent
     design_filename = design_path.name
+    # AIG input (.aig/.aag): reconstruct to design.v; force_cost_only=True for symbol-less AIGs.
+    force_cost_only = False
+    if design_filename.endswith((".aig", ".aag")):
+        design_filename, force_cost_only = _prepare_aig_input(args, design_path, workdir)
+    # Skip the RTL correctness sim (+CEC) on request, or for un-simulatable symbol-less AIGs.
+    skip_sim = args.skip_rtl_sim or force_cost_only
+    if skip_sim:
+        args.skip_netlist_sim = True   # no tb re-sim either; the cost metric runs alone
 
     # Auto-detect language from extension
     if args.language is None:
@@ -100,13 +199,15 @@ def main():
             if src.exists():
                 shutil.copy2(src, workdir / name)
 
-    # Check workspace has tb.sv
-    if not (workdir / "tb.sv").exists():
+    # Check workspace has tb.sv (not required when the RTL sim is skipped)
+    if not skip_sim and not (workdir / "tb.sv").exists():
         print(f"No tb.sv found in {workdir}")
         sys.exit(1)
 
     cost_metric = make_cost_metric(args.cost_metric, target_delay=args.target_delay,
-                                   technology=args.technology)
+                                   technology=args.technology,
+                                   run_netlist_sim=not args.skip_netlist_sim,
+                                   energy_exp=args.energy_exp)
 
     # Auto-detect top module if not specified
     top_module = args.top_module
@@ -142,10 +243,12 @@ def main():
         print(f"Top:      {top_module}")
     print()
 
-    # Resolve golden reference for the equivalence check (on by default).
-    # CEC needs a benchmark with a golden_reference; otherwise it is skipped.
+    # Resolve golden reference for the equivalence check (on by default). CEC needs a
+    # benchmark with a golden_reference. --skip-rtl-sim still allows CEC (formal check
+    # without sim), but a symbol-less AIG (force_cost_only) can't: its I/O mapping is
+    # unrecoverable, so CEC vs the golden would be meaningless — skip it there.
     cec_reference = None
-    if not args.skip_cec and args.benchmark:
+    if not args.skip_cec and not force_cost_only and args.benchmark:
         from core.benchmarks import load_benchmark
         from core.equivalence import resolve_golden_reference
         bench = load_benchmark(Path(args.benchmark).resolve())
@@ -161,6 +264,7 @@ def main():
         design_file=design_filename,
         run_cec=cec_reference is not None,
         cec_reference=cec_reference,
+        run_rtl_sim=not skip_sim,
     )
     duration = time.monotonic() - t0
 
@@ -170,7 +274,7 @@ def main():
         ws_dir.mkdir(parents=True, exist_ok=True)
         # Copy design file
         shutil.copy2(design_path, ws_dir / design_filename)
-        # Copy local .py dependencies if SpireHDL
+        # Copy local .py dependencies if Spire
         if design_path.suffix == ".py":
             try:
                 from extract_pareto import _find_local_deps

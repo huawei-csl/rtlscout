@@ -23,9 +23,11 @@ os.chdir(tmpdir)
 spec = importlib.util.spec_from_file_location("cpu_design", START)
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
-m = mod.m
+# starting_point.py exposes its lowered Netlist as `_net` (it needs the
+# handle for the rst_i -> rst port rename); reuse it so the rename applies.
+m = mod._net
 
-from spirehdl.spirehdl_simulator import Simulator
+from spire import Simulator
 sim = Simulator(m)
 
 VECTORS = REPO / "benchmarks/dr_rtl_spirehdl/cpu_pipe/vectors.dat"

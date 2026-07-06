@@ -46,7 +46,7 @@ from pathlib import Path
 def _uses_flowy(design_path: Path) -> bool:
     """Check if a design uses @flowy_optimized (decorator in source or cache on disk)."""
     workspace = design_path.parent
-    if (workspace / ".spirehdl_cache").is_dir():
+    if (workspace / ".spire_cache").is_dir():
         return True
     if design_path.suffix == ".py":
         try:
@@ -278,10 +278,10 @@ def extract(run_dirs: list[Path] | Path, output_dir: Path, separate_dirs: bool =
                     dep_name = dep.name
                     if not (dest_dir / dep_name).exists():
                         shutil.copy2(dep, dest_dir / dep_name)
-            # Copy .spirehdl_cache if present
-            cache_dir = workspace / ".spirehdl_cache"
+            # Copy .spire_cache if present
+            cache_dir = workspace / ".spire_cache"
             if cache_dir.is_dir():
-                shutil.copytree(cache_dir, dest_dir / ".spirehdl_cache", dirs_exist_ok=True)
+                shutil.copytree(cache_dir, dest_dir / ".spire_cache", dirs_exist_ok=True)
             entry["extracted_file"] = f"design_{idx:03d}/{out_name}"
         else:
             shutil.copy2(src, output_dir / out_name)
@@ -319,10 +319,10 @@ def main():
                         help="Output directory (default: <first_run_dir>/pareto_front)")
     parser.add_argument("--separate-dirs", action="store_true",
                         help="Put each design in its own subdirectory and copy "
-                             ".spirehdl_cache alongside it")
+                             ".spire_cache alongside it")
     parser.add_argument("--no-flowy", action="store_true",
                         help="Exclude designs that use @flowy_optimized "
-                             "(detected by decorator in source or .spirehdl_cache)")
+                             "(detected by decorator in source or .spire_cache)")
     parser.add_argument("--benchmark", default=None,
                         help="Only include evals from this benchmark (e.g. fpmul_f16)")
     parser.add_argument("--dims", default="area,delay",

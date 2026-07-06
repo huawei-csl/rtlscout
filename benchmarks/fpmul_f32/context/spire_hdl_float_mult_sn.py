@@ -16,10 +16,9 @@
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-from spirehdl.spirehdl_module import Component, Module
-from spirehdl.spirehdl import *
-from spirehdl.spirehdl_simulator import Simulator
-from spirehdl.arithmetic.int_arithmetic_config import (
+from spire import Component, Simulator
+from spire.expr import *
+from spire.arithmetic.int_arithmetic_config import (
     AdderConfig,
     MultiplierConfig,
     build_adder,

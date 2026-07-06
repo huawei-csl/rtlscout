@@ -24,7 +24,7 @@ Scope
   design from ``best_design/<design_file>``, where ``design_file`` is named by
   ``best_design/_best_meta.json`` (the run workspace is *not* used -- agents
   scribble on the files there).
-* **SpireHDL** -- skipped. SpireHDL compiles to a single flat Verilog module
+* **Spire** -- skipped. Spire compiles to a single flat Verilog module
   (verified: every emitted ``design.v`` has exactly one ``module``), so the
   hierarchy bug cannot affect it and its transistor counts are already correct.
 
@@ -190,7 +190,7 @@ def main():
     summary, changes, mismatches = recount(args.summary_json)
 
     print(f"\nRe-measured Verilog transistor counts "
-          f"({len(changes)} value(s) changed; SpireHDL is flat -> already correct):",
+          f"({len(changes)} value(s) changed; Spire is flat -> already correct):",
           file=sys.stderr)
     for c in changes:
         print(f"  {c}", file=sys.stderr)

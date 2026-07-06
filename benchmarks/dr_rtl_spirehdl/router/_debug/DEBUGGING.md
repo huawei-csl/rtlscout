@@ -1,4 +1,4 @@
-# Debugging the `router` SpireHDL port
+# Debugging the `router` Spire port
 
 ## Result: PASS 2000/2000 after 3 bugs found
 
@@ -18,8 +18,8 @@ optimum on the spirehdl-emitted netlist than on the hand-written verilog.
 
 ## Debug methodology
 
-Used the **spirehdl built-in Simulator**
-(`deps/spire-hdl/src/spirehdl/spirehdl_simulator.py`) to step the module
+Used the **Spire built-in Simulator**
+(`deps/spire-hdl/src/spire/simulator.py`) to step the module
 cycle-by-cycle with vectors.dat inputs, peeking internal-state registers
 by name. In parallel, a separate verilog probe (`verilog_trace.sv`)
 drove the same vectors.dat against the golden verilog and `$display`'d

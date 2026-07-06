@@ -138,7 +138,7 @@ python run_multirun.py [options]
 | `--language` | verilog | `verilog`, `spirehdl`, or `amaranth` |
 | `--runs-root` | auto | Output directory (default: `runs/multirun_<timestamp>`) |
 | `--seed-from` | none | Path to a previous `multirun_summary.json` or its directory to seed the elite pool |
-| `--flowy-optimize` | off | Enable `@flowy_optimized` decorator guidance in system prompt (SpireHDL only). Requires Flowy/Mockturtle/ABC installed — see `docs/flowy_setup.md` |
+| `--flowy-optimize` | off | Enable `@flowy_optimized` decorator guidance in system prompt (Spire only). Requires Flowy/Mockturtle/ABC installed — see `docs/flowy_setup.md` |
 
 ## Resuming from a previous run
 
@@ -185,9 +185,9 @@ How it works:
 
 > **Note:** The previous run's workdirs must still exist on disk — the pool entries reference design files by path.
 
-## SpireHDL optimize cache propagation
+## Spire optimize cache propagation
 
- `@abc_optimized` populates a content-addressed disk cache at `<workspace>/.spirehdl_cache/` (SHA of AIG + decorator kwargs). Cache reuse across the various execution seams is:
+ `@abc_optimized` populates a content-addressed disk cache at `<workspace>/.spire_cache/` (SHA of AIG + decorator kwargs). Cache reuse across the various execution seams is:
 
 | Seam | Cached? |
 |:---|:---:|
@@ -196,13 +196,13 @@ How it works:
 | Phase 1 → phase 2 (`rtl_rewriter_multirun.py`'s chained phases) | ✓ |
 | Multirun → multirun via `--seed-from <multirun_summary.json>` | ✓ |
 | Fresh agent (empty elite pool, or `p_fresh` coin flip) | ✗ |
-| Multirun → multirun via `--seed-from <pareto_front.json>` (extract format) | ✗ |
+| Multirun → multirun via `--seed-from <pareto_front.json>` (extract format) | ✓ only for `--separate-dirs` extracts |
 
-The propagation lives in `core.multirun.build_seed_context`, which whitelists `.spirehdl_cache/` when copying a seeding predecessor's `best_design/` into the seeded agent's context.
+The propagation lives in `core.multirun.build_seed_context`, which whitelists `.spire_cache/` when copying a seeding predecessor's `best_design/` into the seeded agent's context.
 
 **Fresh agents don't inherit any cache** — by design. `core.multirun._make_task` (the fresh/seeded dispatch) skips `build_seed_context` entirely when the pool is empty or the `p_fresh` coin flip fires, so a fresh agent always starts from the benchmark's raw `context/` folder with a cold cache. This is intentional: fresh agents are the exploration arm and should not be biased by prior exploitation work.
 
-**Extract-format seeds don't carry a cache.** `_prepare_extract_seed_dir` (`core/multirun.py:207`) only copies the single extracted `.v`/`.py` file referenced by a `pareto_front.json` / `best_designs.json` entry — it never looks at a sibling `.spirehdl_cache/`. Matters only if you ever run `run_multirun.py --seed-from <pareto_front.json>` (the extract-format seed path). Workaround: convert to `multirun_summary.json` format, or pre-warm by setting `SPIREHDL_CACHE_DIR` via env to a shared location before the run.
+**Extract-format seeds carry a cache only for `--separate-dirs` extracts.** When the entry's `extracted_file` lives in its own subdirectory (`extract_pareto.py --separate-dirs`, which copies `.spire_cache/` alongside each design), `_prepare_extract_seed_dir` (`core/multirun.py:211`) carries the sibling files and dirs — including `.spire_cache/` and local `.py` deps — into the seed dir. Flat extracts only have the single `.v`/`.py` file, so nothing else can be carried. If you seed from a flat extract, either re-extract with `--separate-dirs` or convert to `multirun_summary.json` format.
 
 ## Output structure
 

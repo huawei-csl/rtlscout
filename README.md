@@ -14,7 +14,7 @@
 
 # RTL Scout
 
-An RTL design agent powered by selectable LLM backends (DeepInfra, Anthropic, OpenRouter) with tool use. The agent iteratively creates and optimizes Verilog/SystemVerilog, [Spire HDL](https://github.com/huawei-csl/spire-hdl) or Amaranth designs, targeting **correctness first, then minimal cost** under a configurable cost metric.
+An RTL design agent powered by selectable LLM backends (DeepInfra, Anthropic, OpenRouter) with tool use. The agent iteratively creates and optimizes Verilog/SystemVerilog, [Spire HDL](https://github.com/huawei-csl/spire-hdl) or Amaranth designs, targeting **correctness first, then minimal cost** under a configurable cost metric. The agent can run as the built-in in-process loop or as an external OpenCode agent in a sandboxed, per-run container — see [Agent Flow](#agent-flow).
 
 ## What RTL Scout does
 
@@ -128,9 +128,86 @@ Browse `benchmarks/` for the full set; to add your own, see **[README_add_benchm
 | Run one agent | `run_benchmark.py` | Debugging or trying one benchmark/model |
 | Run many agents with an elite pool | `run_multirun.py` | Optimizing one objective more seriously |
 | Build an area-delay Pareto front | `run_pipeline.py` | Best results, but token-heavy and slow |
+| Reproduce RTLRewriter paper tables | [Bundled RTLRewriter results](#bundled-rtlrewriter-results) | The 14 general (non-FP) cases; cell & transistor count tables |
 | Reproduce FP paper experiments | [`README_fpmul.md`](README_fpmul.md) | Specialized `fpmul_f16` / `fpadd_f16` pipeline |
 
 Each is detailed in [Running benchmarks](#running-benchmarks) below.
+
+## Agent Flow
+
+RTLScout runs one optimization agent per run, selected by **`--agent-backend react|opencode`**
+(the two subsections below). Both iterate on the design and report an *advisory* score as they go.
+
+Optionally, the harness then re-evaluates the designs, so a tampered or noisy number can't reach the
+elite pool. This runs automatically for **OpenCode** (its shell makes its own score untrustworthy)
+and is off by default for **react** (no shell, so its number is already trustworthy).
+
+### Python ReAct Backend (`--agent-backend react`, default)
+
+A **pure-Python loop**: a capability-confined agent calls tools from a limited set on its `workspace/`
+subdir, with **no shell/CLI tool** available. It is bounded by `--max-steps` (there is no wall-clock
+limit). Because it can't reach the scorer, its in-process number is already trustworthy and feeds the
+pool directly.
+
+```mermaid
+flowchart TD
+  SP["System prompt<br/>spec + cost metric + tool docs"] --> LLM["LLM: response + tool calls"]
+  LLM --> FT["File tools<br/>create_file / replace_file /<br/>apply_diff / read_file / ls"]
+  LLM --> C
+  LLM --> DONE["done<br/>(final eval)"]
+  subgraph RE ["run_evaluation"]
+    C["compile .py &rarr; Verilog<br/>(Spire / Amaranth)"] --> V["Verilator<br/>lint + sim"] --> Y["Yosys<br/>cost"]
+  end
+  FT --> TR["Tool result<br/>fed back to LLM"]
+  Y --> TR
+  Y -->|"100% correct & lower cost"| TB["Track best<br/>best_design/"]
+  DONE --> RES["Result<br/>best_cost, best_eval"]
+  TR --> NS["Next step"]
+  NS -->|"until done or max_steps"| LLM
+```
+
+**Strategy:** build a simple correct design first, evaluate it, then iteratively optimize the cost
+metric, reverting on any correctness regression, until `done` or `max_steps`.
+
+### OpenCode Backend (`--agent-backend opencode`)
+
+The external [OpenCode](https://opencode.ai) agent runs with a
+**real shell**, once per run in its own sandbox. Because a shell can tamper its own copy of the
+scorer/inputs, its advisory number is **never trusted** — the harness always re-derives the
+recorded score (the `reeval` step below) against the benchmark's own inputs.
+
+**Sandboxing — `--mode`** (OpenCode only — the react agent has no shell and always runs
+in-process, so `--mode orchestrated` with `--agent-backend react` is rejected):
+
+- `single-container` (default) — agent + judge run in the current container. Convenience / dev;
+  lower assurance.
+- `orchestrated` — a fresh `docker run --rm` container per agent run **and** per scored
+  candidate → full isolation and the adversarial-agent integrity guarantee. Containers are
+  managed purely by **label** (never by image), so a co-running devcontainer on
+  `rtlscout:latest` is never touched.
+
+```mermaid
+flowchart TD
+  PROV["provision workspace<br/>tb + data + context + reference"] --> REN["render AGENTS.md + opencode.json<br/>+ evaluate_design / remaining_time wrappers"]
+  REN --> RUN["opencode run<br/>(one fresh session, real shell)"]
+  RUN -->|"./evaluate_design"| ADV["advisory eval<br/>agent_evals.jsonl + eval_i/ + best_design/"]
+  ADV --> RUN
+  RUN -->|"stops early + time left"| NUDGE["nudge:<br/>keep going"]
+  NUDGE --> RUN
+  RUN -->|"wall-clock up"| SUM["summary turn<br/>(same session &rarr; summary.txt)"]
+  SUM --> RV["reeval_run<br/>re-score every eval_i/ vs the benchmark's own inputs"]
+  RV --> POOL["authoritative result.json + best_design/<br/>&rarr; elite pool + Pareto"]
+```
+
+Budget: `--wall-clock-min` sets the hard per-run time budget — the agent is terminated when it's
+up, and nudged to keep going if it stops early. Build the agent image once with
+`docker build -f .devcontainer/Dockerfile.opencode -t rtlscout-opencode:latest .`; clean up
+orchestrated containers with `python rtlscout_cli.py cleanup`.
+
+See **[README_orchestration.md](README_orchestration.md)** for the full sandboxing + integrity
+model: assurance by mode, the advisory/authoritative split, OpenCode permissions/launch quirks,
+and label-based cleanup.
+
 
 ## Running benchmarks
 
@@ -200,63 +277,6 @@ python run_pipeline.py \
 
 See the [Usage](#usage) section for more command examples.
 
-## Agent flow
-
-```
-                        ┌──────────────────────┐
-                        │   System prompt      │
-                        │  (spec + cost metric │
-                        │   + tool docs)       │
-                        └─────────┬────────────┘
-                                  │
-                                  v
-                   ┌──────────────────────────────┐
-                   │         LLM generates        │
-                   │    response + tool calls     │
-                   └──────────────┬───────────────┘
-                                  │
-              ┌───────────────────┼───────────────────┐
-              v                   v                   v
-     ┌────────────────┐  ┌───────────────┐  ┌────────────────┐
-     │  File tools    │  │ run_evaluation│  │     done       │
-     │  create_file   │  │               │  │  (final eval)  │
-     │  replace_file  │  │  ┌─────────┐  │  └───────┬────────┘
-     │  apply_diff    │  │  │Spire    │  │          │
-     │  read_file     │  │  │compile  │  │          │
-     │  ls            │  │  │(if flag)│  │          v
-     └────────┬───────┘  │  └────┬────┘  │    ┌───────────┐
-              │          │       v       │    │  Result   │
-              │          │  ┌─────────┐  │    │ best_cost │
-              │          │  │Verilator│  │    │ best_eval │
-              │          │  │lint+sim │  │    └───────────┘
-              │          │  └────┬────┘  │
-              │          │       v       │
-              │          │  ┌─────────┐  │
-              │          │  │  Yosys  │  │
-              │          │  │  cost   │  │
-              │          │  └────┬────┘  │
-              │          │       v       │
-              │          │  Summary:     │
-              │          │  pass/fail +  │
-              │          │  cost value   │
-              │          └───────┬───────┘
-              │                  │
-              └─────────┬────────┘
-                        │
-                        v
-               ┌────────────────┐    100% correct     ┌──────────────┐
-               │ Tool result    │───& lower cost? ───>│ Track best   │
-               │ fed back to LLM│                     │ best_design/ │
-               └────────┬───────┘                     └──────────────┘
-                        │
-                        v
-                 ┌────────────────┐
-                 │ Next step      │──── until done or max_steps
-                 └────────────────┘
-```
-
-**Strategy**: the LLM is instructed to (1) build a simple correct design first, (2) run evaluation, (3) once 100% correct, iteratively optimize to reduce the cost metric, reverting if correctness breaks.
-
 ## Architecture
 
 ```
@@ -280,7 +300,7 @@ run_eval.py          # CLI: re-evaluate a design file
 plot_results.py      # CLI: plotting at any level
 ```
 
-### Agent tools
+### ReAct backend tools
 
 | Tool | Description |
 |------|-------------|
@@ -589,6 +609,9 @@ Then register it in `COST_METRICS` and `make_cost_metric()`, or pass it directly
 
 ## Paper Experiments
 
+> **Note:** The experiments reported in the paper were performed with earlier versions of this repository, e.g.
+> commit [`d0f9b1a`](https://github.com/huawei-csl/rtlscout/commit/d0f9b1ad2f290c458e5853132b0fa35ce0854693).
+
 ### The optimization pipeline
 
 The paper builds each design with a multi-phase optimization pipeline (up to four phases):
@@ -607,6 +630,26 @@ This repo **focuses on** the general, less-specialized workflow (**Phases 1–2*
 ### Bundled RTLRewriter results
 
 The best designs RTLScout found on the 14 [RTLRewriter](https://github.com/yaoxufeng/RTLRewriter-Bench) benchmark cases are bundled under [`artifacts/rtlrewriter_benchmark_results/`](artifacts/rtlrewriter_benchmark_results/), in both source languages (Verilog / Spire) and for both optimization objectives (Yosys cell count / transistor count). Each of the 56 designs ships with its reference spec, testbench, `INFO.json`, and a **formal equivalence-check (CEC) proof** against the benchmark baseline. The bundle is self-verifying: `python verify.py` re-runs every check (needs only `yosys` + `verilator`), and any design re-evaluates in place via `run_eval.py`. See the folder's `README.md` and `README_cec_results.md` for the per-case verdict tables.
+
+**Reproducing the paper tables.** The two LaTeX result tables shipped with the bundle come from these multi-run campaigns. Each runs all 14 cases in both languages (Verilog + Spire) via the Phase 1–2 pipeline:
+
+```bash
+# Cell-count table; all 14 cases, both languages by default
+python experiments/rtl_rewriter_multirun.py \
+    --phases 2 --total-runs 1 \
+    --max-steps 30 --elite-size 5 \
+    --workers 4 --max-concurrent 2 \
+    --model claude:claude-opus-4-6 \
+    --cost-metric yosys_cells
+
+# Transistor-count table; all 14 cases, both languages by default
+python experiments/rtl_rewriter_multirun.py \
+    --phases 2 --total-runs 1 \
+    --max-steps 60 --elite-size 5 \
+    --workers 8 --max-concurrent 2 \
+    --model claude:claude-opus-4-6 \
+    --cost-metric yosys_transistors
+```
 
 ### Floating-point pipeline
 

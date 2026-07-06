@@ -1,9 +1,9 @@
 # `rtl_rewriter_spirehdl` benchmarks
 
-SpireHDL mirror of [`benchmarks/rtl_rewriter/`](../rtl_rewriter/README.md).
+Spire mirror of [`benchmarks/rtl_rewriter/`](../rtl_rewriter/README.md).
 All fourteen RTLRewriter (ICCAD 2024, arXiv:2409.11414) short-bench cases, same
 top-module names, same port lists — except the starting point is a
-hand-written SpireHDL script (`context/starting_point.py`) that emits
+hand-written Spire script (`context/starting_point.py`) that emits
 `design.v`. The cost metric is `yosys_wires` / `yosys_cells`; correctness
 is guarded by `tb.sv` + `vectors.dat` bit-identical to the verilog
 sibling.
@@ -11,12 +11,12 @@ sibling.
 See [`../rtl_rewriter/README.md`](../rtl_rewriter/README.md) for the full
 story (confidence rubric, paper-target numbers, regeneration tooling,
 `source` cross-references). This README covers only what's specific to
-the SpireHDL variant.
+the Spire variant.
 
 ## Measured starting-point cells / wires
 
 Pulled straight out of [`eval_yosys_stat.json`](eval_yosys_stat.json)
-(cost metric on the SpireHDL-emitted `design.v`) and
+(cost metric on the Spire-emitted `design.v`) and
 [`eval_verify.json`](eval_verify.json) (same measurement + correctness
 gate via Verilator + the shipped `tb.sv`). The two files are regenerated
 by `/tmp/rtl_rewriter_compare.py` and
@@ -41,7 +41,7 @@ add noise.
 | case13  | `mux_tree`               |     3 |     1 |  PASS |
 | case14  | `mux_tree`               |     8 |     3 |  PASS |
 
-`tb.sv` column is `PASS` when the SpireHDL-emitted design passes the
+`tb.sv` column is `PASS` when the Spire-emitted design passes the
 mirrored testbench at 100% — 14/14 today.
 
 The yosys script used by `core.cost.YosysWiresCost` / `YosysCellsCost`
@@ -53,9 +53,9 @@ and dangling nets. Cell counts are unchanged way.
 The per-case delta between this variant and `benchmarks/rtl_rewriter/`
 lives in [`benchmarks/rtl_rewriter_compare.json`](../rtl_rewriter_compare.json).
 Headline: the nested-mux ALU (case7), the FSM-derived case10/case11/case13,
-and the flat-emitted mux tree (case14) shrink under the SpireHDL mirror,
+and the flat-emitted mux tree (case14) shrink under the Spire mirror,
 while the two large commutativity-sharing designs (case2 +54%, case12
-+32%) regress because SpireHDL's per-expression wire naming prevents
++32%) regress because Spire's per-expression wire naming prevents
 yosys from merging shared subterms across the 6 outputs — see
 `benchmarks/turbo_rtl/README.md` for the underlying "named-wire topology
 bias" mechanism.
@@ -69,13 +69,13 @@ benchmarks/rtl_rewriter_spirehdl/<case_id>/
   tb.sv                             # byte-identical copy of the verilog sibling's tb.sv
   vectors.dat                       # byte-identical copy of the verilog sibling's vectors.dat
   context/
-    starting_point.py               # hand-written SpireHDL, emits design.v
+    starting_point.py               # hand-written Spire, emits design.v
 ```
 
 **Hard invariant:** `tb.sv` and `vectors.dat` are bit-identical between
 `benchmarks/rtl_rewriter/<case>/` and
 `benchmarks/rtl_rewriter_spirehdl/<case>/`. Same top-module name, same
-port list, same expected outputs. If they drift, the SpireHDL starting
+port list, same expected outputs. If they drift, the Spire starting
 point is being compared against a different oracle than the verilog one.
 
 `metadata.json` carries the same `source` block as the verilog sibling
@@ -139,7 +139,7 @@ when total-equivalence is required.
 Known semantic difference: the three FSM/registered cases that retain an
 async-reset port in the golden (case9, case10, and the registered chain
 adder case1) use async posedge-reset
-(`always @(posedge clk or posedge reset)`). SpireHDL's module
+(`always @(posedge clk or posedge reset)`). Spire's module
 constructor exposes an async-reset path only when the reset port is
 named `rst`, so case9 and case10 are translated using the
 `with_reset=False` + `mux(reset, initial, next_state)` idiom (the same
@@ -154,5 +154,5 @@ you care about cycle-0 reset-edge behaviour specifically.
 
 The paper-claim / reproduction audit lives in the verilog sibling's
 [`rewriter_cases.json`](../rtl_rewriter/rewriter_cases.json); the
-SpireHDL mirror inherits the confidence labels and paper targets from
+Spire mirror inherits the confidence labels and paper targets from
 there verbatim (same `metadata.json.reference` block).

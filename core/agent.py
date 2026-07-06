@@ -595,6 +595,7 @@ class RTLAgent:
 
     def run(self, description: str, benchmark_name: str = "unknown") -> AgentResult:
         """Run the agent loop on a given design task."""
+        cost_metric_note = getattr(self.cost_metric, "cost_description", "")
         if self.language == "spirehdl":
             system_prompt = build_spirehdl_system_prompt(
                 description, self.cost_metric.metric_name,
@@ -606,6 +607,7 @@ class RTLAgent:
                 arith_autoconfig=self.arith_autoconfig,
                 dont_touch_main_arith=self.dont_touch_main_arith,
                 fsm_optimize=self.fsm_optimize,
+                cost_metric_note=cost_metric_note,
             )
         elif self.language == "amaranth":
             system_prompt = build_amaranth_system_prompt(
@@ -613,6 +615,7 @@ class RTLAgent:
                 self.system_prompt_extra,
                 target_delay_is_settable=self.target_delay_is_settable,
                 max_steps=self.max_steps,
+                cost_metric_note=cost_metric_note,
             )
         else:
             system_prompt = build_system_prompt(
@@ -620,6 +623,7 @@ class RTLAgent:
                 self.system_prompt_extra,
                 target_delay_is_settable=self.target_delay_is_settable,
                 max_steps=self.max_steps,
+                cost_metric_note=cost_metric_note,
             )
         self.messages = [{"role": "system", "content": system_prompt}]
         self.is_done = False

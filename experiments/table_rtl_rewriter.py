@@ -253,7 +253,7 @@ def render_table(summary: Dict[str, Any]) -> str:
     # Run-directory pointers (once, shared by both tables).
     out.append("## Run directories")
     out.append("")
-    out.append("| Case | Verilog | SpireHDL |")
+    out.append("| Case | Verilog | Spire |")
     out.append("|:---|:---|:---|")
     for case_id in sorted(results, key=_case_sort_key):
         per_lang = results[case_id]

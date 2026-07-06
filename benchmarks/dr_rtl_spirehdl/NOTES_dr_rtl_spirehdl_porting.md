@@ -1,6 +1,6 @@
-# DR_RTL → SpireHDL porting notes
+# DR_RTL → Spire porting notes
 
-Running write-up for `benchmarks/dr_rtl_spirehdl/` — the SpireHDL mirror of
+Running write-up for `benchmarks/dr_rtl_spirehdl/` — the Spire mirror of
 `benchmarks/dr_rtl/`. Scope of this iteration: **5 largest portable designs**
 (`datapath` 1064 LOC, `cpu_pipe` 926, `pcie` 923, `i2c` 915, `router` 594);
 the 3 ARM/Z80 CPUs (`tv80`, `arm_cpu1`, `arm_cpu2`) are explicitly out of
@@ -25,7 +25,7 @@ scope as multi-day full-instruction-decoder ports.
     count exactly.
   - `context/starting_point_fsm_api.py` — idiomatic `State` /
     `switch_` / `case_` / `if_` / `elif_` API (see
-    `deps/spire-hdl/README_state_machines.md`). 95 cells / 99 wires /
+    `deps/spire-hdl/docs/README_state_machines.md`). 95 cells / 99 wires /
     608 transistors. ~3× larger because yosys+abc doesn't fully
     collapse the switch's condition-tracking machinery. Reads closer
     to the verilog's three-`always`-block structure.
@@ -66,13 +66,13 @@ Module breakdown:
   blocks with `if/else` ladders.
 
 **Reset semantics:** all 5 modules use `if(!resetn) ... else ...` inside
-`always @(posedge clk)` — synchronous active-low reset. So in spirehdl:
-`Module(name, with_clock=True, with_reset=False)` + explicit
-`resetn = m.input(UInt(1), "resetn")` + `mux(~resetn, init, next)` per
+`always @(posedge clk)` — synchronous active-low reset. So in Spire:
+emit with `with_clock=True, with_reset=False`, declare an explicit
+`resetn=Input(UInt(1))` IORecord field, and `mux(~resetn, init, next)` per
 register.
 
 **Memory array (`router_fifo`):** the 16×9-bit `fifo` array gets
-addressed via `read_ptr` and `write_ptr`. SpireHDL translation:
+addressed via `read_ptr` and `write_ptr`. Spire translation:
 ```python
 fifo = [Register(UInt(9), init=0, name=f"fifo_{i}") for i in range(16)]
 # Read: mux on read_ptr to select among the 16 registers
@@ -105,8 +105,8 @@ asynchronous active-low (or high, depends on ARST_LVL parameter)
 `always @(posedge wb_clk_i or negedge arst_i)` for some flops and
 `always @(posedge wb_clk_i)` with `if (wb_rst_i)` for others.
 
-**Spirehdl approach:** `Module(with_clock=True, with_reset=False)`,
-declare both `wb_rst_i` and `arst_i` as inputs, and per-register
+**Spire approach:** emit with `with_clock=True, with_reset=False`,
+declare both `wb_rst_i` and `arst_i` as IORecord inputs, and per-register
 implement the appropriate `mux(reset_cond, init_val, next_val)` pattern.
 
 **Pitfalls:**
@@ -233,8 +233,8 @@ Pulled from `benchmarks/turbo_rtl/README.md:233-318`. Standard imports
 for every starting_point.py:
 
 ```python
-from spirehdl.spirehdl_module import Module
-from spirehdl.spirehdl import UInt, SInt, Wire, Register, mux, cat
+from spire import Component, IORecord, Input, Output, UInt, SInt, Wire, Register
+from spire.expr import mux, cat
 ```
 
 **`with_reset` decision tree** (per `turbo_rtl/README.md:281-318`):
@@ -245,22 +245,28 @@ from spirehdl.spirehdl import UInt, SInt, Wire, Register, mux, cat
   `Register(typ, init=0, ...)`.
 - **Reset port named anything else** (`resetn`, `rst_n`, `arst_i`,
   `reset_n`, `wb_rst_i`) **or sync reset**: `with_reset=False` +
-  explicit `m.input(UInt(1), "<port_name>")` + `mux(reset_cond,
+  an explicit `<port_name>=Input(UInt(1))` IORecord field + `mux(reset_cond,
   init_val, next_val)` per register.
 
 All 5 dr_rtl designs in this iteration fall into the third category
 (custom reset port names). So the recipe is uniform:
 
 ```python
-m = Module(name="<top>", with_clock=True, with_reset=False)
-rst_port = m.input(UInt(1), "<resetn|rst|rst_n|...>")
-# Per register:
-r = Register(UInt(W), name="<name>")
-r <<= mux(<is_reset_active>, <init>, <next_val>)
+class Top(Component):
+    def __init__(self):
+        self.io = IORecord(resetn=Input(UInt(1)), ...)
+        self.elaborate()
+
+    def elaborate(self):
+        # Per register:
+        r = Register(UInt(W), name="<name>")
+        r <<= mux(<is_reset_active>, <init>, <next_val>)
+
+Top().to_verilog_file("design.v", name="<top>", with_clock=True, with_reset=False)
 ```
 
 **Width discipline** (`turbo_rtl/README.md:243-253`): set each wire to
-its verilog-declared width. SpireHDL arithmetic grows widths by
+its verilog-declared width. Spire arithmetic grows widths by
 default (`UInt(n)+UInt(n) → UInt(n+1)`, `*` produces `n+m` bits);
 truncation only happens at the final `output <<=`. Use explicit
 `Wire(UInt(W), name="X"); X <<= expr` at every stage to force the
@@ -269,9 +275,9 @@ cut-point — this saves ~20% ADP on average (`turbo_rtl/README.md:249`'s
 
 **Multi-module designs:** all 5 designs here are multi-module
 (3–7 modules each). Strategy: **inline submodules as Python helper
-functions** that take a Module handle. Loses the verilog submodule
-names but produces a single flat netlist. Alternative is multiple
-Module(...) calls + m.instance(...), but that's more boilerplate and
+functions**. Loses the verilog submodule names but produces a single
+flat netlist. Alternative is separate `Component` subclasses wired via
+their `.io` (embedded automatically), but that's more boilerplate and
 the inlined approach matches how
 `benchmarks/rtl_rewriter_spirehdl/case*` already does it.
 

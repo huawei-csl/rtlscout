@@ -137,6 +137,68 @@ def build_client(
         raise ValueError(f"Unknown provider: {provider}. Use 'deepinfra', 'openrouter', 'anthropic', or 'fake'.")
 
 
+def provision_workspace(
+    benchmark: Benchmark,
+    workdir: Path,
+    language: str = "verilog",
+    run_cec: bool = True,
+) -> tuple:
+    """Provision a fresh agent workspace from the benchmark's own inputs.
+
+    Creates ``workdir/workspace`` and copies in the benchmark's testbench
+    (``tb.sv``), **all** of its ``*.dat`` data files, and the optional context-dir
+    contents (skipping ``_``-prefixed auxiliary paths, ``obj_dir/`` build artifacts,
+    and a generated ``design.v`` for non-verilog languages). Separately resolves the
+    golden reference (compiling a ``.py`` reference if needed) into ``workdir/_golden``
+    when ``run_cec`` is set and the benchmark ships one.
+
+    Returns ``(workspace, cec_reference)``. This is the single provisioning routine
+    shared by every agent backend AND by the authoritative re-eval (``core.reeval``):
+    the integrity model depends on the judge laying down the benchmark's *own* inputs
+    exactly the way the agent's workspace was first built.
+    """
+    workspace = workdir / "workspace"
+    workspace.mkdir(parents=True, exist_ok=True)
+
+    # Copy testbench into the workspace.
+    shutil.copy2(benchmark.testbench, workspace / "tb.sv")
+
+    # Copy *all* data files (.dat) used by data-driven testbenches — note: all of
+    # them, not just vectors.dat (run_eval.py's two-name overlay misses the rest;
+    # see handover §4.6).
+    for dat_file in benchmark.root.glob("*.dat"):
+        shutil.copy2(dat_file, workspace / dat_file.name)
+
+    # Copy optional context folder contents into the workspace. Skip any path whose
+    # name starts with `_` (convention for aux dirs like `_debug/`), `obj_dir/`
+    # (Verilator build artifact), and a generated `design.v` for python-based
+    # benchmarks (spirehdl/amaranth) where only the `.py` is the real source — only
+    # verilog benchmarks legitimately ship a `design.v`.
+    if benchmark.context_dir is not None:
+        for item in benchmark.context_dir.iterdir():
+            if item.name.startswith("_"):
+                continue
+            if item.name == "obj_dir":
+                continue
+            if item.name == "design.v" and language != "verilog":
+                continue
+            dest = workspace / item.name
+            if item.is_dir():
+                shutil.copytree(item, dest)
+            else:
+                shutil.copy2(item, dest)
+
+    # Resolve the golden reference once (compiles a .py reference if needed). CEC is
+    # on by default but only runs when the benchmark ships a golden reference —
+    # benchmarks without one simply skip the check.
+    cec_reference = None
+    if run_cec and benchmark.golden_reference is not None:
+        from core.equivalence import resolve_golden_reference
+        cec_reference = resolve_golden_reference(benchmark, workdir / "_golden")
+
+    return workspace, cec_reference
+
+
 def run_agent_on_benchmark(
     benchmark: Benchmark,
     model: str,
@@ -154,77 +216,60 @@ def run_agent_on_benchmark(
     dont_touch_main_arith: bool = False,
     fsm_optimize: bool = False,
     run_cec: bool = True,
+    agent_backend: str = "react",
+    wall_clock_s: int = 0,
+    agent_sandbox=None,
 ) -> AgentResult:
-    """Execute the agent on a single benchmark and return the result."""
+    """Execute the agent on a single benchmark and return the result.
+
+    ``agent_backend`` selects the agent implementation (``core.agent_backend``):
+    ``"react"`` (default) is the in-process ReAct loop and is byte-for-byte
+    identical to the pre-seam behaviour; ``"opencode"`` runs the external OpenCode
+    agent. Workspace provisioning is shared via ``provision_workspace`` and the
+    backend dispatch is the only behavioural change on the default path.
+    """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     workdir = runs_dir / benchmark.name / model.replace("/", "_") / timestamp
     workdir.mkdir(parents=True, exist_ok=True)
 
-    # Resolve the golden reference once (compiles a .py reference if needed).
-    # CEC is on by default but only runs when the benchmark ships a golden
-    # reference — benchmarks without one simply skip the check.
-    cec_reference = None
-    if run_cec and benchmark.golden_reference is not None:
-        from core.equivalence import resolve_golden_reference
-        cec_reference = resolve_golden_reference(benchmark, workdir / "_golden")
+    # Provision the workspace (testbench + all data + context) and resolve the
+    # golden reference. Shared by every backend and by the authoritative re-eval.
+    workspace, cec_reference = provision_workspace(
+        benchmark, workdir, language=language, run_cec=run_cec,
+    )
 
-    client = build_client(provider, model, api_key)
-    agent = RTLAgent(
-        client=client,
+    # Dispatch to the selected agent backend (default 'react' == today's loop).
+    from core.agent_backend import BackendRequest, RunLimits, make_backend
+    backend = make_backend(agent_backend)
+    request = BackendRequest(
+        benchmark=benchmark,
         workdir=workdir,
-        max_steps=max_steps,
+        workspace=workspace,
+        model=model,
+        provider=provider,
+        api_key=api_key,
         cost_metric=cost_metric,
-        system_prompt_extra=system_prompt_extra,
         language=language,
+        system_prompt_extra=system_prompt_extra,
+        cec_reference=cec_reference,
+        run_cec=run_cec,
         save_workspaces=save_workspaces,
+        limits=RunLimits(max_steps=max_steps, wall_clock_s=wall_clock_s),
         flowy_optimize=flowy_optimize,
         abc_optimize=abc_optimize,
         arith_autoconfig=arith_autoconfig,
         dont_touch_main_arith=dont_touch_main_arith,
         fsm_optimize=fsm_optimize,
-        run_cec=run_cec and cec_reference is not None,
-        cec_reference=cec_reference,
+        agent_sandbox=agent_sandbox,
     )
 
-    # Copy testbench into the agent's workspace subdirectory
-    shutil.copy2(benchmark.testbench, agent.workspace / "tb.sv")
-
-    # Copy any data files (.dat) used by data-driven testbenches
-    for dat_file in benchmark.root.glob("*.dat"):
-        shutil.copy2(dat_file, agent.workspace / dat_file.name)
-
-    # Copy optional context folder contents into the workspace.
-    # Skip any path whose name starts with `_` (convention for
-    # auxiliary dirs like `_debug/` that live inside a benchmark
-    # but should not leak into the agent's workspace).
-    # Also skip locally-generated build artifacts that may be sitting in the
-    # context dir from a prior run: `obj_dir/` (Verilator build) is never a
-    # legitimate input, and `design.v` is generated output for python-based
-    # benchmarks (spirehdl/amaranth) where only the `.py` is the real source —
-    # only verilog benchmarks legitimately ship a `design.v`.
-    if benchmark.context_dir is not None:
-        for item in benchmark.context_dir.iterdir():
-            if item.name.startswith("_"):
-                continue
-            if item.name == "obj_dir":
-                continue
-            if item.name == "design.v" and language != "verilog":
-                continue
-            dest = agent.workspace / item.name
-            if item.is_dir():
-                shutil.copytree(item, dest)
-            else:
-                shutil.copy2(item, dest)
-
-    agent.design_top_module = benchmark.module_name
-
     print(f"\n{'='*60}")
-    print(f"Benchmark: {benchmark.name} | Model: {model}")
+    print(f"Benchmark: {benchmark.name} | Model: {model} | Backend: {agent_backend}")
     print(f"Workdir: {workdir}")
     print(f"{'='*60}")
 
     start = time.time()
-    result = agent.run(benchmark.description, benchmark.name)
+    result = backend.run(request)
     result.duration_s = round(time.time() - start, 2)
 
     metric_label = result.cost_metric_name.capitalize()

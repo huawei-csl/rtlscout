@@ -9,9 +9,9 @@ of NaN/Inf/zero plus subnormal inputs by treating their implicit leading bit as
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
-from spirehdl.spirehdl_module import Component, Module
-from spirehdl.spirehdl import Expr, Signal, UInt, cat, mux, Const
-from spirehdl.arithmetic.int_arithmetic_config import (
+from spire import Component
+from spire.expr import Expr, Signal, UInt, cat, mux, Const
+from spire.arithmetic.int_arithmetic_config import (
     AdderConfig,
     build_adder,
 )
@@ -305,14 +305,14 @@ class FpAdd(Component):
         y <<= cat(frac_field, exp_field[0 : self.EW], sign_field)
 
 
-def build_fp_add(name: str, EW: int, FW: int, subnormals: bool = True) -> Module:
+def build_fp_add(name: str, EW: int, FW: int, subnormals: bool = True) -> "Netlist":
     comp = FpAdd(EW, FW, subnormals=subnormals)
     return comp.to_module(name, with_clock=False, with_reset=False)
 
 
-def build_f16_add(name: str = "F16Add") -> Module:
+def build_f16_add(name: str = "F16Add") -> "Netlist":
     return build_fp_add(name, EW=5, FW=10)
 
 
-def build_bf16_add(name: str = "BF16Add") -> Module:
+def build_bf16_add(name: str = "BF16Add") -> "Netlist":
     return build_fp_add(name, EW=8, FW=7)

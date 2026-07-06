@@ -7,7 +7,7 @@ outputs, ready to drop into `context/starting_point.py` once the top
 module is written.
 
 To use:
-    from spirehdl.spirehdl import UInt, Const, Wire, mux, cat
+    from spire.expr import UInt, Const, Wire, mux, cat
     # ... helpers below ...
 
     # In the top module:
@@ -18,7 +18,7 @@ NOT YET INTEGRATED into a working `starting_point.py`. The top module
 (`datapath`) still needs translation — see DEBUGGING.md "Pitfalls
 anticipated" sections 1–5 for the recipe.
 """
-from spirehdl.spirehdl import UInt, Const, Wire, mux, cat
+from spire.expr import UInt, Const, Wire, mux, cat
 
 
 # ============================================================================

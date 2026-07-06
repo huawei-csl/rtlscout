@@ -29,7 +29,7 @@ cd /workspaces/rtl_scout
 ## Phase 1: Agentic code optimization (no synthesis backend)
 
 Multiple sequential agent runs with an elite pool: each run starts from the best designs of
-previous runs. The agent rewrites the SpireHDL/RTL source (structural and algorithmic changes)
+previous runs. The agent rewrites the Spire/RTL source (structural and algorithmic changes)
 but keeps multiplication and addition as plain `*` and `+` operators — their replacement is
 deferred to the Phase 3 architecture sweep. Two campaigns are run, one targeting **area** and one
 targeting **delay**, and the resulting Pareto-optimal designs are pooled.

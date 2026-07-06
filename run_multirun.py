@@ -65,20 +65,38 @@ def main():
                              "(from extract_pareto.py), or best_designs.json "
                              "(from extract_best_designs.py)")
     parser.add_argument("--flowy-optimize", action="store_true",
-                        help="Enable @flowy_optimized decorator guidance in system prompt (SpireHDL only)")
+                        help="Enable @flowy_optimized decorator guidance in system prompt (Spire only)")
     parser.add_argument("--abc-optimize", action="store_true",
-                        help="Enable @abc_optimized decorator guidance in system prompt (SpireHDL only)")
+                        help="Enable @abc_optimized decorator guidance in system prompt (Spire only)")
     parser.add_argument("--arith-autoconfig", action="store_true",
-                        help="Enable replace_arithmetic_ops() guidance in system prompt (SpireHDL only)")
+                        help="Enable replace_arithmetic_ops() guidance in system prompt (Spire only)")
     parser.add_argument("--dont-touch-main-arith", action="store_true",
                         help="Tell agent to not modify core multiplier/adder configs (for later-stage arithmetic sweeps)")
     parser.add_argument("--fsm-optimize", action="store_true",
-                        help="Enable FSM / state-encoding optimization guidance (optimized_fsm / optimized_encoding) in the system prompt (SpireHDL only)")
+                        help="Enable FSM / state-encoding optimization guidance (optimized_fsm / optimized_encoding) in the system prompt (Spire only)")
     parser.add_argument("--skip-cec", action="store_true",
                         help="Skip the combinational equivalence check (yosys-abc cec). "
                              "CEC runs by default against the benchmark's golden_reference "
                              "(if any) and gates pass/fail on it")
+    parser.add_argument("--agent-backend", default="react", choices=["react", "opencode"],
+                        help="Agent backend: 'react' (default, in-process loop) or 'opencode' "
+                             "(external shell agent; authoritative re-eval always applied)")
+    parser.add_argument("--mode", default="single-container",
+                        choices=["single-container", "orchestrated"],
+                        help="Deployment mode: 'single-container' (default, run here) or "
+                             "'orchestrated' (fresh --rm container per agent run + per judge)")
+    parser.add_argument("--reeval", action="store_true",
+                        help="Force the authoritative post-run re-score on the react path too "
+                             "(always on for opencode) — for apples-to-apples A/B parity")
+    parser.add_argument("--wall-clock-min", type=float, default=10.0,
+                        help="Hard per-run wall-clock budget in MINUTES for the opencode backend "
+                             "(default 10; 0 = no limit). The react backend ignores this and uses "
+                             "--max-steps instead.")
     args = parser.parse_args()
+
+    if args.mode == "orchestrated" and args.agent_backend != "opencode":
+        parser.error("--mode orchestrated applies to --agent-backend opencode only; the react "
+                     "agent runs in-process. Use --mode single-container, or --agent-backend opencode.")
 
     runs_root = None
     if args.runs_root:
@@ -108,6 +126,10 @@ def main():
         dont_touch_main_arith=args.dont_touch_main_arith,
         fsm_optimize=args.fsm_optimize,
         run_cec=not args.skip_cec,
+        agent_backend=args.agent_backend,
+        deploy_mode=args.mode,
+        reeval=args.reeval,
+        wall_clock_s=int(args.wall_clock_min * 60),
     )
 
 

@@ -187,6 +187,9 @@ def _run_verilator_generic(
         log_f.write(compile_output)
 
     if compile_proc.returncode != 0:
+        print("=== DEBUG COMPILE OUTPUT START ===")
+        print(compile_output[-3000:])
+        print("=== DEBUG COMPILE OUTPUT END ===")
         raise RuntimeError(f"Verilator compile failed; see {log_path}")
 
     binary_path = os.path.join(build_dir, f"V{tb_top_module}")
@@ -319,6 +322,7 @@ def get_ppa(
         f.write(_abc_constr)
 
     os.system(f"yosys {yosys_script_path} > {yosys_out_path}")
+    os.system(f"cp {netlist_path} /tmp/dbg_netlist.v 2>/dev/null; cp {yosys_out_path} /tmp/dbg_yosys.log 2>/dev/null")
 
     if run_verilator:
         verilator_build_dir = os.path.abspath(os.path.join(worker_path, "out"))

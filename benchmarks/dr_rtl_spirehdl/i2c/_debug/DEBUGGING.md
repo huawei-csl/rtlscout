@@ -4,7 +4,7 @@
 
 Full port at [`context/starting_point.py`](../context/starting_point.py).
 3 verilog submodules (`i2c_master_bit_ctrl`, `i2c_master_byte_ctrl`,
-`i2c_master_top`) inlined into one SpireHDL Module. Final: **1999/2000
+`i2c_master_top`) inlined into one Spire Module. Final: **1999/2000
 PASS, 828 cells** (vs verilog 398 cells — spirehdl 2× larger due to mux
 cascades in the FSM transition logic).
 

@@ -13,10 +13,10 @@ _REPO_ROOT = str(Path(__file__).resolve().parents[2])
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from spirehdl.spirehdl_module import Module
-from spirehdl.spirehdl import UInt, Const, Expr, mux, cat
-from spirehdl.spirehdl_aiger import AigerExporter
-from spirehdl.optimize import flowy_optimized
+from spire import Component, IORecord, Input, Output, UInt
+from spire.expr import Const, Expr, mux, cat
+from spire.aiger import AigerExporter
+from spire.optimize import flowy_optimized
 
 # ── FP16 parameters ──────────────────────────────────────────────────────────
 EW = 5
@@ -28,7 +28,7 @@ MAX_FINITE_E = MAX_E - 1    # 30
 PROD_W = 2 + 2 * FW         # 22
 
 
-def aig_gate_count(m: Module) -> int:
+def aig_gate_count(m: "Netlist") -> int:
     """Return the AND-gate count from the AAG header."""
     m.collect_signals()
     header = AigerExporter(m).get_aag()[0].split()
@@ -230,17 +230,29 @@ def build_original():
 fpmul_f16_optimized = flowy_optimized(**_FLOWY_KWARGS)(_fpmul_f16_body)
 
 
+class _FpMulOptimized(Component):
+    def __init__(self, opt_fn):
+        self._opt_fn = opt_fn
+        self.io = IORecord(
+            a=Input(UInt(W)),
+            b=Input(UInt(W)),
+            y=Output(UInt(W)),
+        )
+        self.elaborate()
+
+    def elaborate(self):
+        a = self.io.a
+        b = self.io.b
+        y = self.io.y
+        y <<= self._opt_fn(a, b)
+
+
 def build_optimized(pareto_point=None):
     if pareto_point is not None:
         opt_fn = flowy_optimized(**_FLOWY_KWARGS, pareto_point=pareto_point)(_fpmul_f16_body)
     else:
         opt_fn = fpmul_f16_optimized
-    m = Module("fp_mul_e5f10", with_clock=False, with_reset=False)
-    a = m.input(UInt(W), "a")
-    b = m.input(UInt(W), "b")
-    y = m.output(UInt(W), "y")
-    y <<= opt_fn(a, b)
-    return m
+    return _FpMulOptimized(opt_fn).to_module("fp_mul_e5f10", with_clock=False, with_reset=False)
 
 
 # ── Run ───────────────────────────────────────────────────────────────────────

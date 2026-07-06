@@ -23,7 +23,7 @@ paper_plots*/
 images/
 seeds_*/
 rename/
-.spirehdl_cache/
+.spire_cache/
 obj_dir/
 .pytest_cache/
 
@@ -36,6 +36,21 @@ deps/mockturtle/
 abc.history
 .devcontainer/git_base_url.env
 
+# Local git worktrees (e.g. spire-hdl submodule worktrees) live here; not part of this repo
+.claude/worktrees/
+
 # Keep benchmark metadata/inputs tracked (override broad ignores if you add any)
 !benchmarks/**/*.json
 !benchmarks/**/*.txt
+
+runs_*/
+logs_*/
+plots/
+*.blif
+method_collection/
+obsolete/
+
+# Standalone 'list-sessions' tool: lives here for host access (easy pushing) but
+# is its OWN independent git repo — rtl_scout must not track or recurse into it.
+/list-sessions/
+metadocuments/

@@ -77,13 +77,17 @@ def _pass_rate_color(rate: float) -> str:
 
 
 def plot_benchmark(data: Dict[str, Any], output_dir: Path, source: str = "",
-                   show_accuracy: bool = True) -> List[Path]:
+                   show_accuracy: bool = True, log_y: bool = False,
+                   bar_labels: bool = True) -> List[Path]:
     """Plot results for a single benchmark run (step-level detail).
 
     Args:
         show_accuracy: If True, show pass rate on a secondary y-axis.
             If False, encode pass rate in bar color (green=100%, orange/red=lower)
             and annotate bars that are not 100% correct.
+        log_y: If True, draw the cost axis on a log (semilog) scale — useful when
+            costs span several orders of magnitude (e.g. edap across steps).
+        bar_labels: If True, print each bar's cost value above the bar.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     outputs: List[Path] = []
@@ -110,17 +114,26 @@ def plot_benchmark(data: Dict[str, Any], output_dir: Path, source: str = "",
         colors = [_pass_rate_color(pr) for pr in pass_rates]
 
     bars = ax1.bar(eval_indices, plot_costs, color=colors)
-    for bar, cv in zip(bars, cost_values):
-        if cv is not None:
-            ax1.text(bar.get_x() + bar.get_width() / 2.0, bar.get_height(),
-                     _fmt_cost(cv), ha="center", va="bottom", fontsize=6)
+    if bar_labels:
+        for bar, cv in zip(bars, cost_values):
+            if cv is not None:
+                ax1.text(bar.get_x() + bar.get_width() / 2.0, bar.get_height(),
+                         _fmt_cost(cv), ha="center", va="bottom", fontsize=6)
     ax1.set_xlabel("Evaluation")
     ax1.set_ylabel(f"Estimated {metric_label}")
     ax1.set_title(f"Benchmark: {data.get('benchmark_name', 'unknown')} | Model: {data.get('model', 'unknown')}")
     _add_source(fig, source)
     plot_cost_filt = [cv for cv in cost_values if cv is not None]
     delta_max_min = max(plot_cost_filt) - min(plot_cost_filt) if plot_cost_filt else 1
-    ax1.set_ylim(min(plot_cost_filt) - delta_max_min * 0.1, max(plot_cost_filt) + delta_max_min * 0.2)
+    if log_y:
+        # Log axis: pad multiplicatively and give bars a positive baseline
+        # (bars drawn from 0 are clipped to the axis bottom on a log scale).
+        pos = [cv for cv in plot_cost_filt if cv > 0]
+        if pos:
+            ax1.set_yscale("log")
+            ax1.set_ylim(min(pos) / 1.5, max(pos) * 1.5)
+    else:
+        ax1.set_ylim(min(plot_cost_filt) - delta_max_min * 0.1, max(plot_cost_filt) + delta_max_min * 0.2)
 
     from matplotlib.patches import Patch
 
@@ -140,19 +153,27 @@ def plot_benchmark(data: Dict[str, Any], output_dir: Path, source: str = "",
     else:
         # No secondary axis — encode pass rate in bar color and annotate
         y_bottom = ax1.get_ylim()[0]
+        # Baselines for the near-bottom annotations: multiplicative on a log
+        # axis, additive on a linear one (additive offsets collapse under log).
+        if log_y:
+            base_cross, base_bar, base_text = y_bottom * 1.15, y_bottom * 1.3, y_bottom * 1.6
+        else:
+            base_cross = y_bottom + delta_max_min * 0.01
+            base_bar = y_bottom + delta_max_min * 0.02
+            base_text = y_bottom + delta_max_min * 0.03
         for idx, pr, cv in zip(eval_indices, pass_rates, cost_values):
             if pr < 1.0:
                 pct = f"{pr:.0%}"
                 if cv is not None and cv > 0:
                     # Annotate inside/below the bar
-                    ax1.text(idx, y_bottom + delta_max_min * 0.02, pct,
+                    ax1.text(idx, base_bar, pct,
                              ha="center", va="bottom", fontsize=6,
                              color="#d95f02", fontweight="bold")
                 else:
                     # No bar — place a cross marker at baseline
-                    ax1.plot(idx, y_bottom + delta_max_min * 0.01, "x",
+                    ax1.plot(idx, base_cross, "x",
                              color=_pass_rate_color(pr), markersize=7, markeredgewidth=2)
-                    ax1.text(idx, y_bottom + delta_max_min * 0.03, pct,
+                    ax1.text(idx, base_text, pct,
                              ha="center", va="bottom", fontsize=6,
                              color="#d95f02", fontweight="bold")
 
@@ -427,6 +448,10 @@ def main():
     parser.add_argument("--output-dir", default=None, help="Output directory for plots (default: <input>/plots)")
     parser.add_argument("--no-accuracy", action="store_true",
                         help="Hide the accuracy/pass-rate axis in benchmark plots (pass rate shown via bar color)")
+    parser.add_argument("--log-y", action="store_true",
+                        help="Use a log (semilog) y-axis for the benchmark cost-per-step plot")
+    parser.add_argument("--no-bar-labels", action="store_true",
+                        help="Do not print the cost value above each bar in benchmark plots")
     args = parser.parse_args()
 
     input_path = Path(args.input)
@@ -456,7 +481,8 @@ def main():
             return
 
     if level == "benchmark":
-        plots = plot_benchmark(data, output_dir, source, show_accuracy=not args.no_accuracy)
+        plots = plot_benchmark(data, output_dir, source, show_accuracy=not args.no_accuracy,
+                               log_y=args.log_y, bar_labels=not args.no_bar_labels)
     elif level == "model":
         plots = plot_model(data, output_dir, source)
     elif level == "sweep":

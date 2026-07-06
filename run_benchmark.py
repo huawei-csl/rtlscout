@@ -26,31 +26,48 @@ def main():
                         help="Target delay in ps for PPA metrics (default: 500)")
     parser.add_argument("--technology", default="asap7",
                         help="Process technology for PPA metrics: asap7, nangate45, freepdk45 (default: asap7)")
+    parser.add_argument("--energy-exp", type=float, default=1.0,
+                        help="For --cost-metric edap: exponent k in edap = energy**k * runtime * area. "
+                             "k=1 balanced EDAP, k>1 weights data-movement/reuse harder, k=0 == adp (default: 1.0)")
     parser.add_argument("--language", default="verilog", choices=["verilog", "spirehdl", "amaranth"],
                         help="Source language: verilog (direct RTL), spirehdl (Python EDSL → Verilog), or amaranth (Amaranth HDL → Verilog)")
     parser.add_argument("--dont-save-workspaces", action="store_true",
                         help="Skip saving a workspace snapshot before each "
                              "evaluation (by default snapshots ARE saved)")
     parser.add_argument("--flowy-optimize", action="store_true",
-                        help="Enable @flowy_optimized decorator guidance in system prompt (SpireHDL only)")
+                        help="Enable @flowy_optimized decorator guidance in system prompt (Spire only)")
     parser.add_argument("--abc-optimize", action="store_true",
-                        help="Enable @abc_optimized decorator guidance in system prompt (SpireHDL only)")
+                        help="Enable @abc_optimized decorator guidance in system prompt (Spire only)")
     parser.add_argument("--arith-autoconfig", action="store_true",
-                        help="Enable replace_arithmetic_ops() guidance in system prompt (SpireHDL only)")
+                        help="Enable replace_arithmetic_ops() guidance in system prompt (Spire only)")
     parser.add_argument("--fsm-optimize", action="store_true",
                         help="Enable FSM / state-encoding optimization guidance "
-                             "(optimized_fsm / optimized_encoding) in system prompt (SpireHDL only)")
+                             "(optimized_fsm / optimized_encoding) in system prompt (Spire only)")
     parser.add_argument("--dont-touch-main-arith", action="store_true",
                         help="Tell agent to not modify core multiplier/adder configs (for later-stage arithmetic sweeps)")
     parser.add_argument("--skip-cec", action="store_true",
                         help="Skip the combinational equivalence check (yosys-abc cec). "
                              "CEC runs by default against the benchmark's golden_reference "
                              "(if any) and gates pass/fail on it")
+    parser.add_argument("--skip-netlist-sim", action="store_true",
+                        help="For PPA metrics (area/delay/power/runtime/adp/area_delay_product), "
+                             "skip re-simulating the synthesized gate-level netlist against tb.sv. "
+                             "This is the slow step for large designs; skipping it makes synthesis+STA "
+                             "run in seconds. Only safe when RTL correctness already covers the design.")
+    parser.add_argument("--agent-backend", default="react", choices=["react", "opencode"],
+                        help="Agent backend: 'react' (default, in-process loop) or 'opencode' "
+                             "(external shell agent). NOTE: this single-run path produces ADVISORY "
+                             "numbers only; for authoritative re-eval use run_multirun.py --total-runs 1")
+    parser.add_argument("--wall-clock-min", type=float, default=10.0,
+                        help="Hard wall-clock budget in MINUTES for the opencode backend "
+                             "(default 10; 0 = no limit). The react backend ignores this.")
     args = parser.parse_args()
 
     model_provider, model = parse_model_spec(args.model)
     cost_metric = make_cost_metric(args.cost_metric, target_delay=args.target_delay,
-                                   technology=args.technology)
+                                   technology=args.technology,
+                                   run_netlist_sim=not args.skip_netlist_sim,
+                                   energy_exp=args.energy_exp)
 
     benchmarks_root = Path(args.benchmarks_root)
     benchmarks = load_benchmarks(benchmarks_root, [args.benchmark])
@@ -74,6 +91,8 @@ def main():
         fsm_optimize=args.fsm_optimize,
         dont_touch_main_arith=args.dont_touch_main_arith,
         run_cec=not args.skip_cec,
+        agent_backend=args.agent_backend,
+        wall_clock_s=int(args.wall_clock_min * 60),
     )
 
     if result.passed:

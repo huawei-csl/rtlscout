@@ -93,7 +93,7 @@ def _measure_with_adp(design_file: Path, top_module: str,
 
 
 def _emit_spire_to_v(starting_point: Path) -> Path:
-    """Emit a SpireHDL design.py to a Verilog file in a tempdir, returning the
+    """Emit a Spire design.py to a Verilog file in a tempdir, returning the
     tempdir-relative ``design.v``. Raises on emit failure. Caller is responsible
     for cleaning the tempdir up. ``pcie`` / ``datapath`` need a raised
     recursion limit, mirroring the multirun's baseline measurement."""
@@ -448,7 +448,7 @@ def _render_latex_table(grid: Dict[str, Any], metric: str) -> str:
                    r"\multicolumn{" + str(per_lang_cols)
                    + r"}{c}{\textbf{Ours (Verilog)}}",
                    r"\multicolumn{" + str(per_lang_cols)
-                   + r"}{c}{\textbf{Ours (SpireHDL)}}",
+                   + r"}{c}{\textbf{Ours (Spire)}}",
                    ""]
     cmidrule = (r"\cmidrule(lr){" + f"{verilog_from}-{verilog_to}" + "} "
                 r"\cmidrule(lr){" + f"{spire_from}-{spire_to}" + "}")
@@ -469,7 +469,7 @@ def _render_latex_table(grid: Dict[str, Any], metric: str) -> str:
         cap = (
             r"Best per-phase " + label + r" (area $\times$ delay, $"
             + unit + r"$) on the " + str(n_cases) + r" DR-RTL cases with a "
-            r"working SpireHDL port, optimised directly for ADP "
+            r"working Spire port, optimised directly for ADP "
             r"(\texttt{--cost-metric area\_delay\_product}) under "
             + technology + r" via Yosys synth "
             r"+ OpenROAD STA. Recipe: same as Appendix~B "
@@ -480,7 +480,7 @@ def _render_latex_table(grid: Dict[str, Any], metric: str) -> str:
             r"both phases. \textbf{Base}: shipped baseline. $\Delta_{1\!\to\!2}$ "
             r"within-language P1$\to$P2; $\Delta_\text{vs B}$ final best vs.\ "
             r"that language's own \textbf{Base}; $\Delta_\text{S/V}$ "
-            r"SpireHDL final vs.\ Verilog final (cross-language, same "
+            r"Spire final vs.\ Verilog final (cross-language, same "
             r"pipeline). Companion tables (Tables~\ref{tab:drrtl-best-area} "
             r"and~\ref{tab:drrtl-best-delay}) decompose into area and delay. "
             r"Negative $=$ reduction; \textbf{bold} $=$ strict row minimum, "
@@ -489,14 +489,14 @@ def _render_latex_table(grid: Dict[str, Any], metric: str) -> str:
     else:
         cap = (
             r"Best per-phase " + label + r" ($" + unit + r"$) on the "
-            + str(n_cases) + r" DR-RTL cases with a working SpireHDL port. "
+            + str(n_cases) + r" DR-RTL cases with a working Spire port. "
             r"This is the " + label.lower() + r" decomposition of the "
             r"$ADP = \text{area} \cdot \text{delay}$ headline number in "
             r"Table~\ref{tab:drrtl-best-area_delay_product}; the agent's "
             r"objective is the product, not " + label.lower() + r" in "
             r"isolation. " + technology
             + r". \textbf{Base}: shipped baseline; $\Delta_\text{vs B}$ "
-            r"final best vs.\ baseline; $\Delta_\text{S/V}$ SpireHDL vs.\ "
+            r"final best vs.\ baseline; $\Delta_\text{S/V}$ Spire vs.\ "
             r"Verilog final. Negative $=$ reduction (for delay, faster; "
             r"for area, smaller); \textbf{bold} $=$ strict row minimum."
         )

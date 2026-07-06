@@ -1,6 +1,6 @@
 {
   "name": "pcie",
-  "comment": "LOCAL MODIFICATION vs. upstream DR_RTL source: the encoder and decoder always @(*) case statements had no default, so data_out was unassigned for unmapped codes and yosys inferred a transparent latch on data_out. The latch survives as behavioral always @* in the gate netlist and OpenROAD gate-level STA rejects it (STA-0171), making the design unmeasurable. Added explicit `data_out = 0;` defaults to both blocks so they synthesize as pure combinational logic — matching the SpireHDL variant's Const(0) fallback for unmapped codes. Functionally identical for all valid 8b/10b codes; baseline PPA therefore differs from the unmodified upstream RTL and must be re-measured. See the header comment in context/starting_point.v.",
+  "comment": "LOCAL MODIFICATION vs. upstream DR_RTL source: the encoder and decoder always @(*) case statements had no default, so data_out was unassigned for unmapped codes and yosys inferred a transparent latch on data_out. The latch survives as behavioral always @* in the gate netlist and OpenROAD gate-level STA rejects it (STA-0171), making the design unmeasurable. Added explicit `data_out = 0;` defaults to both blocks so they synthesize as pure combinational logic — matching the Spire variant's Const(0) fallback for unmapped codes. Functionally identical for all valid 8b/10b codes; baseline PPA therefore differs from the unmodified upstream RTL and must be re-measured. See the header comment in context/starting_point.v.",
   "module_name": "top",
   "cost_metric": [
     "yosys_wires",

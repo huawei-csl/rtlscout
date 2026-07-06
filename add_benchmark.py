@@ -43,7 +43,7 @@ from typing import Any, Dict, List, Optional, Tuple
 # ---------------------------------------------------------------------------
 # spire-hdl imports
 # ---------------------------------------------------------------------------
-from spirehdl.arithmetic.arithmetic_generator import (
+from spire.arithmetic.arithmetic_generator import (
     AdderGeneratorConfig,
     FpAdderGeneratorConfig,
     FpMatmulAccumulateGeneratorConfig,
@@ -63,18 +63,18 @@ from spirehdl.arithmetic.arithmetic_generator import (
     generate_matmul_accumulate_fused,
     generate_multiplier,
 )
-from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
+from spire.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
     FSAOption,
     MultiplierOption,
     PPAOption,
     PPGOption,
 )
-from spirehdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding
-from spirehdl.spirehdl_verilog_testbench import write_vector_data_file
+from spire.arithmetic.int_multipliers.eval.testvector_generation import Encoding
+from spire.verilog_testbench import write_vector_data_file
 
 BENCHMARKS_DIR = Path(__file__).parent / "benchmarks"
 
-SPIREHDL_SRC = Path("/workspaces/rtl_scout/deps/spire-hdl/src/spirehdl")
+SPIREHDL_SRC = Path("/workspaces/rtl_scout/deps/spire-hdl/src/spire")
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +89,7 @@ _COMMON_CONTEXT = [
 
 CONTEXT_FILES: Dict[str, List[Tuple[str, str]]] = {
     "multiplier": _COMMON_CONTEXT + [
-        ("arithmetic/int_multipliers/multipliers/mutipliers_ext.py", "mutipliers_ext.py"),
+        ("arithmetic/int_multipliers/multipliers/multipliers_ext.py", "mutipliers_ext.py"),
     ],
     "adder": _COMMON_CONTEXT + [
         ("arithmetic/prefix_adders/adders.py", "adders.py"),
@@ -105,13 +105,13 @@ CONTEXT_FILES: Dict[str, List[Tuple[str, str]]] = {
         ("cores/matmul_accumulate/matmul_accumulate_core_fused.py", "matmul_accumulate_core_fused.py"),
     ],
     "fpmul": [
-        ("arithmetic/floating_point/spire_hdl_float_mult_sn.py", "spire_hdl_float_mult_sn.py"),
+        ("arithmetic/floating_point/float_mult_sn.py", "spire_hdl_float_mult_sn.py"),
     ],
     "fpadd": [
-        ("arithmetic/floating_point/spire_hdl_float_add.py", "spire_hdl_float_add.py"),
+        ("arithmetic/floating_point/float_add.py", "spire_hdl_float_add.py"),
     ],
     "fpmatmulacc": [
-        ("arithmetic/floating_point/spire_hdl_float_mult_sn.py", "spire_hdl_float_mult_sn.py"),
+        ("arithmetic/floating_point/float_mult_sn.py", "spire_hdl_float_mult_sn.py"),
         ("cores/matmul_accumulate/matmul_accumulate_core_float.py", "matmul_accumulate_core_float.py"),
     ],
 }
@@ -122,12 +122,12 @@ CONTEXT_FILES: Dict[str, List[Tuple[str, str]]] = {
 # ---------------------------------------------------------------------------
 
 def _get_inputs(module):
-    """Return input port signals from a spirehdl Module."""
+    """Return input port signals from a Spire module."""
     return [s for s in module._ports if s.kind == "input"]
 
 
 def _get_outputs(module):
-    """Return output port signals from a spirehdl Module."""
+    """Return output port signals from a Spire module."""
     return [s for s in module._ports if s.kind == "output"]
 
 
@@ -449,7 +449,7 @@ def _create_benchmark(
     if context_entries:
         description += (
             "\n\nA working starting point is provided: run `starting_point.py` "
-            "(SpireHDL mode) to generate a correct reference design (design.v). "
+            "(Spire mode) to generate a correct reference design (design.v). "
             "Study the context files in your workspace for implementation details, "
             "then optimize from there."
         )
@@ -557,8 +557,8 @@ def _build_starting_point_script(gen_type: str, module_name: str, cfg: object) -
             return textwrap.dedent(f"""\
                 # Starting point for {module_name} — FP matrix multiply-accumulate.
                 # This script produces a correct design. Modify to optimize.
-                from spirehdl.aggregate.aggregate_floating_point import FloatingPointType
-                from spirehdl.cores.matmul_accumulate.matmul_accumulate_core_float import (
+                from spire.composite.floating_point import FloatingPointType
+                from spire.cores.matmul_accumulate.matmul_accumulate_core_float import (
                     FpMMAcCfg, FpMMAcDims, FpMatmulAccumulateComponent,
                 )
 
@@ -582,15 +582,15 @@ def _build_starting_point_script(gen_type: str, module_name: str, cfg: object) -
             return textwrap.dedent(f"""\
                 # Starting point for {module_name} — FP matrix multiply-accumulate.
                 # This script produces a correct design. Modify to optimize.
-                from spirehdl.aggregate.aggregate_floating_point import FloatingPointType
-                from spirehdl.arithmetic.int_arithmetic_config import (
+                from spire.composite.floating_point import FloatingPointType
+                from spire.arithmetic.int_arithmetic_config import (
                     AdderConfig, MultiplierConfig,
                 )
-                from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
+                from spire.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
                     FSAOption, MultiplierOption, PPAOption, PPGOption, TwoInputAritEncodings,
                 )
-                from spirehdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding
-                from spirehdl.cores.matmul_accumulate.matmul_accumulate_core_float import (
+                from spire.arithmetic.int_multipliers.eval.testvector_generation import Encoding
+                from spire.cores.matmul_accumulate.matmul_accumulate_core_float import (
                     FpMMAcCfg, FpMMAcDims, FpMatmulAccumulateComponent,
                 )
 
@@ -634,9 +634,9 @@ def _build_starting_point_script(gen_type: str, module_name: str, cfg: object) -
             return textwrap.dedent(f"""\
                 # Starting point for {module_name} — integer matrix multiply-accumulate.
                 # This script produces a correct design. Modify to optimize.
-                from spirehdl.arithmetic.int_arithmetic_config import AdderConfig, MultiplierConfig
-                from spirehdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding
-                from spirehdl.cores.matmul_accumulate.matmul_accumulate_core import (
+                from spire.arithmetic.int_arithmetic_config import AdderConfig, MultiplierConfig
+                from spire.arithmetic.int_multipliers.eval.testvector_generation import Encoding
+                from spire.cores.matmul_accumulate.matmul_accumulate_core import (
                     MMAcCfg, MMAcDims, MMAcWidths, MatmulAccumulateComponent, max_y_width_unsigned,
                 )
 
@@ -655,12 +655,12 @@ def _build_starting_point_script(gen_type: str, module_name: str, cfg: object) -
             return textwrap.dedent(f"""\
                 # Starting point for {module_name} — integer matrix multiply-accumulate.
                 # This script produces a correct design. Modify to optimize.
-                from spirehdl.arithmetic.int_arithmetic_config import AdderConfig, MultiplierConfig
-                from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
+                from spire.arithmetic.int_arithmetic_config import AdderConfig, MultiplierConfig
+                from spire.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
                     FSAOption, MultiplierOption, PPAOption, PPGOption, TwoInputAritEncodings,
                 )
-                from spirehdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding
-                from spirehdl.cores.matmul_accumulate.matmul_accumulate_core import (
+                from spire.arithmetic.int_multipliers.eval.testvector_generation import Encoding
+                from spire.cores.matmul_accumulate.matmul_accumulate_core import (
                     MMAcCfg, MMAcDims, MMAcWidths, MatmulAccumulateComponent, max_y_width_unsigned,
                 )
 
@@ -698,14 +698,14 @@ def _build_starting_point_script(gen_type: str, module_name: str, cfg: object) -
         return textwrap.dedent(f"""\
             # Starting point for {module_name} — fused integer matrix multiply-accumulate.
             # This script produces a correct design. Modify to optimize.
-            from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
+            from spire.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
                 FSAOption, PPAOption, PPGOption,
             )
-            from spirehdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding
-            from spirehdl.cores.matmul_accumulate.matmul_accumulate_core import (
+            from spire.arithmetic.int_multipliers.eval.testvector_generation import Encoding
+            from spire.cores.matmul_accumulate.matmul_accumulate_core import (
                 MMAcDims, MMAcWidths, max_y_width_unsigned,
             )
-            from spirehdl.cores.matmul_accumulate.matmul_accumulate_core_fused import (
+            from spire.cores.matmul_accumulate.matmul_accumulate_core_fused import (
                 MMAcFusedCfg,
                 MatmulAccumulateComponent as MatmulAccumulateFusedComponent,
                 MultiplierConfig as FusedMultiplierConfig,
@@ -734,13 +734,13 @@ def _build_starting_point_script(gen_type: str, module_name: str, cfg: object) -
         return textwrap.dedent(f"""\
             # Starting point for {module_name} — integer multiplier.
             # This script produces a correct design. Modify to optimize.
-            from spirehdl.arithmetic.arithmetic_generator import (
+            from spire.arithmetic.arithmetic_generator import (
                 MultiplierGeneratorConfig, generate_multiplier,
             )
-            from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
+            from spire.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
                 FSAOption, MultiplierOption, PPAOption, PPGOption,
             )
-            from spirehdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding
+            from spire.arithmetic.int_multipliers.eval.testvector_generation import Encoding
 
             cfg = MultiplierGeneratorConfig(
                 n_bits={cfg.n_bits},
@@ -758,11 +758,11 @@ def _build_starting_point_script(gen_type: str, module_name: str, cfg: object) -
         return textwrap.dedent(f"""\
             # Starting point for {module_name} — integer adder.
             # This script produces a correct design. Modify to optimize.
-            from spirehdl.arithmetic.arithmetic_generator import (
+            from spire.arithmetic.arithmetic_generator import (
                 AdderGeneratorConfig, generate_adder,
             )
-            from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import FSAOption
-            from spirehdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding
+            from spire.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import FSAOption
+            from spire.arithmetic.int_multipliers.eval.testvector_generation import Encoding
 
             cfg = AdderGeneratorConfig(
                 n_bits={cfg.n_bits},
@@ -779,13 +779,13 @@ def _build_starting_point_script(gen_type: str, module_name: str, cfg: object) -
         return textwrap.dedent(f"""\
             # Starting point for {module_name} — multiply-accumulate (y = a*b + c).
             # This script produces a correct design. Modify to optimize.
-            from spirehdl.arithmetic.arithmetic_generator import (
+            from spire.arithmetic.arithmetic_generator import (
                 MacGeneratorConfig, generate_mac,
             )
-            from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
+            from spire.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
                 FSAOption, PPAOption, PPGOption,
             )
-            from spirehdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding
+            from spire.arithmetic.int_multipliers.eval.testvector_generation import Encoding
 
             cfg = MacGeneratorConfig(
                 n_bits={cfg.n_bits},

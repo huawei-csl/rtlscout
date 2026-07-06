@@ -9,7 +9,7 @@ campaigns and combines their results into one Pareto front via `extract_pareto.p
            exploit (core.multirun's default fresh schedule).
   Phase 2  Synthesis-aware polish — one campaign per cost metric, each *seeded*
            from the matching Phase-1 elite pool and run as pure exploitation
-           (fresh=0). For SpireHDL the agent additionally gets @arithmetic_optimized
+           (fresh=0). For Spire the agent additionally gets @arithmetic_optimized
            (replace_arithmetic_ops) and @abc_optimized.
   Pareto   The Pareto-optimal designs over every campaign, extracted into
            pareto_fronts/<benchmark>/.
@@ -36,12 +36,12 @@ from pathlib import Path
 
 
 def _phase_flags(language: str, phase: int, fsm_optimize: bool) -> dict:
-    """Per-phase SpireHDL agent-prompt flags.
+    """Per-phase Spire agent-prompt flags.
 
     Mirrors experiments/rtl_rewriter_multirun.py's `_phase_flags`, minus
     @flowy_optimized (Mockturtle/flowy is not installed in this repo). Phase 1 is
     decorator-free structural exploration; Phase 2 layers the decorators as polish.
-    All decorator flags are SpireHDL-only — Verilog/Amaranth campaigns ignore them.
+    All decorator flags are Spire-only — Verilog/Amaranth campaigns ignore them.
     """
     flags: dict = {}
     if language == "spirehdl" and phase == 2:
@@ -152,7 +152,7 @@ def main():
                         help="Stop after Phase 1 (skip the synthesis-aware seeded phase)")
     parser.add_argument("--fsm-optimize", action="store_true",
                         help="Enable FSM / state-encoding guidance (optimized_fsm / optimized_encoding) "
-                             "in both phases (SpireHDL only)")
+                             "in both phases (Spire only)")
     parser.add_argument("--dont-touch-main-arith", action="store_true",
                         help="Tell the agent not to modify core multiplier/adder configs "
                              "(MultiplierConfig / AdderConfig)")

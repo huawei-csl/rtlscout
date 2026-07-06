@@ -298,7 +298,7 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
 
     # Column layout:
     #   Case, Module, [Verilog group: Base, P1, P2, Δ12, ΔvsB],
-    #                 [SpireHDL group: Base, P1, P2, Δ12, ΔvsB], Δ_S/V
+    #                 [Spire group: Base, P1, P2, Δ12, ΔvsB], Δ_S/V
     per_lang_cols = 5 if has_phase2 else 3   # Base, P1, [P2, Δ12,] ΔB
     n_cols = 2 + 2 * per_lang_cols + 1
     aligns = ["l", "l"] + ["r"] * (n_cols - 2)
@@ -310,7 +310,7 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
 
     group_cells = ["", "",
                    r"\multicolumn{" + str(per_lang_cols) + r"}{c}{\textbf{Ours (Verilog)}}",
-                   r"\multicolumn{" + str(per_lang_cols) + r"}{c}{\textbf{Ours (SpireHDL)}}",
+                   r"\multicolumn{" + str(per_lang_cols) + r"}{c}{\textbf{Ours (Spire)}}",
                    ""]
     cmidrule = (r"\cmidrule(lr){" + f"{verilog_span_from}-{verilog_span_to}" + "} "
                 r"\cmidrule(lr){" + f"{spirehdl_span_from}-{spirehdl_span_to}" + "}")
@@ -343,7 +343,7 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
             )
         cap = (
             r"Best per-phase Yosys transistor count on the " + str(n_cases)
-            + r" DR-RTL cases with a working SpireHDL port, optimised directly "
+            + r" DR-RTL cases with a working Spire port, optimised directly "
             r"for transistors with the \emph{structural-exploration recipe}: "
             r"Phase~1 advertises no optimization-decorator APIs (forcing "
             r"gate-level structural rewrites); Phase~2 layers "
@@ -353,7 +353,7 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
             r"both phases (DR-RTL is controller-heavy). " + obj_note + " "
             r"\textbf{Base}: shipped baseline. $\Delta_{1\!\to\!2}$ "
             r"within-language P1$\to$P2; $\Delta_\text{vs B}$ final best vs.\ "
-            r"that language's own \textbf{Base}; $\Delta_\text{S/V}$ SpireHDL "
+            r"that language's own \textbf{Base}; $\Delta_\text{S/V}$ Spire "
             r"final vs.\ Verilog final (cross-language, same pipeline). "
             r"The DR-RTL paper reports Nangate45 ASIC PPA, not Yosys "
             r"transistor counts, so we omit a paper-target column. "
@@ -363,14 +363,14 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
     else:
         cap = (
             r"Best per-phase Yosys " + metric + r" count on the " + str(n_cases)
-            + r" DR-RTL cases with a working SpireHDL port. "
+            + r" DR-RTL cases with a working Spire port. "
             r"\textbf{Base}: shipped baseline; \textbf{P1} structural-exploration "
             r"(no decorators), \textbf{P2} layers "
             r"\texttt{@arithmetic\_optimized}+\texttt{@abc\_optimized}+"
             r"\texttt{@mockturtle\_optimized} and seeds from P1. "
             r"$\Delta_{1\!\to\!2}$ within-language P1$\to$P2; "
             r"$\Delta_\text{vs B}$ final best vs.\ that language's own "
-            r"\textbf{Base}; $\Delta_\text{S/V}$ SpireHDL final vs.\ Verilog "
+            r"\textbf{Base}; $\Delta_\text{S/V}$ Spire final vs.\ Verilog "
             r"final (cross-language, same pipeline). Negative $=$ reduction; "
             r"\textbf{bold} $=$ strict row minimum, \underline{underline} $=$ "
             r"tied for minimum."
@@ -555,7 +555,7 @@ def render_table(summary: Dict[str, Any]) -> str:
 
     out.append("## Run roots")
     out.append("")
-    out.append("| Case | Phase | Verilog runs_root | SpireHDL runs_root |")
+    out.append("| Case | Phase | Verilog runs_root | Spire runs_root |")
     out.append("|:---|:---|:---|:---|")
     for case_id in sorted(results, key=_case_sort_key):
         per_lang = results[case_id]

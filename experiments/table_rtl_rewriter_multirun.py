@@ -210,7 +210,7 @@ def _render_best_table(summary: Dict[str, Any], metric: str) -> str:
         p2s = _phase_best(s, "phase2", metric) if has_phase2 else None
         dv12 = _delta(p2v, p1v) if has_phase2 else None
         ds12 = _delta(p2s, p1s) if has_phase2 else None
-        # Cross-language delta: SpireHDL P2 best vs Verilog P2 best. Both went
+        # Cross-language delta: Spire P2 best vs Verilog P2 best. Both went
         # through the same Phase 1 + Phase 2 pipeline, so this isolates the
         # language/framework contribution from the agent's contribution. When
         # no phase2 is run, falls back to phase1 on both sides.
@@ -406,8 +406,8 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
     # Column order (group-aware):
     #   1. Case, 2. Module, 3. RTLR (shared paper target),
     #   4–8.  Verilog group: Base, P1, P2, Δ_{1→2}, Δ_{vs R/B}
-    #   9–13. SpireHDL group: Base, P1, P2, Δ_{1→2}, Δ_{vs R/B}
-    #  14.    Cross: Δ_{S/V} (SpireHDL final best vs Verilog reference baseline)
+    #   9–13. Spire group: Base, P1, P2, Δ_{1→2}, Δ_{vs R/B}
+    #  14.    Cross: Δ_{S/V} (Spire final best vs Verilog reference baseline)
     # Phase-2 columns (P2 and Δ_{1→2}) collapse to absent when phases=1.
     per_lang_cols = 5 if has_phase2 else 3   # Base, P1, [P2, Δ12,] ΔR
     n_cols = 3 + 2 * per_lang_cols + 1       # +1 for cross-language Δ_S/V
@@ -423,7 +423,7 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
 
     group_row = ([blank, blank, blank,
                   r"\multicolumn{" + str(per_lang_cols) + r"}{c}{\textbf{Verilog}}",
-                  r"\multicolumn{" + str(per_lang_cols) + r"}{c}{\textbf{SpireHDL}}",
+                  r"\multicolumn{" + str(per_lang_cols) + r"}{c}{\textbf{Spire}}",
                   blank])
     # Compact group row uses one cell per multicol, so flatten:
     # (we emit per_lang_cols cells but only the first carries content; LaTeX's
@@ -432,7 +432,7 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
     # = 3 + 1 + 1 + 1 = 6 LaTeX-cell positions, spanning 14 real columns.
     group_cells = ["", "", "",
                    r"\multicolumn{" + str(per_lang_cols) + r"}{c}{\textbf{Ours (Verilog)}}",
-                   r"\multicolumn{" + str(per_lang_cols) + r"}{c}{\textbf{Ours (SpireHDL)}}",
+                   r"\multicolumn{" + str(per_lang_cols) + r"}{c}{\textbf{Ours (Spire)}}",
                    ""]
     cmidrule = (r"\cmidrule(lr){" + f"{verilog_span_from}-{verilog_span_to}" + "} "
                 r"\cmidrule(lr){" + f"{spirehdl_span_from}-{spirehdl_span_to}" + "}")
@@ -482,7 +482,7 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
             r"\texttt{@abc\_optimized}/\texttt{@mockturtle\_optimized} and seeds from P1. "
             r"$\Delta_{1\!\to\!2}$ within-language P1$\to$P2; "
             r"$\Delta_\text{vs B}$ final best vs.\ that language's own \textbf{Base}; "
-            r"$\Delta_\text{S/V}$ SpireHDL P2 vs.\ Verilog P2 (cross-language, same pipeline). "
+            r"$\Delta_\text{S/V}$ Spire P2 vs.\ Verilog P2 (cross-language, same pipeline). "
             r"The RTLRewriter paper reports no transistor target, so the "
             r"\textbf{RTLR} column is em-dash and $\Delta_\text{vs B}$ takes the "
             r"place of the cell table's $\Delta_\text{vs R}$. "
@@ -496,7 +496,7 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
             r"\textbf{P1} uses \texttt{@arithmetic\_optimized}, \textbf{P2} adds "
             r"\texttt{@abc\_optimized}/\texttt{@mockturtle\_optimized} and seeds from P1. "
             r"$\Delta_{1\!\to\!2}$ within-language P1$\to$P2; $\Delta_\text{vs R}$ vs.\ RTLR; "
-            r"$\Delta_\text{S/V}$ SpireHDL P2 vs.\ Verilog P2 (cross-language, same pipeline). "
+            r"$\Delta_\text{S/V}$ Spire P2 vs.\ Verilog P2 (cross-language, same pipeline). "
             r"Negative $=$ reduction; \textbf{bold} $=$ strict row minimum, "
             r"\underline{underline} $=$ tied for minimum."
         )
@@ -531,7 +531,7 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
         p2s = _phase_best(s, "phase2", metric) if has_phase2 else None
         dv12 = _delta(p2v, p1v) if has_phase2 else None
         ds12 = _delta(p2s, p1s) if has_phase2 else None
-        # Cross-language delta: SpireHDL P2 vs Verilog P2 (same pipeline both
+        # Cross-language delta: Spire P2 vs Verilog P2 (same pipeline both
         # sides) — isolates the language contribution from the agent's.
         s_final = p2s if has_phase2 and p2s is not None else p1s
         v_final = p2v if has_phase2 and p2v is not None else p1v
@@ -742,7 +742,7 @@ def render_table(summary: Dict[str, Any]) -> str:
     # Run-root pointers (per phase, not per individual run — there are many)
     out.append("## Run roots")
     out.append("")
-    out.append("| Case | Phase | Verilog runs_root | SpireHDL runs_root |")
+    out.append("| Case | Phase | Verilog runs_root | Spire runs_root |")
     out.append("|:---|:---|:---|:---|")
     for case_id in sorted(results, key=_case_sort_key):
         per_lang = results[case_id]

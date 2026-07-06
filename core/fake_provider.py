@@ -81,20 +81,24 @@ register_fake_script("simple_adder_pass", [
 ])
 
 _SIMPLE_ADDER_SPIREHDL = """\
-from spirehdl.spirehdl_module import Module
-from spirehdl.spirehdl import UInt
+from spire import Component, IORecord, Input, Output, UInt
 
-m = Module("adder", with_clock=False, with_reset=False)
-a = m.input(UInt(8), "a")
-b = m.input(UInt(8), "b")
-s = m.output(UInt(8), "sum")
-s <<= (a + b)[0:8]
-m.to_verilog_file("design.v")
+
+class Adder(Component):
+    def __init__(self):
+        self.io = IORecord(a=Input(UInt(8)), b=Input(UInt(8)), sum=Output(UInt(8)))
+        self.elaborate()
+
+    def elaborate(self):
+        self.io.sum <<= (self.io.a + self.io.b)[0:8]
+
+
+Adder().to_verilog_file("design.v", name="adder")
 """
 
 register_fake_script("simple_adder_spirehdl_pass", [
     ChatResponse(
-        content="Creating SpireHDL adder design.",
+        content="Creating Spire adder design.",
         tool_calls=[ToolCall(
             id="fake_1",
             name="create_file",

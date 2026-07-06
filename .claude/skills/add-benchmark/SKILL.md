@@ -3,7 +3,7 @@ name: add-benchmark
 description: >-
   Add a new RTL design as an RTL Scout benchmark — directory layout, the self-checking
   testbench contract, the add_benchmark.py generators, and porting an existing Verilog or
-  SpireHDL design. Use when integrating a new design (or an external benchmark suite) into
+  Spire design. Use when integrating a new design (or an external benchmark suite) into
   the benchmarks/ folder.
 ---
 
@@ -25,7 +25,7 @@ Any of these — adapt accordingly:
    With no reference, **you must generate the correctness oracle yourself**: compute expected
    outputs inline for derivable logic (e.g. `sum === a + b`), or write a behavioral / Python golden
    model that emits `vectors.dat` (inputs + expected outputs). A vaguer spec → a weaker testbench.
-3. **A design in a different language than the target** (e.g. Verilog → SpireHDL benchmark) — the
+3. **A design in a different language than the target** (e.g. Verilog → Spire benchmark) — the
    original is the oracle; translate it to the target language (see "Decide first" #4).
 
 In every case the user also chooses **whether to ship a `context/` starting point** (see "Decide first" #3).
@@ -42,16 +42,16 @@ Pin these down **before** creating any files:
    `amaranth`. Fix this up front; `--language` must match it, and a `context/` starting point (if any)
    must be in that language.
 3. **Starting point or not** — either ship a `context/` reference the agent builds on (e.g.
-   `starting_point.py` for SpireHDL, or a `.v` for Verilog), **or** omit `context/` so the agent solves
+   `starting_point.py` for Spire, or a `.v` for Verilog), **or** omit `context/` so the agent solves
    from the spec alone. If you ship one, it must be in the target language **and** be mentioned in
    `description.txt` — otherwise the agent ignores it and writes from scratch.
 4. **Translation / port** — adding an existing design in a *different* language (e.g. you have Verilog
-   but want a **SpireHDL** benchmark) means **translating** it to the target language. The original is
+   but want a **Spire** benchmark) means **translating** it to the target language. The original is
    your reference/oracle; the per-design `_debug/DEBUGGING.md` and `NOTES_*` files (section 3) are exactly
-   the Verilog→SpireHDL porting experience — read them before starting.
+   the Verilog→Spire porting experience — read them before starting.
 
 > **The testbench is always Verilog/SystemVerilog** (`tb.sv`), whatever the target language —
-> correctness is Verilator simulating the *generated Verilog* against `tb.sv`. A SpireHDL or Amaranth
+> correctness is Verilator simulating the *generated Verilog* against `tb.sv`. A Spire or Amaranth
 > benchmark still ships a `.sv` testbench.
 
 ## 1. The process — start here
@@ -62,12 +62,12 @@ Pin these down **before** creating any files:
   that confirms the benchmark loads and the module name matches the testbench.
 - **`add_benchmark.py`** — generators for arithmetic designs (`multiplier`, `adder`, `fpmul`,
   `fpadd`, `mac`, `matmulacc`): emit `tb.sv`, test vectors, the reference `.v`, `metadata.json`,
-  and a SpireHDL `context/`. Run `python add_benchmark.py <generator> --help`.
+  and a Spire `context/`. Run `python add_benchmark.py <generator> --help`.
 
 ## 2. Worked examples — how real suites were integrated
 
 - **`benchmarks/turbo_rtl/README.md`** (+ `benchmarks/turbo_rtl/RESULTS.md`) — an external suite
-  integrated with both Verilog and SpireHDL variants, test-vector generation, and the `sky130_adp`
+  integrated with both Verilog and Spire variants, test-vector generation, and the `sky130_adp`
   metric. The most complete end-to-end example.
 - **`benchmarks/dr_rtl/README.md`** and **`benchmarks/dr_rtl_spirehdl/README.md`** — the DR-RTL
   ports, nested as `benchmarks/dr_rtl/<case>` (referenced as `--benchmark dr_rtl/<case>`).

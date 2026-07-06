@@ -29,6 +29,9 @@ class CorrectnessResult:
     testbench_checks: List[Dict[str, Any]] = field(default_factory=list)
     total_checks: int = 0
     passed_checks: int = 0
+    # Optional scalar statistics scraped from the simulation (e.g. {"cycles": C}
+    # from a TB_CYCLES line). Empty for testbenches that don't emit them.
+    sim_stats: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def pass_rate(self) -> float:
@@ -122,6 +125,31 @@ def parse_testbench_checks(sim_stdout: str, sim_stderr: str) -> List[Dict[str, A
                      f"\nLast 1000 characters of stderr:\n{last_1000_characters_stderr}")
 
 
+def parse_sim_stats(sim_stdout: str, sim_stderr: str) -> Dict[str, Any]:
+    """Scrape optional scalar statistics from simulation output.
+
+    Recognizes ``TB_CYCLES total=<C>`` (cycles reset->done), ``TB_READS
+    total=<R>`` and ``TB_WRITES total=<W>`` (read/write memory accesses, for the
+    data-movement energy metrics). Tolerant by design: returns ``{}`` when no
+    such lines are present, so testbenches that don't emit them (every other
+    benchmark) are unaffected. The last occurrence of each wins.
+    """
+    stats: Dict[str, Any] = {}
+    tag_to_key = {"TB_CYCLES": "cycles", "TB_READS": "reads", "TB_WRITES": "writes"}
+    lines = (sim_stdout + "\n" + sim_stderr).splitlines()
+    for line in lines:
+        tag = next((t for t in tag_to_key if t in line), None)
+        if tag is None:
+            continue
+        kv = {k: v for tok in line.split() if "=" in tok for k, v in [tok.split("=", 1)]}
+        if "total" in kv:
+            try:
+                stats[tag_to_key[tag]] = int(kv["total"])
+            except ValueError:
+                pass
+    return stats
+
+
 def evaluate_correctness(workdir: Path, design_file: Optional[Path] = None) -> CorrectnessResult:
     """Run verilator lint + simulation for a design + testbench.
 
@@ -149,6 +177,7 @@ def evaluate_correctness(workdir: Path, design_file: Optional[Path] = None) -> C
     total = len(checks)
     passed_checks = sum(1 for c in checks if c.get("passed"))
     all_passed = sim_result.ok and lint_result.ok
+    sim_stats = parse_sim_stats(sim_result.stdout, sim_result.stderr)
 
     return CorrectnessResult(
         passed=all_passed,
@@ -162,4 +191,5 @@ def evaluate_correctness(workdir: Path, design_file: Optional[Path] = None) -> C
         testbench_checks=checks,
         total_checks=total,
         passed_checks=passed_checks,
+        sim_stats=sim_stats,
     )

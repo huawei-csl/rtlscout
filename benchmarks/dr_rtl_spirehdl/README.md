@@ -1,10 +1,10 @@
 # `dr_rtl_spirehdl` benchmarks
 
-SpireHDL mirror of `benchmarks/dr_rtl/` for **5 of the largest portable
+Spire mirror of `benchmarks/dr_rtl/` for **5 of the largest portable
 designs + 1 anti-pattern design + a warmup** (7 of 20 total). Each
 `<case>/` mirrors its `benchmarks/dr_rtl/<case>/` sibling, with
 `context/starting_point.v` replaced by `context/starting_point.py` (a
-SpireHDL script that emits the same `design.v`).
+Spire script that emits the same `design.v`).
 
 The 3 ARM/Z80 CPUs (`tv80`, `arm_cpu1`, `arm_cpu2`) are explicitly out
 of scope as multi-day full-instruction-decoder ports. The remaining 10
@@ -145,7 +145,7 @@ The single most common bug encountered while porting was `cat` ordering
 - **Verilog `{a, b}`**: `a` at MSB position, `b` at LSB position.
   In `wire [W-1:0] x = {a, b}`: `x[W-1:N] = a`, `x[N-1:0] = b` where
   `N` is the width of `b`.
-- **SpireHDL `cat(a, b)`**: `a` at LSB position, `b` at MSB position.
+- **Spire `cat(a, b)`**: `a` at LSB position, `b` at MSB position.
   In a `cat(a, b)` of widths `(Wa, Wb)`: `result[0:Wa] = a`,
   `result[Wa:Wa+Wb] = b`.
 
@@ -227,7 +227,7 @@ benchmarks/dr_rtl_spirehdl/<case>/
   tb.sv                             # BIT-IDENTICAL copy from benchmarks/dr_rtl/<case>/   ← HARD INVARIANT
   vectors.dat                       # BIT-IDENTICAL copy from benchmarks/dr_rtl/<case>/   ← HARD INVARIANT
   context/
-    starting_point.py               # hand-written SpireHDL — done for all 7 ported cases
+    starting_point.py               # hand-written Spire — done for all 7 ported cases
   _debug/                            # debug artifacts (DEBUGGING.md, traces, helpers).
                                      # NB: any path containing a `_*` segment is skipped
                                      # by core/benchmarks.py and core/runner.py — these
@@ -496,9 +496,9 @@ Dr.RTL) deviates from it. Reading downwards:
 
 ### Memory primitive: array storage for yosys memory inference
 
-Router's FIFO storage uses spirehdl's `MemoryPrimitive`
-(`from spirehdl.primitives import MemoryPrimitive`), instantiated as
-`MemoryPrimitive(UInt(9), depth=16, with_reset_arm=True).make_internal()`.
+Router's FIFO storage uses Spire's `MemoryPrimitive`
+(`from spire.primitives import MemoryPrimitive`), instantiated as
+`MemoryPrimitive(UInt(9), depth=16, with_reset_arm=True)`.
 The verilog router declares
 each FIFO as `reg [8:0] fifo[0:15];` — a memory array yosys's `memory`
 pass (`memory_dff`, `memory_share`, `memory_bmux2rom`) recognises and
@@ -521,7 +521,7 @@ its ports as `Signal` attributes wired with `<<=`:
   becomes a clocked Register that captures `name[read_addr]` on the edge
   (defaults to always-read).
 
-See [`deps/spire-hdl/README_memories.md`](../../deps/spire-hdl/README_memories.md)
+See [`deps/spire-hdl/docs/README_memories.md`](../../deps/spire-hdl/docs/README_memories.md)
 for the full API reference and a FIFO Component example.
 
 Router 4-way comparison (`area_delay_product` at `target_delay=100ps`,
@@ -757,8 +757,8 @@ for bit in range(sel.typ.width):  # log2(N) layers
 return leaves[0]
 ```
 
-**New spirehdl pass: `apply_mux_tree_balance`.** We added this rewrite
-to `deps/spire-hdl/src/spirehdl/spirehdl_simplify.py` as a separate
+**New Spire pass: `apply_mux_tree_balance`.** We added this rewrite
+to `deps/spire-hdl/src/spire/simplify.py` as a separate
 optimisation pass that automatically detects the cascade pattern and
 rewrites it as a balanced bit-tree. Enable it via:
 
