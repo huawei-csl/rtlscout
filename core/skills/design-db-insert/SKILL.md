@@ -15,8 +15,12 @@ Spire is this ecosystem's design language; Verilog is only the intermediate repr
 Write a python design file defining `build() -> Netlist/Component` and insert it directly:
 
 ```
-spire db insert cand.py --slot <name|key> --source agent:rtl-subcircuit
+spire db insert cand.py --slot <name|key> --source agent:<who-you-are>
 ```
+
+`--source` is provenance and must be honest: use your own role (the primary agent inserts as
+`agent:rtl`); `agent:rtl-subcircuit` is reserved for the dispatched subagent. Prefer not to
+implement slot candidates yourself at all — delegate via the design-db-dispatch skill.
 
 The gate elaborates `build()` itself — the generated Verilog becomes the canonical `design.v`,
 and your **python source is stored with the design** (plus its project-local import helpers),

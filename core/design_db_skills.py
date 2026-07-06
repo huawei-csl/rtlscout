@@ -120,6 +120,9 @@ slots), `design-db-insert` / `design-db-eval` (submit / check candidates yoursel
 `design-db-score` (technology PPA, on demand). Typical loop: inspect → (dv-prep if needed) →
 dispatch per slot → inspect again to see what changed → for spire designs re-run
 `./evaluate_design` (it fires the `@from_design_db` decorators, so the score reflects the new
-selections). Never write into the DB directory by hand — inserts only through `spire db insert`
-(the verification gate); results come from tooling (`spire db show`), never from subagent claims.
+selections) — after each fill, not just at the end. **Delegate slot implementation via
+`design-db-dispatch` (the task tool) instead of authoring slot candidates yourself**; if you do
+insert something, use your own `--source agent:rtl` (provenance must be honest). Never write
+into the DB directory by hand — inserts only through `spire db insert` (the verification gate);
+results come from tooling (`spire db show`), never from subagent claims.
 """
