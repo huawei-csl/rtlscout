@@ -61,6 +61,10 @@ def main():
     parser.add_argument("--wall-clock-min", type=float, default=10.0,
                         help="Hard wall-clock budget in MINUTES for the opencode backend "
                              "(default 10; 0 = no limit). The react backend ignores this.")
+    parser.add_argument("--design-db", action="store_true",
+                        help="Include the design-DB layer in the opencode run: skill pack, "
+                             "rtl-subcircuit/rtl-dv-prep subagents, AGENTS.md section, and "
+                             "$SPIREHDL_DB_PATH forwarding. Off = plain run (no DB offered).")
     args = parser.parse_args()
 
     model_provider, model = parse_model_spec(args.model)
@@ -93,6 +97,7 @@ def main():
         run_cec=not args.skip_cec,
         agent_backend=args.agent_backend,
         wall_clock_s=int(args.wall_clock_min * 60),
+        design_db=args.design_db,
     )
 
     if result.passed:

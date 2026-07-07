@@ -72,6 +72,10 @@ class BackendRequest:
     arith_autoconfig: bool = False
     dont_touch_main_arith: bool = False
     fsm_optimize: bool = False
+    # Design-DB layer (opt-in, opencode backend only): provision the skill pack, merge the
+    # rtl-subcircuit/rtl-dv-prep subagents, add the AGENTS.md section, forward $SPIREHDL_DB_PATH.
+    # Off ⇒ the plain opencode run (pre-K3 state). React ignores it.
+    design_db: bool = False
     # The agent-role sandbox (handover §3.1). None ⇒ the backend uses a LocalSandbox
     # (single-container mode). Phase 3 sets this to a ContainerSandbox for orchestrated mode.
     agent_sandbox: Optional["Sandbox"] = None

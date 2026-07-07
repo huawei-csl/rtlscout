@@ -128,12 +128,13 @@ def _metric_name(req: "BackendRequest") -> str:
 def render_agents_md(req: "BackendRequest") -> str:
     """Render AGENTS.md for an OpenCode run via the unified lean renderer
     (``core.agents_md``) — a shell-capable agent gets task + workflow + reference pointers,
-    not the react loop's inlined tool mechanics. The design-DB block (skills + subagents) rides
-    along in the execution section."""
+    not the react loop's inlined tool mechanics. With ``req.design_db`` the design-DB block
+    (skills + subagents) rides along in the execution section."""
     metric_name = _metric_name(req)
     execution_section = _opencode_execution_section(req, metric_name)
-    from core.design_db_skills import render_design_db_agents_section
-    execution_section += "\n\n" + render_design_db_agents_section()
+    if req.design_db:
+        from core.design_db_skills import render_design_db_agents_section
+        execution_section += "\n\n" + render_design_db_agents_section()
     from core.agents_md import render_opencode_agents_md
     return render_opencode_agents_md(req, execution_section=execution_section,
                                      metric_name=metric_name, seed_text=req.system_prompt_extra)
@@ -212,9 +213,8 @@ def render_opencode_config(req: "BackendRequest", yolo: bool = False) -> Dict:
     """Render opencode.json. The custom 'rtl' agent gets full local tool permissions so
     non-interactive runs apply edits AND can read the Spire package source to explore
     architectures (handover §4.8). The provider key is supplied via env, never here (O4).
-    The design-DB subagents (rtl-subcircuit / rtl-dv-prep, task tool denied) are merged in —
-    reachable only via the primary agent's task tool."""
-    from core.design_db_skills import design_db_subagent_entries
+    With ``req.design_db`` the design-DB subagents (rtl-subcircuit / rtl-dv-prep, task tool
+    denied) are merged in — reachable only via the primary agent's task tool."""
     model_arg = f"{req.provider}/{req.model}"
     perms = _permissions(yolo)
     agents: Dict = {
@@ -226,7 +226,9 @@ def render_opencode_config(req: "BackendRequest", yolo: bool = False) -> Dict:
             "tools": {"write": True, "edit": True, "bash": True, "read": True},
         },
     }
-    agents.update(design_db_subagent_entries(model_arg, perms))
+    if req.design_db:
+        from core.design_db_skills import design_db_subagent_entries
+        agents.update(design_db_subagent_entries(model_arg, perms))
     return {
         "$schema": "https://opencode.ai/config.json",
         "model": model_arg,
@@ -394,8 +396,9 @@ class OpenCodeBackend:
         write_eval_config(req)
         write_eval_wrapper(req)
         write_remaining_time_wrapper(req)
-        from core.design_db_skills import provision_design_db_skills
-        provision_design_db_skills(workspace)   # .opencode/skills/** — opencode discovers them
+        if req.design_db:
+            from core.design_db_skills import provision_design_db_skills
+            provision_design_db_skills(workspace)   # .opencode/skills/** — opencode discovers them
 
         # Provider key via env (never in opencode.json).
         env: Dict[str, str] = {}
@@ -405,10 +408,11 @@ class OpenCodeBackend:
             if val:
                 env[keyvar] = val
 
-        # Shared design DB (opt-in): forward its location — the backend's env dict is fresh, so
-        # without this a ContainerSandbox agent could not see it (LocalSandbox merges os.environ
-        # anyway). The default (unset) resolves to a per-workspace ./design_db and needs nothing.
-        db_path = os.environ.get("SPIREHDL_DB_PATH")
+        # Shared design DB (opt-in, only with the design-DB layer on): forward its location —
+        # the backend's env dict is fresh, so without this a ContainerSandbox agent could not
+        # see it (LocalSandbox merges os.environ anyway). The default (unset) resolves to a
+        # per-workspace ./design_db and needs nothing.
+        db_path = os.environ.get("SPIREHDL_DB_PATH") if req.design_db else None
         if db_path:
             env["SPIREHDL_DB_PATH"] = db_path
 

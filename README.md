@@ -218,10 +218,12 @@ implementation passed the slot's **frozen verification** (CEC or a golden-simula
 insert, and builds *select* deterministically via `@from_design_db(objective=..., metric=...)`.
 RTLScout is the DB's filler and its agentic layer.
 
-### Skill-based flow (default in every `--agent-backend opencode` run)
+### Skill-based flow (`--agent-backend opencode --design-db`)
 
-Every standard OpenCode run (`run_benchmark.py` / `run_multirun.py --agent-backend opencode`,
-both sandbox modes) is provisioned with design-DB capabilities automatically — no extra command:
+Any standard OpenCode run (`run_benchmark.py` / `run_multirun.py --agent-backend opencode`,
+both sandbox modes) gains the design-DB capability layer with the **`--design-db`** flag — one
+flag, no extra command; without it the run is a plain OpenCode run (nothing DB-related is
+provisioned, mentioned, or forwarded). The flag includes:
 
 - **Skills** at `.opencode/skills/` (copied from [core/skills/](core/skills/)) —
   `design-db-inspect` (slots/designs/Pareto + how to judge results), `design-db-insert` /

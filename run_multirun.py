@@ -92,6 +92,10 @@ def main():
                         help="Hard per-run wall-clock budget in MINUTES for the opencode backend "
                              "(default 10; 0 = no limit). The react backend ignores this and uses "
                              "--max-steps instead.")
+    parser.add_argument("--design-db", action="store_true",
+                        help="Include the design-DB layer in opencode runs: skill pack, "
+                             "rtl-subcircuit/rtl-dv-prep subagents, AGENTS.md section, and "
+                             "$SPIREHDL_DB_PATH forwarding. Off = plain runs (no DB offered).")
     args = parser.parse_args()
 
     if args.mode == "orchestrated" and args.agent_backend != "opencode":
@@ -130,6 +134,7 @@ def main():
         deploy_mode=args.mode,
         reeval=args.reeval,
         wall_clock_s=int(args.wall_clock_min * 60),
+        design_db=args.design_db,
     )
 
 

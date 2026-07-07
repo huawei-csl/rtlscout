@@ -405,6 +405,7 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
     deploy_mode = task.get("mode", "single-container")
     session_id = task.get("session_id", "")
     wall_clock_s = task.get("wall_clock_s", 0)
+    design_db = bool(task.get("design_db", False))
     # Authoritative re-eval is mandatory on the opencode path (its container is
     # untrusted); on react it is opt-in via --reeval purely for A/B parity.
     do_reeval = bool(task.get("reeval", False)) or agent_backend == "opencode"
@@ -454,6 +455,7 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
             run_cec=run_cec,
             agent_backend=agent_backend,
             wall_clock_s=wall_clock_s,
+            design_db=design_db,
             agent_sandbox=agent_sandbox,
         )
         result_dict = result.to_dict()
@@ -557,6 +559,7 @@ def run_multirun(
     deploy_mode: str = "single-container",
     reeval: bool = False,
     wall_clock_s: int = 0,
+    design_db: bool = False,
 ) -> Dict[str, Any]:
     """Run the async elite-pool multi-run optimization (one ``session_id`` per campaign,
     used to label + sweep this campaign's orchestrated containers).
@@ -735,6 +738,7 @@ def run_multirun(
             "mode": deploy_mode,
             "reeval": reeval,
             "wall_clock_s": wall_clock_s,
+            "design_db": design_db,
             "session_id": session_id,
         }
 
