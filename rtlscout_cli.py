@@ -101,7 +101,7 @@ def main(argv=None) -> int:
         return agents_main(argv2)
 
     if args.cmd == "db-score":
-        from core.design_db_fill import score_designs
+        from core.design_db_score import score_designs
         report = score_designs(args.slot, db=args.db, technology=args.technology,
                                target_delay=args.target_delay, run_netlist_sim=args.netlist_sim,
                                force=args.force, max_designs=args.max_designs,

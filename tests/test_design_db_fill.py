@@ -1,7 +1,7 @@
-"""R1 tests: the RTLScout design-DB filler (`fill_slot` / `rtlscout_fill`) and `db score`.
+"""R1 tests: the RTLScout design-DB filler (`fill_slot` / `rtlscout_fill`).
 
 Offline: the campaign runs with the `fake:` provider; correctness is real (verilator + yosys +
-yosys-abc CEC through Spire's gate). `db score` runs the real asap7 PPA flow on one tiny design.
+yosys-abc CEC through Spire's gate). The `db-score` tests live in test_design_db_score.py.
 """
 import json
 from pathlib import Path
@@ -13,7 +13,7 @@ from spire.component import Netlist
 from spire.design_db import DesignDBError, register_slot, seed_original, select_design
 from spire.design_db.store import DB_ENV, VERSION_DIR
 
-from core.design_db_fill import FILL_MODEL_ENV, fill_slot, make_rtlscout_fill, score_designs
+from core.design_db_fill import FILL_MODEL_ENV, fill_slot, make_rtlscout_fill
 
 
 @pytest.fixture
@@ -71,36 +71,3 @@ def test_rtlscout_fill_hook(db, monkeypatch):
     monkeypatch.delenv(FILL_MODEL_ENV, raising=False)
     with pytest.raises(DesignDBError, match=FILL_MODEL_ENV):
         rtlscout_fill(key, db_root=db)
-
-
-def test_db_score_asap7(db):
-    key = _adder_slot()
-    seed_original(key)
-
-    # --dry-run measures and returns values but writes nothing (and ignores the already-stamped
-    # skip logic — it is a pure measurement)
-    dry = score_designs([key], technology="asap7", run_netlist_sim=False, dry_run=True)
-    assert dry["dry_run"] is True and dry["scored"] == 1 and not dry["failed"], dry
-    (dry_values,) = dry["measured"].values()
-    assert dry_values["area"] > 0
-    index = json.loads((db / VERSION_DIR / key / "index.json").read_text())
-    assert "asap7" not in (next(iter(index.values()))["metrics"] or {}), \
-        "dry-run must not annotate"
-
-    report = score_designs([key], technology="asap7", run_netlist_sim=False, max_designs=1)
-    assert report["scored"] == 1 and not report["failed"], report
-    index = json.loads((db / VERSION_DIR / key / "index.json").read_text())
-    entry = next(iter(index.values()))
-    assert entry["metrics"]["asap7"]["metrics"]["area"] > 0            # self-describing block
-    assert entry["metrics"]["asap7"]["objectives"]["area"] == "area"
-    sel = select_design(key, objective="area", metric="asap7")
-    assert sel is not None and sel.metric == "asap7"
-    # idempotent: second run skips
-    again = score_designs([key], technology="asap7", run_netlist_sim=False)
-    assert again["scored"] == 0 and again["skipped"] >= 1
-
-    # --design scopes to one design_id (unique prefix); force re-scores just that one
-    design_id = next(iter(index))
-    scoped = score_designs([key], technology="asap7", run_netlist_sim=False,
-                           designs=[design_id[:12]], force=True)
-    assert scoped["scored"] == 1 and list(scoped["measured"]) == [design_id]
