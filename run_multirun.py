@@ -92,10 +92,10 @@ def main():
                         help="Hard per-run wall-clock budget in MINUTES for the opencode backend "
                              "(default 10; 0 = no limit). The react backend ignores this and uses "
                              "--max-steps instead.")
-    parser.add_argument("--design-db", action="store_true",
-                        help="Include the design-DB layer in opencode runs: skill pack, "
-                             "rtl-subcircuit/rtl-dv-prep subagents, AGENTS.md section, and "
-                             "$SPIREHDL_DB_PATH forwarding. Off = plain runs (no DB offered).")
+    parser.add_argument("--design-db-skills", action="store_true",
+                        help="Include the design-DB skills layer in the opencode runs: skill pack, rtl-subcircuit/rtl-dv-prep subagents, AGENTS.md section, and the DB handover. The DB itself is spire's (auto-creates on use); this flag adds the guidance.")
+    parser.add_argument("--design-db-path", default=None,
+                        help="Explicit design-DB root shared by all runs (default: a campaign DB at <runs-root>/design_db; $SPIREHDL_DB_PATH overrides the campaign default). Implies nothing without --design-db-skills.")
     args = parser.parse_args()
 
     if args.mode == "orchestrated" and args.agent_backend != "opencode":
@@ -134,7 +134,8 @@ def main():
         deploy_mode=args.mode,
         reeval=args.reeval,
         wall_clock_s=int(args.wall_clock_min * 60),
-        design_db=args.design_db,
+        design_db_skills=args.design_db_skills,
+        design_db_path=Path(args.design_db_path) if args.design_db_path else None,
     )
 
 

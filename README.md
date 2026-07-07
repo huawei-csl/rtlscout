@@ -194,13 +194,19 @@ flowchart TD
   ADV --> RUN
   RUN -->|"stops early + time left"| NUDGE["nudge:<br/>keep going"]
   NUDGE --> RUN
-  RUN -->|"wall-clock up"| SUM["summary turn<br/>(same session &rarr; summary.txt)"]
+  RUN -->|"wall-clock up"| FEV["final framework eval<br/>(harness scores the last workspace state)"]
+  FEV --> SUM["summary turn<br/>(same session &rarr; summary.txt)"]
   SUM --> RV["reeval_run<br/>re-score every eval_i/ vs the benchmark's own inputs"]
   RV --> POOL["authoritative result.json + best_design/<br/>&rarr; elite pool + Pareto"]
 ```
 
 Budget: `--wall-clock-min` sets the hard per-run time budget — the agent is terminated when it's
-up, and nudged to keep going if it stops early. Build the agent image once with
+up, and nudged to keep going if it stops early. The wrap-up is framework-driven (react parity):
+after the process ends the harness itself scores the final workspace state, resumes the session
+for `summary.txt`, and exports the full session (parent + task-tool children) — so a run killed
+mid-step loses nothing measurable. Optional: `--design-db-skills` adds the
+[design-DB skills layer](#skill-based-flow---agent-backend-opencode---design-db-skills). Build
+the agent image once with
 `docker build -f .devcontainer/Dockerfile.opencode -t rtlscout-opencode:latest .`; clean up
 orchestrated containers with `python rtlscout_cli.py cleanup`.
 
@@ -218,12 +224,14 @@ implementation passed the slot's **frozen verification** (CEC or a golden-simula
 insert, and builds *select* deterministically via `@from_design_db(objective=..., metric=...)`.
 RTLScout is the DB's filler and its agentic layer.
 
-### Skill-based flow (`--agent-backend opencode --design-db`)
+### Skill-based flow (`--agent-backend opencode --design-db-skills`)
 
 Any standard OpenCode run (`run_benchmark.py` / `run_multirun.py --agent-backend opencode`,
-both sandbox modes) gains the design-DB capability layer with the **`--design-db`** flag — one
-flag, no extra command; without it the run is a plain OpenCode run (nothing DB-related is
-provisioned, mentioned, or forwarded). The flag includes:
+both sandbox modes) gains the design-DB skills layer with the **`--design-db-skills`** flag —
+one flag, no extra command; without it the run is a plain OpenCode run (nothing DB-related is
+provisioned, mentioned, or forwarded). The DB *capability* is spire's and exists regardless
+(`spire db` auto-creates `./design_db` on first use); this flag adds the guidance and the
+handover. It includes:
 
 - **Skills** at `.opencode/skills/` (copied from [core/skills/](core/skills/)) —
   `design-db-inspect` (slots/designs/Pareto + how to judge results), `design-db-insert` /
@@ -235,11 +243,35 @@ provisioned, mentioned, or forwarded). The flag includes:
   (`mode: subagent`, hidden, **task tool denied** = structural recursion cap), delegated to via
   the primary agent's task tool; results are read from the DB (`spire db show --pareto`), never
   from subagent claims.
-- **DB location**: a per-run `./design_db` auto-creates in the workspace (default), or set
-  `$SPIREHDL_DB_PATH` to share one library across runs — forwarded into orchestrated agent
-  containers with a writable mount. Concurrent fills are safe (the per-slot index is derived
-  from atomically-admitted design dirs; manifest writes are fcntl-locked), so shared DB +
+- **DB handover**: `run_benchmark.py` defaults to a per-run workspace `./design_db`;
+  `run_multirun.py` defaults to a **campaign DB** at `<runs-root>/design_db` shared by all runs
+  of the campaign — run N starts with everything runs 1..N-1 verified, and an elite seed's
+  `@from_design_db` decorators re-splice against the populated library instead of an empty
+  one. `--design-db-path PATH` (or `$SPIREHDL_DB_PATH`, e.g. for a persistent cross-campaign
+  library) overrides; the resolved root is forwarded into orchestrated agent containers with a
+  writable mount. Concurrent fills are safe (the per-slot index is derived from
+  atomically-admitted design dirs; manifest writes are fcntl-locked), so a shared DB +
   `--max-concurrent > 1` and parallel slot dispatch are supported.
+
+```bash
+# one run, private workspace DB (./design_db inside the run's workspace)
+python run_benchmark.py --benchmark sat_mac4 --model openrouter:z-ai/glm-5.2 \
+    --agent-backend opencode --language spirehdl --design-db-skills --wall-clock-min 20
+
+# campaign: all runs share <runs-root>/design_db — later runs start from the filled library
+python run_multirun.py --benchmark sat_mac4 --model openrouter:z-ai/glm-5.2 \
+    --agent-backend opencode --language spirehdl --design-db-skills \
+    --total-runs 10 --max-concurrent 4 --wall-clock-min 20
+
+# persistent library across campaigns: point both at the same root
+python run_multirun.py ... --design-db-skills --design-db-path /data/my_subcircuit_lib
+```
+
+Whether the DB actually gets used is up to the benchmark: the skills are progressive-disclosure
+(the agent's context carries only the one-line listing until it opens one), so on a benchmark
+that doesn't invite decomposition the layer costs a few lines and stays idle. `--language
+spirehdl` is what makes it productive — `@from_design_db` slots register and splice only from
+spire designs.
 
 Trust model unchanged: agents propose, spire's gate disposes — inserts only via
 `spire db insert` (verify → dedup → metric-stamp → admit), frozen verifications are immutable,
@@ -299,7 +331,7 @@ These flags (all **Spire-only**; Verilog/Amaranth runs ignore them) opt the agen
 
 ### Multirun campaign — `run_multirun.py`
 
-Many agents run in parallel sharing an **elite pool**: some start fresh (exploration), the rest are seeded from the best designs found so far (exploitation). This is the core optimizer and usually beats single runs on a given objective. See **[README_multirun.md](README_multirun.md)** for the full set of knobs: elite-pool sizing, the fresh schedule, seeding formats, and per-campaign plotting.
+Many agents run in parallel sharing an **elite pool**: some start fresh (exploration), the rest are seeded from the best designs found so far (exploitation). This is the core optimizer and usually beats single runs on a given objective. See **[README_multirun.md](README_multirun.md)** for the full set of knobs: elite-pool sizing, the fresh schedule, seeding formats, and per-campaign plotting. With the OpenCode backend, `--design-db-skills` additionally gives all runs a shared **campaign design DB** (verified subcircuits accumulate across runs — see [the skill-based flow](#skill-based-flow---agent-backend-opencode---design-db-skills)).
 
 ```bash
 python run_multirun.py \

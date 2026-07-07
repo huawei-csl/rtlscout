@@ -72,10 +72,13 @@ class BackendRequest:
     arith_autoconfig: bool = False
     dont_touch_main_arith: bool = False
     fsm_optimize: bool = False
-    # Design-DB layer (opt-in, opencode backend only): provision the skill pack, merge the
-    # rtl-subcircuit/rtl-dv-prep subagents, add the AGENTS.md section, forward $SPIREHDL_DB_PATH.
-    # Off ⇒ the plain opencode run (pre-K3 state). React ignores it.
-    design_db: bool = False
+    # Design-DB skills layer (opt-in, opencode backend only): provision the skill pack, merge
+    # the rtl-subcircuit/rtl-dv-prep subagents, add the AGENTS.md section, and hand a DB over
+    # (design_db_path → $SPIREHDL_DB_PATH → workspace-local ./design_db, spire's default).
+    # The DB itself is spire's — this layer is the guidance + handover, not the capability.
+    # Off ⇒ the plain opencode run (pre-K3 state). React ignores both.
+    design_db_skills: bool = False
+    design_db_path: Optional[Path] = None       # explicit DB root (e.g. multirun's campaign DB)
     # The agent-role sandbox (handover §3.1). None ⇒ the backend uses a LocalSandbox
     # (single-container mode). Phase 3 sets this to a ContainerSandbox for orchestrated mode.
     agent_sandbox: Optional["Sandbox"] = None

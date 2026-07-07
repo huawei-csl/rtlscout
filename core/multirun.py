@@ -9,6 +9,7 @@ fresh (exploration, with decaying probability).
 
 import json
 import math
+import os
 import random
 import shutil
 import tempfile
@@ -405,7 +406,8 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
     deploy_mode = task.get("mode", "single-container")
     session_id = task.get("session_id", "")
     wall_clock_s = task.get("wall_clock_s", 0)
-    design_db = bool(task.get("design_db", False))
+    design_db_skills = bool(task.get("design_db_skills", False))
+    design_db_path = task.get("design_db_path") or None
     # Authoritative re-eval is mandatory on the opencode path (its container is
     # untrusted); on react it is opt-in via --reeval purely for A/B parity.
     do_reeval = bool(task.get("reeval", False)) or agent_backend == "opencode"
@@ -455,7 +457,8 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
             run_cec=run_cec,
             agent_backend=agent_backend,
             wall_clock_s=wall_clock_s,
-            design_db=design_db,
+            design_db_skills=design_db_skills,
+            design_db_path=design_db_path,
             agent_sandbox=agent_sandbox,
         )
         result_dict = result.to_dict()
@@ -559,7 +562,8 @@ def run_multirun(
     deploy_mode: str = "single-container",
     reeval: bool = False,
     wall_clock_s: int = 0,
-    design_db: bool = False,
+    design_db_skills: bool = False,
+    design_db_path: Optional[Path] = None,
 ) -> Dict[str, Any]:
     """Run the async elite-pool multi-run optimization (one ``session_id`` per campaign,
     used to label + sweep this campaign's orchestrated containers).
@@ -576,6 +580,17 @@ def run_multirun(
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         runs_root = Path("runs") / f"multirun_{ts}"
     runs_root.mkdir(parents=True, exist_ok=True)
+
+    # Campaign design DB: with the skills layer on, all runs share one library by default —
+    # run N starts with everything runs 1..N-1 verified (and an elite seed's @from_design_db
+    # decorators re-splice against the populated library instead of an empty one). Concurrent
+    # fills are safe (derived per-slot index, atomic admits). Precedence: an explicit
+    # design_db_path beats $SPIREHDL_DB_PATH beats this campaign default — so a persistent
+    # cross-campaign library set via the env var is respected.
+    if design_db_skills and design_db_path is None and not os.environ.get("SPIREHDL_DB_PATH"):
+        design_db_path = runs_root / "design_db"
+    if design_db_skills and design_db_path is not None:
+        design_db_path.mkdir(parents=True, exist_ok=True)
 
     # --mode applies to the OpenCode backend only. The react agent has no shell and always runs
     # in-process (its in-process score is already trustworthy), so containerizing it — or its
@@ -672,6 +687,8 @@ def run_multirun(
         "dont_touch_main_arith": dont_touch_main_arith,
         "fsm_optimize": fsm_optimize,
         "run_cec": run_cec,
+        "design_db_skills": design_db_skills,
+        "design_db_path": str(design_db_path) if design_db_path else None,
     }
     (runs_root / "config.json").write_text(json.dumps(config, indent=2))
 
@@ -738,7 +755,8 @@ def run_multirun(
             "mode": deploy_mode,
             "reeval": reeval,
             "wall_clock_s": wall_clock_s,
-            "design_db": design_db,
+            "design_db_skills": design_db_skills,
+            "design_db_path": str(design_db_path) if design_db_path else "",
             "session_id": session_id,
         }
 

@@ -128,11 +128,11 @@ def _metric_name(req: "BackendRequest") -> str:
 def render_agents_md(req: "BackendRequest") -> str:
     """Render AGENTS.md for an OpenCode run via the unified lean renderer
     (``core.agents_md``) — a shell-capable agent gets task + workflow + reference pointers,
-    not the react loop's inlined tool mechanics. With ``req.design_db`` the design-DB block
+    not the react loop's inlined tool mechanics. With ``req.design_db_skills`` the design-DB block
     (skills + subagents) rides along in the execution section."""
     metric_name = _metric_name(req)
     execution_section = _opencode_execution_section(req, metric_name)
-    if req.design_db:
+    if req.design_db_skills:
         from core.design_db_skills import render_design_db_agents_section
         execution_section += "\n\n" + render_design_db_agents_section()
     from core.agents_md import render_opencode_agents_md
@@ -213,7 +213,7 @@ def render_opencode_config(req: "BackendRequest", yolo: bool = False) -> Dict:
     """Render opencode.json. The custom 'rtl' agent gets full local tool permissions so
     non-interactive runs apply edits AND can read the Spire package source to explore
     architectures (handover §4.8). The provider key is supplied via env, never here (O4).
-    With ``req.design_db`` the design-DB subagents (rtl-subcircuit / rtl-dv-prep, task tool
+    With ``req.design_db_skills`` the design-DB subagents (rtl-subcircuit / rtl-dv-prep, task tool
     denied) are merged in — reachable only via the primary agent's task tool."""
     model_arg = f"{req.provider}/{req.model}"
     perms = _permissions(yolo)
@@ -226,7 +226,7 @@ def render_opencode_config(req: "BackendRequest", yolo: bool = False) -> Dict:
             "tools": {"write": True, "edit": True, "bash": True, "read": True},
         },
     }
-    if req.design_db:
+    if req.design_db_skills:
         from core.design_db_skills import design_db_subagent_entries
         agents.update(design_db_subagent_entries(model_arg, perms))
     return {
@@ -396,7 +396,7 @@ class OpenCodeBackend:
         write_eval_config(req)
         write_eval_wrapper(req)
         write_remaining_time_wrapper(req)
-        if req.design_db:
+        if req.design_db_skills:
             from core.design_db_skills import provision_design_db_skills
             provision_design_db_skills(workspace)   # .opencode/skills/** — opencode discovers them
 
@@ -408,12 +408,17 @@ class OpenCodeBackend:
             if val:
                 env[keyvar] = val
 
-        # Shared design DB (opt-in, only with the design-DB layer on): forward its location —
-        # the backend's env dict is fresh, so without this a ContainerSandbox agent could not
-        # see it (LocalSandbox merges os.environ anyway). The default (unset) resolves to a
-        # per-workspace ./design_db and needs nothing.
-        db_path = os.environ.get("SPIREHDL_DB_PATH") if req.design_db else None
+        # Design-DB handover (only with the skills layer on): resolve the DB root — explicit
+        # request path (e.g. multirun's campaign DB) → $SPIREHDL_DB_PATH → none (spire's
+        # workspace-local ./design_db default) — and forward it. The backend's env dict is
+        # fresh, so without this a ContainerSandbox agent could not see it (LocalSandbox merges
+        # os.environ anyway). mkdir before the container mount: docker would otherwise create a
+        # missing host dir root-owned.
+        db_path = None
+        if req.design_db_skills:
+            db_path = str(req.design_db_path) if req.design_db_path else os.environ.get("SPIREHDL_DB_PATH")
         if db_path:
+            Path(db_path).mkdir(parents=True, exist_ok=True)
             env["SPIREHDL_DB_PATH"] = db_path
 
         # Give opencode a guaranteed-writable HOME under the run dir, so its config/cache

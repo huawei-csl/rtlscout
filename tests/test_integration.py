@@ -1,5 +1,6 @@
 """Integration tests for run_benchmark, run_multirun, and run_eval."""
 
+import json
 import shutil
 from pathlib import Path
 
@@ -107,6 +108,7 @@ def test_run_multirun_simple_adder(tmp_path):
         elite_size=2,
         cost_metric="transistors",
         runs_root=tmp_path / "ms_runs",
+        design_db_skills=True,
     )
 
     assert summary["global_best_cost"] is not None
@@ -114,6 +116,13 @@ def test_run_multirun_simple_adder(tmp_path):
     assert (tmp_path / "ms_runs" / "multirun_summary.json").exists()
     passing = [r for r in summary["runs"] if r.get("passed")]
     assert len(passing) >= 1
+
+    # design_db_skills=True defaults to a campaign DB shared by all runs, pre-created and
+    # recorded in the campaign config (react runs ignore the layer — resolution is backendless).
+    assert (tmp_path / "ms_runs" / "design_db").is_dir()
+    config = json.loads((tmp_path / "ms_runs" / "config.json").read_text())
+    assert config["design_db_skills"] is True
+    assert config["design_db_path"] == str(tmp_path / "ms_runs" / "design_db")
 
 
 @requires_verilator

@@ -22,7 +22,7 @@ requires_opencode_live = pytest.mark.skipif(
 
 
 def _make_req(tmp_path, language="verilog", model="z-ai/glm-4.6", provider="openrouter",
-              wall_clock_s=0, design_db=False):
+              wall_clock_s=0, design_db_skills=False):
     from core.agent_backend import BackendRequest, RunLimits
     from core.benchmarks import load_benchmark
     from core.cost import make_cost_metric
@@ -35,7 +35,7 @@ def _make_req(tmp_path, language="verilog", model="z-ai/glm-4.6", provider="open
         benchmark=bench, workdir=workdir, workspace=ws, model=model, provider=provider,
         cost_metric=make_cost_metric("transistors"), language=language,
         limits=RunLimits(max_steps=20, wall_clock_s=wall_clock_s),
-        cec_reference=cec, run_cec=False, design_db=design_db,
+        cec_reference=cec, run_cec=False, design_db_skills=design_db_skills,
     )
 
 
@@ -50,12 +50,14 @@ class _FakeSandbox:
         self.run_root = Path(run_root)
         self.scripts = scripts
         self.calls = 0
+        self.specs = []
 
     def run_callable(self, fn, spec):
         raise NotImplementedError
 
     def run_command(self, argv, spec):
         from core.sandbox import CommandResult
+        self.specs.append(spec)
         s = self.scripts[min(self.calls, len(self.scripts) - 1)]
         self.calls += 1
         if s.get("add_eval"):
@@ -66,10 +68,10 @@ class _FakeSandbox:
                              stderr="", timed_out=s.get("timed_out", False))
 
 
-def _run_with_fake(tmp_path, scripts, wall_clock_s=300, design_db=False):
+def _run_with_fake(tmp_path, scripts, wall_clock_s=300, design_db_skills=False):
     """Run OpenCodeBackend.run with a fake sandbox; return the provenance dict."""
     from core.opencode_backend import OpenCodeBackend
-    req = _make_req(tmp_path, wall_clock_s=wall_clock_s, design_db=design_db)
+    req = _make_req(tmp_path, wall_clock_s=wall_clock_s, design_db_skills=design_db_skills)
     req.agent_sandbox = _FakeSandbox(req.workdir, scripts)
     OpenCodeBackend().run(req)
     return json.loads((req.workdir / "_opencode_provenance.json").read_text())
@@ -219,17 +221,17 @@ def test_render_opencode_config(tmp_path):
     # Key must NOT be embedded in the config (handover O4).
     assert "OPENROUTER_API_KEY" not in json.dumps(cfg)
 
-    # Default (no --design-db): the plain pre-K3 config — primary rtl agent only.
+    # Default (no --design-db-skills): the plain pre-K3 config — primary rtl agent only.
     assert set(cfg["agent"]) == {"rtl"}
     assert cfg["agent"]["rtl"]["permission"]["task"] == "allow"
     assert cfg["permission"]["task"] == "allow"
 
 
-def test_render_opencode_config_design_db(tmp_path):
-    """--design-db merges the subagents: mode subagent, hidden, task tool denied (structural
+def test_render_opencode_config_design_db_skills(tmp_path):
+    """--design-db-skills merges the subagents: mode subagent, hidden, task tool denied (structural
     depth cap); the primary rtl agent keeps its task allowance."""
     from core.opencode_backend import render_opencode_config
-    cfg = render_opencode_config(_make_req(tmp_path, design_db=True))
+    cfg = render_opencode_config(_make_req(tmp_path, design_db_skills=True))
     for name in ("rtl-subcircuit", "rtl-dv-prep"):
         sub = cfg["agent"][name]
         assert sub["mode"] == "subagent" and sub["hidden"] is True
@@ -241,7 +243,7 @@ def test_render_opencode_config_design_db(tmp_path):
 
 def test_agents_md_design_db_section_gated(tmp_path):
     from core.opencode_backend import render_agents_md
-    md = render_agents_md(_make_req(tmp_path, design_db=True))
+    md = render_agents_md(_make_req(tmp_path, design_db_skills=True))
     assert "## Design DB" in md
     assert "design-db-dispatch" in md and "design-db-inspect" in md
     assert "spire db insert" in md                       # the gate is named, hand-edits banned
@@ -249,11 +251,11 @@ def test_agents_md_design_db_section_gated(tmp_path):
 
 
 def test_run_provisions_skills(tmp_path):
-    """A --design-db backend run (fake sandbox, no LLM) leaves the skill pack in the
+    """A --design-db-skills backend run (fake sandbox, no LLM) leaves the skill pack in the
     workspace; a default run leaves none."""
     from core.design_db_skills import SKILL_NAMES
     _run_with_fake(tmp_path, [{"stdout": _SID, "returncode": 0}], wall_clock_s=0,
-                   design_db=True)
+                   design_db_skills=True)
     skills = tmp_path / "wd" / "workspace" / ".opencode" / "skills"
     for name in SKILL_NAMES:
         assert (skills / name / "SKILL.md").exists()
@@ -263,6 +265,32 @@ def test_run_provisions_skills(tmp_path):
 def test_run_default_provisions_no_skills(tmp_path):
     _run_with_fake(tmp_path, [{"stdout": _SID, "returncode": 0}], wall_clock_s=0)
     assert not (tmp_path / "wd" / "workspace" / ".opencode").exists()
+
+
+def test_design_db_handover_env_and_mount(tmp_path):
+    """req.design_db_path flows to the sandbox as $SPIREHDL_DB_PATH + a writable mount, and
+    the dir is pre-created (a docker mount of a missing host dir would be root-owned). With
+    the skills layer off the path is ignored entirely."""
+    from pathlib import Path
+    from core.opencode_backend import OpenCodeBackend
+    db_root = tmp_path / "campaign_db"
+    req = _make_req(tmp_path, wall_clock_s=0, design_db_skills=True)
+    req.design_db_path = db_root
+    fake = _FakeSandbox(req.workdir, [{"stdout": _SID, "returncode": 0}])
+    req.agent_sandbox = fake
+    OpenCodeBackend().run(req)
+    spec = fake.specs[0]
+    assert spec.env.get("SPIREHDL_DB_PATH") == str(db_root)
+    assert Path(str(db_root)) in [Path(str(m)) for m in spec.mounts_rw]
+    assert db_root.is_dir()
+
+    req2 = _make_req(tmp_path / "off", wall_clock_s=0)          # skills layer off
+    req2.design_db_path = tmp_path / "ignored_db"
+    fake2 = _FakeSandbox(req2.workdir, [{"stdout": _SID, "returncode": 0}])
+    req2.agent_sandbox = fake2
+    OpenCodeBackend().run(req2)
+    assert "SPIREHDL_DB_PATH" not in (fake2.specs[0].env or {})
+    assert not (tmp_path / "ignored_db").exists()
 
 
 def test_child_session_extraction_and_store_preservation(tmp_path):
@@ -306,10 +334,10 @@ def test_run_exports_child_sessions(tmp_path):
 
 def test_final_framework_eval_runs_when_design_present(tmp_path):
     """The harness scores the final workspace state itself (react parity) — a parent killed
-    mid-wrap-up loses nothing measurable. design_db=True: the wrap-up lifecycle (final eval →
+    mid-wrap-up loses nothing measurable. design_db_skills=True: the wrap-up lifecycle (final eval →
     summary turn → export) must be identical with the design-DB layer on."""
     from core.opencode_backend import OpenCodeBackend
-    req = _make_req(tmp_path, wall_clock_s=0, design_db=True)
+    req = _make_req(tmp_path, wall_clock_s=0, design_db_skills=True)
     (req.workspace / "design.sv").write_text(
         "module adder(input [7:0] a, input [7:0] b, output [7:0] sum);\n"
         "  assign sum = a + b;\nendmodule\n")
