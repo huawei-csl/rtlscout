@@ -249,6 +249,59 @@ def test_run_provisions_skills(tmp_path):
     assert (skills / "design-db-score" / "scripts" / "db-score").exists()
 
 
+def test_child_session_extraction_and_store_preservation(tmp_path):
+    from core.opencode_backend import _extract_child_session_ids, _preserve_session_store
+    text = 'x {"sessionID":"ses_parent1"} task ses_childA … ses_childB … ses_childA again'
+    assert _extract_child_session_ids(text, "ses_parent1") == ["ses_childA", "ses_childB"]
+    assert _extract_child_session_ids(text, None) == ["ses_childA", "ses_childB", "ses_parent1"]
+
+    oc_home = tmp_path / "_ochome"
+    store = oc_home / ".local" / "share" / "opencode" / "opencode.db"
+    store.parent.mkdir(parents=True)
+    store.write_bytes(b"sqlite-bytes")
+    Path(str(store) + "-wal").write_bytes(b"wal")
+    workdir = tmp_path / "wd"
+    workdir.mkdir()
+    assert _preserve_session_store(oc_home, workdir) is True
+    assert (workdir / "opencode_store.db").read_bytes() == b"sqlite-bytes"
+    assert (workdir / "opencode_store.db-wal").read_bytes() == b"wal"
+    assert _preserve_session_store(tmp_path / "nope", workdir) is False
+
+
+def test_run_exports_child_sessions(tmp_path):
+    """A fake-sandbox run whose transcript references child sessions exports each child
+    (the export calls also flow through the sandbox)."""
+    stdout = _SID + '\ntask started ses_childA output … {"tool":"task"} ses_childB done'
+    child_export = json.dumps({"info": {"id": "child"}, "messages": []})
+    scripts = [
+        {"stdout": stdout, "returncode": 0},                       # main run (no evals → no nudge)
+        {"stdout": '{"info":{},"messages":[]}', "returncode": 0},  # summary turn
+        {"stdout": '{"info":{},"messages":[]}', "returncode": 0},  # parent export
+        {"stdout": child_export, "returncode": 0},                 # child A export
+        {"stdout": child_export, "returncode": 0},                 # child B export
+    ]
+    prov = _run_with_fake(tmp_path, scripts, wall_clock_s=0)
+    assert prov["child_sessions"]["found"] == ["ses_childA", "ses_childB"]
+    assert prov["child_sessions"]["exported"] == ["ses_childA", "ses_childB"]
+    for sid in ("ses_childA", "ses_childB"):
+        assert json.loads((tmp_path / "wd" / f"opencode_child_{sid}.json").read_text())
+
+
+def test_local_sandbox_graceful_term(tmp_path):
+    """Wall-clock expiry sends SIGTERM first (child can flush state), SIGKILL only after grace."""
+    from core.agent_backend import RunLimits
+    from core.sandbox import LocalSandbox, SandboxSpec
+    spec = SandboxSpec(workdir=tmp_path, limits=RunLimits(max_steps=1, wall_clock_s=1))
+    res = LocalSandbox().run_command(
+        ["python3", "-c",
+         "import signal, sys, time\n"
+         "signal.signal(signal.SIGTERM,"
+         " lambda *a: (print('GRACEFUL', flush=True), sys.exit(7)))\n"
+         "time.sleep(30)"], spec)
+    assert res.timed_out is True and res.returncode == 124
+    assert "GRACEFUL" in res.stdout                       # handler ran → SIGTERM, not SIGKILL
+
+
 def test_container_sandbox_mounts_rw_args(tmp_path, monkeypatch):
     """SandboxSpec.mounts_rw becomes writable identity -v flags (no docker needed — capture
     the constructed argv)."""

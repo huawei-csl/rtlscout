@@ -78,6 +78,10 @@ class LocalSandbox:
     def run_callable(self, fn: Callable[[], Any], spec: SandboxSpec) -> Any:
         return fn()
 
+    #: grace between SIGTERM and SIGKILL on wall-clock expiry — long enough for opencode to
+    #: flush its session store, short enough not to distort budgets.
+    TERM_GRACE_S = 10
+
     def run_command(self, argv: List[str], spec: SandboxSpec) -> CommandResult:
         timeout = None
         if spec.limits is not None and spec.limits.wall_clock_s:
@@ -86,19 +90,22 @@ class LocalSandbox:
         if spec.env is not None:
             import os
             env = {**os.environ, **spec.env}
+        proc = subprocess.Popen(argv, cwd=str(spec.workdir), env=env,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         try:
-            proc = subprocess.run(
-                argv, cwd=str(spec.workdir), env=env,
-                capture_output=True, text=True, timeout=timeout,
-            )
-            return CommandResult(proc.returncode, proc.stdout, proc.stderr, timed_out=False)
-        except subprocess.TimeoutExpired as e:
-            return CommandResult(
-                returncode=124,
-                stdout=e.stdout.decode() if isinstance(e.stdout, bytes) else (e.stdout or ""),
-                stderr=e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or ""),
-                timed_out=True,
-            )
+            out, err = proc.communicate(timeout=timeout)
+            return CommandResult(proc.returncode, out, err, timed_out=False)
+        except subprocess.TimeoutExpired:
+            # Graceful first: SIGTERM lets the child flush state (opencode: its session store),
+            # then SIGKILL if it lingers. Output produced up to the end is still collected.
+            proc.terminate()
+            try:
+                out, err = proc.communicate(timeout=self.TERM_GRACE_S)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                out, err = proc.communicate()
+            return CommandResult(returncode=124, stdout=out or "", stderr=err or "",
+                                 timed_out=True)
 
 
 # --- Crash-safety registry (handover §5.5 layer 1): stop exactly the containers we
@@ -215,6 +222,8 @@ class ContainerSandbox:
             proc = subprocess.run(docker, capture_output=True, text=True, timeout=timeout)
             return CommandResult(proc.returncode, proc.stdout, proc.stderr, timed_out=False)
         except subprocess.TimeoutExpired as e:
+            # graceful stop (SIGTERM + grace) so in-container state flushes, then force-remove
+            subprocess.run(["docker", "stop", "-t", "10", name], capture_output=True, text=True)
             subprocess.run(["docker", "rm", "-f", name], capture_output=True, text=True)
             return CommandResult(
                 returncode=124,

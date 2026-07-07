@@ -20,12 +20,13 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import shutil
 import sys
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 if TYPE_CHECKING:
     from core.agent import AgentResult
@@ -74,6 +75,28 @@ NUDGE_PROMPT = (
     "./evaluate_design. You'll be terminated automatically when time runs out; keep improving "
     "until then."
 )
+
+
+_SESSION_ID_RE = re.compile(r"ses_[a-zA-Z0-9]+")
+
+
+def _extract_child_session_ids(transcript_text: str, parent_id: Optional[str]) -> List[str]:
+    """Every session ID referenced in the transcript except the parent — with the task tool,
+    these are the subagent child sessions."""
+    return sorted(set(_SESSION_ID_RE.findall(transcript_text)) - {parent_id})
+
+
+def _preserve_session_store(oc_home: Path, workdir: Path) -> bool:
+    """Copy opencode's SQLite session store (small) out of _ochome before the ~100 MB HOME is
+    deleted — the raw store is the last-resort session record (`sqlite3` / future exports)."""
+    store = oc_home / ".local" / "share" / "opencode" / "opencode.db"
+    if not store.exists():
+        return False
+    for suffix in ("", "-wal", "-shm"):                # WAL contents merge on next open
+        src = Path(str(store) + suffix)
+        if src.exists():
+            shutil.copyfile(src, workdir / ("opencode_store.db" + suffix))
+    return True
 
 
 def _extract_session_id(stdout: str) -> Optional[str]:
@@ -475,25 +498,36 @@ class OpenCodeBackend:
         # kickoff, nudges, summary) alongside the assistant/tool events — one self-contained
         # {info, messages} document for the whole run (all rounds share one session). Best-effort:
         # a failed export just leaves the stdout transcript log below as the record.
-        session_json_saved = False
-        if session_id:
+        def _export_session(sid: str, dest: Path) -> bool:
             try:
                 exp = sandbox.run_command(
-                    ["bash", "-c", f"exec opencode export {shlex.quote(session_id)}", "opencode-export"],
+                    ["bash", "-c", f"exec opencode export {shlex.quote(sid)}", "opencode-export"],
                     SandboxSpec(workdir=workspace, network="none",
                                 limits=RunLimits(wall_clock_s=60), env=env))
                 out = (exp.stdout or "").strip()
                 if exp.returncode == 0 and out:
                     json.loads(out)  # validate it's real JSON before trusting it
-                    (req.workdir / "opencode_session.json").write_text(out)
-                    session_json_saved = True
+                    dest.write_text(out)
+                    return True
             except (json.JSONDecodeError, ValueError, OSError):
-                pass  # keep going — the stdout transcript log is the fallback
+                pass  # best-effort — the stdout transcript log is the fallback
+            return False
 
-        # opencode leaves ~100 MB of cache / node_modules / session snapshots under HOME
-        # (_ochome). The session was only needed for the nudge + summary turns + the export above,
-        # so drop it now to keep the run dir small. (_ochome is a sibling of workspace, so it never
-        # entered eval snapshots — but it still bloats the run dir if left behind.)
+        session_json_saved = bool(session_id) and _export_session(
+            session_id, req.workdir / "opencode_session.json")
+
+        # Subagent (task tool) child sessions: their turn-by-turn transcripts live only in the
+        # session store — export each one alongside the parent (best-effort; the children's
+        # *products* are durable in the workspace/DB regardless).
+        child_ids = _extract_child_session_ids("\n".join(transcript), session_id)
+        children_exported = [sid for sid in child_ids
+                             if _export_session(sid, req.workdir / f"opencode_child_{sid}.json")]
+
+        # Keep the (small) raw session store as the last-resort record, then drop the ~100 MB
+        # HOME (_ochome: cache / node_modules / snapshots). The session was only needed for the
+        # nudge + summary turns + the exports above. (_ochome is a sibling of workspace, so it
+        # never entered eval snapshots — but it still bloats the run dir if left behind.)
+        store_saved = _preserve_session_store(oc_home, req.workdir)
         shutil.rmtree(oc_home, ignore_errors=True)
 
         # opencode_session.json (above) is the complete record — prompts + responses — whenever
@@ -512,6 +546,8 @@ class OpenCodeBackend:
             "timed_out": cmd_result.timed_out,
             "nudge_rounds": nudges,
             "session_json_saved": session_json_saved,
+            "child_sessions": {"found": child_ids, "exported": children_exported},
+            "session_store_saved": store_saved,
             "summary_turn": {
                 "session_id": session_id,
                 "ran": summary_result is not None,
