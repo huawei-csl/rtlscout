@@ -26,6 +26,10 @@ skill; the subagent's self-description is never the result.
    > `<minutes>` minutes — check `./remaining_time`.
    (Solo dispatch may keep the defaults: workdir `work/<spec_key>/`, tag `agent:rtl-subcircuit`,
    no lens.)
+   **Reserve your own headroom**: give children a budget of at least `remaining − 3` minutes
+   (check `./remaining_time` before dispatching) — you still need time after they return for
+   `design-db-inspect` and the post-fill `./evaluate_design`; children are advised to wind down
+   on their guidance, but the wall clock kills whoever is running at the deadline, including you.
 4. The subtask returns the slot key it worked — that is the dispatch's whole output.
 5. **Afterwards, separately**: `spire db show <key> --pareto` (design-db-inspect skill) to see
    what was admitted and whether the best beat the seeded `original:*`.
