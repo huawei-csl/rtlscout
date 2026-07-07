@@ -30,8 +30,9 @@ skill; the subagent's self-description is never the result.
   `rtl-subcircuit` subagent (honest provenance depends on it); your job is coordination and,
   afterwards, judging the DB state. Actually invoke the task tool — describing a dispatch is
   not dispatching.
-- One slot per dispatch; dispatch slots **sequentially** (concurrent inserts into one DB are not
-  supported yet).
+- One slot per dispatch. **Different slots may be dispatched in parallel** (the DB derives its
+  index from the atomically-admitted design dirs, so concurrent inserts are safe) — but never
+  run two dispatches at the *same* slot: one subagent with more budget beats two racing.
 - Re-evaluate the full design (`./evaluate_design`) after a slot is filled — don't defer all
   re-evaluation to the end of the session (the budget may cut it off).
 - Do not retry a failed dispatch in a loop — inspect the slot, note what happened, move on.

@@ -263,7 +263,7 @@ def score_designs(spec_keys: Optional[Sequence[str]] = None, *, db: Optional[Any
     measured: Dict[str, Dict[str, Any]] = {}
     for key in keys:
         slot = d.slot_dir(key)
-        index = d.read_json(slot / "index.json", {})
+        index = d.read_index(key)                   # derived from designs/ (source of truth)
         wanted = None
         if designs is not None:                 # exact ids or unique prefixes, within this slot
             wanted = set()

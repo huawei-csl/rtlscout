@@ -235,8 +235,9 @@ both sandbox modes) is provisioned with design-DB capabilities automatically —
   from subagent claims.
 - **DB location**: a per-run `./design_db` auto-creates in the workspace (default), or set
   `$SPIREHDL_DB_PATH` to share one library across runs — forwarded into orchestrated agent
-  containers with a writable mount. Shared DB + `--max-concurrent > 1` is not yet supported
-  (per-slot index writes are unlocked); keep shared-DB runs sequential.
+  containers with a writable mount. Concurrent fills are safe (the per-slot index is derived
+  from atomically-admitted design dirs; manifest writes are fcntl-locked), so shared DB +
+  `--max-concurrent > 1` and parallel slot dispatch are supported.
 
 Trust model unchanged: agents propose, spire's gate disposes — inserts only via
 `spire db insert` (verify → dedup → metric-stamp → admit), frozen verifications are immutable,

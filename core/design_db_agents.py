@@ -378,7 +378,7 @@ def build_report(spec_key: str, *, db: Optional[Any] = None, objective: str = "a
                  before_ids: Optional[set] = None) -> Dict[str, Any]:
     """The handover report — computed from the DB, never from agent claims."""
     d = DesignDB.open(db, create=False)
-    index = d.read_json(d.slot_dir(spec_key) / "index.json", {})
+    index = d.read_index(spec_key)                  # derived from designs/ (source of truth)
     added = sorted(set(index) - (before_ids or set()))
     sel = select_design(spec_key, objective=objective, db=db, record=True) if index else None
     report: Dict[str, Any] = {
@@ -423,7 +423,7 @@ def dispatch_subcircuit(spec_key: str, *, db: Optional[Any] = None, objective: s
             seeded = seed_original(spec_key, db=db).design_id
         except VerificationError as exc:        # a golden failing its own gate is a slot problem
             seeded = f"seed-failed: {str(exc).splitlines()[0][:120]}"
-    before = set(d.read_json(d.slot_dir(spec_key) / "index.json", {}))
+    before = set(d.derive_index(spec_key))
 
     workdir = Path(workdir) if workdir else Path(tempfile.mkdtemp(prefix="ddb_dispatch_"))
     provision_slot_workspace(spec_key, workdir, db=db, objective=objective,
@@ -516,6 +516,8 @@ def run_orchestrator(*, db: Optional[Any] = None, objective: str = "area",
 
     d = DesignDB.open(db, create=False)
     before = d.read_json(d.manifest_path, {"slots": {}})
+    before_counts = {name: len(d.derive_index(e["spec_key"]))
+                     for name, e in before.get("slots", {}).items() if e.get("spec_key")}
     workdir = Path(workdir) if workdir else Path(tempfile.mkdtemp(prefix="ddb_orch_"))
     provision_orchestrator_workspace(workdir, db=db, objective=objective,
                                      model_spec=model_spec, budget_min=budget_min)
@@ -538,11 +540,10 @@ def run_orchestrator(*, db: Optional[Any] = None, objective: str = "area",
     after = d.read_json(d.manifest_path, {"slots": {}})
     slots_report = {}
     for name, entry in sorted(after.get("slots", {}).items()):
-        prev = before.get("slots", {}).get(name, {})
         slots_report[name] = {
             "spec_key": entry.get("spec_key"),
-            "n_designs": entry.get("n_designs", 0),
-            "n_designs_before": prev.get("n_designs", 0),
+            "n_designs": len(d.derive_index(entry["spec_key"])) if entry.get("spec_key") else 0,
+            "n_designs_before": before_counts.get(name, 0),
             "selected_id": entry.get("selected_id"),
         }
     report = {"objective": objective, "slots": slots_report,
@@ -592,7 +593,8 @@ def compile_design(design_file: Path, *, db: Optional[Any] = None,
     if not result.cost.ok:
         raise DesignDBError(f"compile/measure failed: {result.cost.error or py_out[-400:] or 'no design.v produced (design.py must to_verilog_file())'}")
     manifest = d.read_json(d.manifest_path, {"slots": {}})
-    slots = {name: {"spec_key": e.get("spec_key"), "n_designs": e.get("n_designs", 0),
+    slots = {name: {"spec_key": e.get("spec_key"),
+                    "n_designs": len(d.derive_index(e["spec_key"])) if e.get("spec_key") else 0,
                     "selected_id": e.get("selected_id")}
              for name, e in sorted(manifest.get("slots", {}).items())}
     notes = [ln for ln in py_out.splitlines() if ln.startswith("[spire.design_db]")]
@@ -624,6 +626,9 @@ def run_designer(design_file: Path, *, db: Optional[Any] = None, objective: str 
     design_file = Path(design_file).resolve()
     d = DesignDB.open(db, create=True)
     before_manifest = d.read_json(d.manifest_path, {"slots": {}})
+    before_counts = {name: len(d.derive_index(e["spec_key"]))
+                     for name, e in before_manifest.get("slots", {}).items()
+                     if e.get("spec_key")}
     workdir = Path(workdir) if workdir else Path(tempfile.mkdtemp(prefix="ddb_designer_"))
     workdir.mkdir(parents=True, exist_ok=True)
 
@@ -665,11 +670,10 @@ def run_designer(design_file: Path, *, db: Optional[Any] = None, objective: str 
     after_manifest = d.read_json(d.manifest_path, {"slots": {}})
     slots_report = {}
     for name, entry in sorted(after_manifest.get("slots", {}).items()):
-        prev = before_manifest.get("slots", {}).get(name, {})
         slots_report[name] = {
             "spec_key": entry.get("spec_key"),
-            "n_designs": entry.get("n_designs", 0),
-            "n_designs_before": prev.get("n_designs", 0),
+            "n_designs": len(d.derive_index(entry["spec_key"])) if entry.get("spec_key") else 0,
+            "n_designs_before": before_counts.get(name, 0),
             "selected_id": entry.get("selected_id"),
         }
     b_cost, f_cost = baseline["cost"], (final["cost"] if final else None)
