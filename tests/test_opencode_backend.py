@@ -285,6 +285,27 @@ def test_run_exports_child_sessions(tmp_path):
     assert prov["child_sessions"]["exported"] == ["ses_childA", "ses_childB"]
     for sid in ("ses_childA", "ses_childB"):
         assert json.loads((tmp_path / "wd" / f"opencode_child_{sid}.json").read_text())
+    assert prov["final_framework_eval"]["ran"] is False     # no design file → skipped
+
+
+def test_final_framework_eval_runs_when_design_present(tmp_path):
+    """The harness scores the final workspace state itself (react parity) — a parent killed
+    mid-wrap-up loses nothing measurable."""
+    from core.opencode_backend import OpenCodeBackend
+    req = _make_req(tmp_path, wall_clock_s=0)
+    (req.workspace / "design.sv").write_text(
+        "module adder(input [7:0] a, input [7:0] b, output [7:0] sum);\n"
+        "  assign sum = a + b;\nendmodule\n")
+    scripts = [
+        {"stdout": _SID, "returncode": 0},        # main run
+        {"stdout": "eval ok", "returncode": 0},   # final framework eval
+        {"stdout": "", "returncode": 0},          # summary turn
+        {"stdout": "", "returncode": 1},          # parent export (fails → .log fallback)
+    ]
+    req.agent_sandbox = _FakeSandbox(req.workdir, scripts)
+    OpenCodeBackend().run(req)
+    prov = json.loads((req.workdir / "_opencode_provenance.json").read_text())
+    assert prov["final_framework_eval"] == {"ran": True, "returncode": 0}
 
 
 def test_local_sandbox_graceful_term(tmp_path):

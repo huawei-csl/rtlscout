@@ -485,6 +485,21 @@ class OpenCodeBackend:
             if not cmd_result.timed_out and _n_evals() == before:
                 break  # nudge produced no new evaluation → agent is done/stuck; stop nudging
 
+        # Final framework eval (react parity): the harness — not the agent — guarantees the
+        # LAST workspace state is scored, so a parent killed mid-wrap-up loses nothing
+        # measurable. Runs the same advisory eval shim the agent uses (same snapshot tree); for
+        # spire designs the recompile fires @from_design_db, i.e. this measures the final
+        # spliced selection state. NOT counted against the optimization budget.
+        final_eval = None
+        design_file = workspace / _DESIGN_FILE_BY_LANG.get(req.language, "design.sv")
+        if design_file.exists():
+            final_eval = sandbox.run_command(
+                ["bash", "-c", f"exec ./evaluate_design {shlex.quote(design_file.name)}",
+                 "opencode-final-eval"],
+                SandboxSpec(workdir=workspace, network="none",
+                            limits=RunLimits(wall_clock_s=600), env=env))
+            transcript.append("=== FINAL FRAMEWORK EVAL ===\n" + (final_eval.stdout or ""))
+
         # Summarizer turn (react parity, handover §5.2): CONTINUE the same session and ask the
         # agent to write summary.txt with full memory. Its own short timeout, NOT counted against
         # the optimization budget. Falls back to _harvest's _synth_summary if it can't continue.
@@ -548,6 +563,8 @@ class OpenCodeBackend:
             "session_json_saved": session_json_saved,
             "child_sessions": {"found": child_ids, "exported": children_exported},
             "session_store_saved": store_saved,
+            "final_framework_eval": {"ran": final_eval is not None,
+                                     "returncode": getattr(final_eval, "returncode", None)},
             "summary_turn": {
                 "session_id": session_id,
                 "ran": summary_result is not None,
