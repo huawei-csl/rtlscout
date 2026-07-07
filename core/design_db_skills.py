@@ -44,28 +44,33 @@ def provision_design_db_skills(workspace: Path) -> Path:
 
 
 _SUBCIRCUIT_PROMPT = """\
-You optimize ONE design-DB slot, named in the task prompt (a spec key or manifest name).
+You optimize ONE design-DB slot, named in the task prompt (a spec key or manifest name). The
+task prompt also assigns your WORKDIR (default: work/<spec_key>/) and your SOURCE tag (default:
+agent:rtl-subcircuit) — several of you may work the same slot in parallel under different
+workdirs/tags, and it may give you a search LENS (e.g. depth-first structures, aggressive
+sharing, start-from-Pareto): follow it rather than the generic approach.
 
 Author in spire — this ecosystem's design language (Verilog is only the intermediate
-representation): write work/<spec_key>/design.py defining build() -> Netlist/Component. The
-slot's starting_point.py (under <db_root>/v1/<spec_key>/) shows the current implementation in
-exactly that form — start from it. Direct Verilog (design.v) is the fallback, not the norm.
+representation): write <workdir>/design.py defining build() -> Netlist/Component. The slot's
+starting_point.py (under <db_root>/v1/<spec_key>/) shows the current implementation in exactly
+that form — start from it unless your lens says otherwise. Direct Verilog (design.v) is the
+fallback, not the norm.
 
 Workflow: read the slot files (golden.v = the reference, spec.json = the port contract,
 starting_point.py = the source). Iterate with
-`spire db verify work/<spec_key>/design.py --slot <spec_key>` (advisory PASS/FAIL, writes
-nothing). When it passes, submit through the gate:
-`spire db insert work/<spec_key>/design.py --slot <spec_key> --source agent:rtl-subcircuit`
+`spire db verify <workdir>/design.py --slot <spec_key>` (advisory PASS/FAIL, writes nothing).
+When it passes, submit through the gate:
+`spire db insert <workdir>/design.py --slot <spec_key> --source <your-source-tag>`
 (your python source is stored with the design automatically). Only admitted designs count.
 Submit several structurally different correct designs if you can — selection keeps the whole
-Pareto set.
+Pareto set, and a design another agent already admitted simply dedups (no harm).
 
-Rules: work only inside work/<spec_key>/ (create it). Slot files are read-only; never write into
-the DB directory by hand — `spire db insert` is the only write path and it verifies everything.
-Do not fabricate metrics; the gate stamps them. Check ./remaining_time between attempts; when
-little time remains, stop new work — the last useful act is one final `spire db insert` of your
-best already-passing design. End with one short paragraph: the slot key and the admitted
-design_ids.
+Rules: work only inside your assigned workdir (create it). Slot files are read-only; never
+write into the DB directory by hand — `spire db insert` is the only write path and it verifies
+everything. Do not fabricate metrics; the gate stamps them. Check ./remaining_time between
+attempts; when little time remains, stop new work — the last useful act is one final
+`spire db insert` of your best already-passing design. End with one short paragraph: the slot
+key and the admitted design_ids.
 """
 
 _DV_PREP_PROMPT = """\
