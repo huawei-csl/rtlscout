@@ -291,28 +291,19 @@ the **full-circuit composition space**: every splice combination of the per-slot
 recompiled with forced (`pin=`-style) selections and measured for real (`--all-designs` widens
 to all admitted designs).
 
-### Legacy subprocess launchers
-
-> **Deprecation note:** the command-driven variant below predates the skill-based flow and will
-> be deprecated once the skill flow is validated; it remains supported for unattended campaigns
-> (it is the only variant with a hard per-child wall-clock kill).
+### Non-agentic tools (campaign filler & scorer)
 
 | Command | What it does |
 |---|---|
 | `python rtlscout_cli.py fill-db --slot <key> --model <provider:model>` | Campaign filler: slot → ephemeral benchmark → `run_multirun(reeval=True)` → every passing candidate through Spire's gate (the slot's own golden is seeded first as the baseline/floor). |
-| `python rtlscout_cli.py db-score [--slot K --design ID --technology asap7 --dry-run]` | Measures per-technology PPA on stored designs and annotates the DB (enables `metric="asap7"` selection); `--design` scopes to one design, `--dry-run` measures without writing. *(Not legacy — this command backs the `design-db-score` skill.)* |
-| `python rtlscout_cli.py dv-prep --slot <key>` | For unfrozen sequential slots: the `rtl-dv-prep` agent authors a *stimulus generator* (never expected outputs), tooling golden-simulates + freezes the Tier-2 verification (stimulus kept in the slot for human review). |
-| `python -m core.design_db_agents dispatch --slot <key> --model …` | Launch one `rtl-subcircuit` agent on a slot (pointer payload; `./eval` to iterate, `./db-insert` = the gate; trusted report from the DB diff). |
-| `python -m core.design_db_agents orchestrate --model …` | The `rtl-orchestrator` session: inspects slots (`spire db ls/show`), runs `./dv-prep` where needed, `./dispatch`es subcircuit agents, and the report is manifest-derived. |
-| `python -m core.design_db_agents designer --file <design.py> --model …` | The full loop on one design file (must define `build() -> Netlist` and write `design.v` via `to_verilog_file`): the `rtl-designer` agent places the `@from_design_db` decorators in a *copy* of the file, `./compile`s it (RTLScout's native `spirehdl` evaluator runs the design — firing the decorators — and measures it), fills each slot via `./dispatch`, and recompiles (selections splice in). Report: tooling-measured full-design cost before → after + the design-file diff for human review. |
+| `python rtlscout_cli.py db-score [--slot K --design ID --technology asap7 --dry-run]` | Measures per-technology PPA on stored designs and annotates the DB (enables `metric="asap7"` selection); `--design` scopes to one design, `--dry-run` measures without writing. Backs the `design-db-score` skill. |
 
 The decorator's generate-on-miss hook is `core.design_db_fill.rtlscout_fill`
 (`@from_design_db(fill=rtlscout_fill)`; model via `$RTLSCOUT_FILL_MODEL` or
 `make_rtlscout_fill(model=...)` — never a silent default). Trust model in one line: **agents
-propose; the shims verify** — inserts only ever pass through Spire's gate, agent launches only
-through the depth-guarded `dispatch` shim (`RTLSCOUT_DISPATCH_DEPTH`, cap 2), and reports are
-computed from the DB, never taken from agent claims. Design + decisions:
-`metadocuments/DESIGN_DB_AND_SUBAGENTS.md`.
+propose; spire's gate disposes** — inserts only ever pass through `spire db insert`
+(verify → dedup → metric-stamp → admit), recursion is structurally denied (the subagents have
+no task tool), and reports/selections are computed from the DB, never taken from agent claims.
 
 
 ## Running benchmarks

@@ -9,7 +9,6 @@ backend's ``opencode.json`` next to the primary ``rtl`` agent.
 
 Stdlib-only on purpose: no spire imports, so provisioning can never break a spire-less install.
 Design: ``metadocuments/DESIGN_DB_SKILLS_APPROACH.md``. The subprocess launchers in
-``core/design_db_agents.py`` are the separate legacy variant and are untouched by this module.
 """
 from __future__ import annotations
 
