@@ -71,3 +71,37 @@ def test_rtlscout_fill_hook(db, monkeypatch):
     monkeypatch.delenv(FILL_MODEL_ENV, raising=False)
     with pytest.raises(DesignDBError, match=FILL_MODEL_ENV):
         rtlscout_fill(key, db_root=db)
+
+
+def test_decorator_fill_hook_composed(db):
+    """The composed end-to-end that neither side's tests cover alone: a decorator miss fires
+    ``make_rtlscout_fill`` → a real (fake-provider) campaign → candidates through spire's gate →
+    the SAME compile re-selects and splices (the decorator re-selects right after ``fill``).
+    The recorded manifest selection is the composition proof — it only exists if the post-fill
+    re-select found an admitted design in-compile."""
+    from spire import UInt
+    from spire.component import Netlist
+    from spire.design_db import from_design_db
+
+    fill = make_rtlscout_fill(model="fake:adder8_y_pass", total_runs=1, max_steps=8,
+                              n_advisory_vectors=32, module_name="adder")
+
+    @from_design_db(objective="area", fill=fill)
+    def add8(a, b):
+        return (a + b)[0:8]                  # truncating 8-bit add; traced slot ports: a, b -> y
+
+    m = Netlist("top_fill", with_clock=False, with_reset=False)
+    a, b = m.input(UInt(8), "a"), m.input(UInt(8), "b")
+    y = m.output(UInt(8), "y")
+    y <<= add8(a, b)                          # miss → campaign → gate → re-select → splice
+
+    slots = [p for p in (db / VERSION_DIR).iterdir() if p.is_dir()]
+    assert len(slots) == 1
+    key = slots[0].name
+    index = json.loads((slots[0] / "index.json").read_text())
+    assert any(i.startswith("original:") for i in index)          # fill seeded the floor
+    sel = select_design(key, objective="area")
+    assert sel is not None
+    manifest = json.loads((db / VERSION_DIR / "manifest.json").read_text())
+    assert any(e.get("selected_id") for e in manifest["slots"].values()
+               if e.get("spec_key") == key), "in-compile post-fill selection must be recorded"
