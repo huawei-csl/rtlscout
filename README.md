@@ -277,6 +277,20 @@ Trust model unchanged: agents propose, spire's gate disposes — inserts only vi
 `spire db insert` (verify → dedup → metric-stamp → admit), frozen verifications are immutable,
 and technology PPA enters only through the measure-and-store `db-score` (never hand-typed).
 
+**Visualizing a run:**
+
+```bash
+python measure_db_compositions.py <run_dir>   # optional: measure full-circuit splice combos
+python visualize_db_run.py <run_dir>          # -> <run_dir>/visualization.html
+```
+
+One self-contained HTML report (inline SVG, no dependencies): per-slot Pareto fronts
+(area × AIG depth) colored by subagent source tag, the main agent's selections, admission
+timelines with running best, agent activity lanes — and, after `measure_db_compositions.py`,
+the **full-circuit composition space**: every splice combination of the per-slot fronts
+recompiled with forced (`pin=`-style) selections and measured for real (`--all-designs` widens
+to all admitted designs).
+
 ### Legacy subprocess launchers
 
 > **Deprecation note:** the command-driven variant below predates the skill-based flow and will
