@@ -111,6 +111,25 @@ def svg_axes(x0, y0, x1, y1, xt, yt, sx, sy, xlabel, ylabel, xfmt=str):
     return "".join(s)
 
 
+def load_session_spans(run_dir: Path):
+    """Exact session spans from the recovered `opencode export` files (parent +
+    opencode_child_*.json): {path-stem: (t0, t1, n_msgs, raw_text)}. Empty if no exports."""
+    out = {}
+    for f in sorted(run_dir.glob("opencode_child_*.json")) + [run_dir / "opencode_session.json"]:
+        if not f.exists():
+            continue
+        try:
+            d = json.loads(f.read_text())
+        except (json.JSONDecodeError, OSError):
+            continue
+        times = [m["info"]["time"]["created"] for m in d.get("messages", [])
+                 if m.get("info", {}).get("time", {}).get("created")]
+        if times:
+            out[f.name] = (min(times) / 1000, max(times) / 1000, len(d.get("messages", [])),
+                           f.read_text())
+    return out
+
+
 def color_map(slots):
     tags = []
     for s in slots.values():
@@ -274,13 +293,76 @@ def composition_panel(comp, W=620, H=380):
             f'xmlns="http://www.w3.org/2000/svg">{"".join(out)}</svg></div>')
 
 
-def lanes_panel(slots, colors, t0, t_end, evals_at, W=960):
-    rows = [("main agent (parent session)", ORIG_COLOR, [(0, (t_end - t0) / 60)],
+def evals_over_time_panel(evals, eval_times, comp, t0, t_end, W=960, H=230):
+    """The main agent's ./evaluate_design calls: recorded cost over time, with the measured
+    offline composition references when available."""
+    pts = []
+    measured = {e["eval_index"]: e for e in (comp.get("evaluations") or [])} if comp else {}
+    for i, (e, t) in enumerate(zip(evals, eval_times), start=1):
+        if t is None:
+            continue
+        m = measured.get(i)
+        area = (m or {}).get("area", e.get("cost_value"))
+        if area is None:
+            continue
+        pts.append({"i": i, "t": t, "area": area, "rec": e.get("cost_value"),
+                    "depth": (m or {}).get("depth"), "passed": e.get("passed")})
+    refs = []
+    if comp:
+        seld = next((r for r in comp["results"] if r.get("selected")), None)
+        if seld:
+            refs.append((seld["area"], f"selected composition (measured offline) {seld['area']}"))
+    ys = [q["area"] for q in pts] + [r[0] for r in refs]
+    if not ys:
+        return ""
+    x0, y0, x1, y1 = 62, 14, W - 14, H - 44
+    pad = (max(ys) - min(ys)) * 0.15 or 10
+    sx = lin(0, (t_end - t0) / 60, x0, x1)
+    sy = lin(min(ys) - pad, max(ys) + pad, y1, y0)
+    out = [svg_axes(x0, y0, x1, y1, ticks(0, (t_end - t0) / 60), ticks(min(ys), max(ys), 4),
+                    sx, sy, "minutes since run start", "area (transistors)")]
+    for area, label in refs:
+        out.append(f'<line x1="{x0}" y1="{sy(area):.1f}" x2="{x1}" y2="{sy(area):.1f}" '
+                   f'stroke="{BEST_COLOR}" stroke-dasharray="5 3" opacity="0.9"/>'
+                   f'<text x="{x1 - 4}" y="{sy(area) - 5:.1f}" class="tick" text-anchor="end">'
+                   f'{esc(label)}</text>')
+    for q in pts:
+        px, py = sx((q["t"] - t0) / 60), sy(q["area"])
+        extra = f"  depth {q['depth']}" if q.get("depth") is not None else ""
+        tip = f"eval {q['i']}\narea {q['area']}{extra}\npassed: {q.get('passed')}"
+        out.append(f'<rect x="{px - 5:.1f}" y="{py - 5:.1f}" width="10" height="10" '
+                   f'fill="#334155" fill-opacity="0.9" stroke="white" stroke-width="0.8">'
+                   f'<title>{esc(tip)}</title></rect>'
+                   f'<text x="{px + 8:.1f}" y="{py - 8:.1f}" class="tick">eval {q["i"]}</text>')
+    px = sx((t_end - t0) / 60)
+    out.append(f'<line x1="{px:.1f}" y1="{y0}" x2="{px:.1f}" y2="{y1}" stroke="{SEL_COLOR}" '
+               f'stroke-width="1.6"><title>wall-clock kill</title></line>')
+    head = ('<div class="ptitle">full-circuit evals over time'
+            '<span class="psub">the main agent\'s ./evaluate_design calls'
+            + (' · squares use the measured snapshot recompiles' if measured else '')
+            + '</span></div>')
+    return (f'<div class="panel wide">{head}<svg viewBox="0 0 {W} {H}" width="{W}" height="{H}" '
+            f'xmlns="http://www.w3.org/2000/svg">{"".join(out)}</svg></div>')
+
+
+def lanes_panel(slots, colors, t0, t_end, evals_at, W=960, sessions=None):
+    sessions = sessions or {}
+    clip = lambda t: max(0.0, min(t, (t_end - t0) / 60))
+    parent = sessions.get("opencode_session.json")
+    parent_span = (clip((parent[0] - t0) / 60), clip((parent[1] - t0) / 60)) if parent \
+        else (0, (t_end - t0) / 60)
+    exact = bool(sessions)
+    rows = [("main agent (parent session)", ORIG_COLOR, [parent_span],
              [((te - t0) / 60, f"full-design eval {c}") for te, c in evals_at])]
+    child_spans = {n: v for n, v in sessions.items() if n.startswith("opencode_child_")}
     for name, slot in slots.items():
         for tag in {d["source"] for d in slot["designs"]} - {"original"}:
             ts = [(d["t"] - t0) / 60 for d in slot["designs"] if d["source"] == tag]
-            rows.append((f"{tag}  →  {name}", colors[tag], [(min(ts), max(ts))],
+            span = (min(ts), max(ts))
+            match = next((v for v in child_spans.values() if tag in v[3]), None)
+            if match:                       # exact session window from the recovered export
+                span = (clip((match[0] - t0) / 60), clip((match[1] - t0) / 60))
+            rows.append((f"{tag}  →  {name}", colors[tag], [span],
                          [(t, "gated admission") for t in ts]))
     lane_h, top, left = 34, 12, 250
     H = top + lane_h * len(rows) + 40
@@ -305,7 +387,9 @@ def lanes_panel(slots, colors, t0, t_end, evals_at, W=960):
                f'stroke-width="1.6"/><text x="{px - 4:.1f}" y="{top + 10}" class="tick" '
                f'text-anchor="end" fill="{SEL_COLOR}">wall-clock kill</text>')
     out.append(f'<text x="{(x0 + x1) / 2}" y="{H - 6}" class="lab" text-anchor="middle">minutes since run start</text>')
-    head = '<div class="ptitle">who worked when <span class="psub">(child spans = first→last gated admission)</span></div>'
+    sub = ("child spans = exact session windows (recovered exports)" if exact
+           else "child spans = first→last gated admission")
+    head = f'<div class="ptitle">who worked when <span class="psub">({sub})</span></div>'
     return (f'<div class="panel wide">{head}<svg viewBox="0 0 {W} {H}" width="{W}" height="{H}" '
             f'xmlns="http://www.w3.org/2000/svg">{"".join(out)}</svg></div>')
 
@@ -394,10 +478,11 @@ code {{ background: #f1f5f9; border-radius: 4px; padding: 1px 5px; font-size: 12
 <div class="meta">{esc(meta)}</div>
 <div class="story"><b>The story.</b> {story}</div>
 <div>{legend}</div>
-<div class="panels">{"".join(pareto_panel(n, s, colors) for n, s in slots.items())}
-{composition_panel(comp) if comp else ""}</div>
+<div class="panels">{"".join(pareto_panel(n, s, colors) for n, s in slots.items())}</div>
 {"".join(evolution_panel(n, s, colors, t0, t_end, evals_at) for n, s in slots.items())}
-{lanes_panel(slots, colors, t0, t_end, evals_at)}
+{composition_panel(comp) if comp else ""}
+{evals_over_time_panel(evals, eval_times, comp, t0, t_end)}
+{lanes_panel(slots, colors, t0, t_end, evals_at, sessions=load_session_spans(run_dir))}
 <div class="panel wide"><div class="ptitle">selections</div>
 <table><tr><th>slot</th><th>designs</th><th>objective/metric</th><th>original a/d</th>
 <th>selected a/d</th><th>Δ area</th><th>selected id</th></tr>{"".join(rows)}</table></div>

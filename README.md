@@ -672,6 +672,23 @@ python plot_results.py --input runs/sweep/all_results.json --output-dir my_plots
 python plot_pareto_paper.py runs/multirun_20260316_143944
 ```
 
+
+### Visualize a design-DB skills run
+
+For `--design-db-skills` runs, one self-contained HTML report per run (inline SVG, hover
+tooltips, no dependencies):
+
+```bash
+python measure_db_compositions.py runs/<bench>/<model>/<ts>   # optional: full-circuit splice combos
+python visualize_db_run.py runs/<bench>/<model>/<ts>          # -> <run_dir>/visualization.html
+```
+
+Panels: per-slot Pareto fronts (area × AIG depth) colored by subagent source tag, the main
+agent's selections, admission timelines with running best, the measured full-circuit composition
+space (with the agent's actual evals), full-circuit evals over time, and agent activity lanes
+(exact child session spans when the run's session exports exist). Details in the
+[skill-based flow](#skill-based-flow---agent-backend-opencode---design-db-skills) section.
+
 ## Output format
 
 Results are stored as JSON in the `runs/` directory:

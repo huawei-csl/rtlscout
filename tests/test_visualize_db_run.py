@@ -84,6 +84,11 @@ def test_generate_report_synthetic(synthetic_run):
     assert "main-agent eval 1" in html and "main-agent eval 2" in html
     assert "eval 1 (105)" in html                    # labeled on the plot
     assert "agent selection 80/9" in html
+    assert "full-circuit evals over time" in html
+    assert "selected composition (measured offline) 80" in html
+    order = [html.index("admissions over time"), html.index("full-circuit composition space"),
+             html.index("full-circuit evals over time"), html.index("who worked when")]
+    assert order == sorted(order)                    # panel ordering
 
 
 _DESIGN_PY = """\
