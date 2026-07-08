@@ -522,19 +522,33 @@ class OpenCodeBackend:
         # kickoff, nudges, summary) alongside the assistant/tool events — one self-contained
         # {info, messages} document for the whole run (all rounds share one session). Best-effort:
         # a failed export just leaves the stdout transcript log below as the record.
+        export_errors: Dict[str, str] = {}
+
         def _export_session(sid: str, dest: Path) -> bool:
-            try:
-                exp = sandbox.run_command(
-                    ["bash", "-c", f"exec opencode export {shlex.quote(sid)}", "opencode-export"],
-                    SandboxSpec(workdir=workspace, network="none",
-                                limits=RunLimits(wall_clock_s=60), env=env))
-                out = (exp.stdout or "").strip()
-                if exp.returncode == 0 and out:
-                    json.loads(out)  # validate it's real JSON before trusting it
-                    dest.write_text(out)
-                    return True
-            except (json.JSONDecodeError, ValueError, OSError):
-                pass  # best-effort — the stdout transcript log is the fallback
+            # Two attempts: opencode spawns an internal server per invocation and can fail
+            # transiently right after the previous invocation (the summary turn) exits.
+            last = ""
+            for attempt in (1, 2):
+                try:
+                    exp = sandbox.run_command(
+                        ["bash", "-c", f"exec opencode export {shlex.quote(sid)}",
+                         "opencode-export"],
+                        SandboxSpec(workdir=workspace, network="none",
+                                    limits=RunLimits(wall_clock_s=60), env=env))
+                    out = (exp.stdout or "").strip()
+                    brace = out.find("{")           # tolerate any non-JSON preamble
+                    if exp.returncode == 0 and brace != -1:
+                        payload = out[brace:]
+                        json.loads(payload)         # validate it's real JSON before trusting it
+                        dest.write_text(payload)
+                        return True
+                    last = (f"rc={exp.returncode} stdout[:120]={out[:120]!r} "
+                            f"stderr[:120]={(exp.stderr or '')[:120]!r}")
+                except (json.JSONDecodeError, ValueError, OSError) as exc:
+                    last = f"{type(exc).__name__}: {exc}"
+                if attempt == 1:
+                    time.sleep(2)
+            export_errors[sid] = last               # surfaced in provenance, not swallowed
             return False
 
         session_json_saved = bool(session_id) and _export_session(
@@ -571,6 +585,7 @@ class OpenCodeBackend:
             "nudge_rounds": nudges,
             "session_json_saved": session_json_saved,
             "child_sessions": {"found": child_ids, "exported": children_exported},
+            "session_export_errors": export_errors,
             "session_store_saved": store_saved,
             "final_framework_eval": {"ran": final_eval is not None,
                                      "returncode": getattr(final_eval, "returncode", None)},

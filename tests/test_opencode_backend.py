@@ -330,6 +330,23 @@ def test_run_exports_child_sessions(tmp_path):
     for sid in ("ses_childA", "ses_childB"):
         assert json.loads((tmp_path / "wd" / f"opencode_child_{sid}.json").read_text())
     assert prov["final_framework_eval"]["ran"] is False     # no design file → skipped
+    assert prov["session_export_errors"] == {}              # all exports succeeded
+
+
+def test_export_tolerates_preamble(tmp_path):
+    """`opencode export` may print a human preamble before the JSON — parsing must survive it."""
+    scripts = [
+        {"stdout": _SID + "\n" + '{"type":"text","part":{"text":"child ses_childA"}}',
+         "returncode": 0},                        # main run
+        {"stdout": "", "returncode": 0},          # summary turn
+        {"stdout": 'Exporting session: ses_test\n{"id": "ses_test"}', "returncode": 0},  # parent
+        {"stdout": 'Exporting session: ses_childA\n{"id": "ses_childA"}', "returncode": 0},
+    ]
+    prov = _run_with_fake(tmp_path, scripts, wall_clock_s=0)
+    assert prov["session_json_saved"] is True
+    assert prov["child_sessions"]["exported"] == ["ses_childA"]
+    assert json.loads((tmp_path / "wd" / "opencode_session.json").read_text()) == {"id": "ses_test"}
+    assert prov["session_export_errors"] == {}
 
 
 def test_final_framework_eval_runs_when_design_present(tmp_path):
@@ -351,6 +368,7 @@ def test_final_framework_eval_runs_when_design_present(tmp_path):
     OpenCodeBackend().run(req)
     prov = json.loads((req.workdir / "_opencode_provenance.json").read_text())
     assert prov["final_framework_eval"] == {"ran": True, "returncode": 0}
+    assert "ses_test" in prov["session_export_errors"]      # failed export recorded, not silent
 
 
 def test_local_sandbox_graceful_term(tmp_path):
