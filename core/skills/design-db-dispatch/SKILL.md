@@ -47,6 +47,13 @@ skill; the subagent's self-description is never the result.
   workdir (`work/<spec_key>-<lens>/`), and source tag (`agent:rtl-subcircuit-<lens>`).
   Identical twins explore the same space and waste budget — dedup absorbs the collisions, but
   one child with double budget beats two clones. Never assign two children the same workdir.
+- **Subsequent dispatches on the same slot are equally fine** (sequential re-dispatch): after
+  inspecting what landed (`spire db show <key> --pareto`), dispatch the slot again to push the
+  Pareto front further — with a fresh lens, or with direction drawn from the inspection (e.g.
+  "beat the current best `<area>/<depth>`", "start from the current Pareto designs as prior
+  art"). The DB only accumulates: the floor stays seeded, worse results can't displace
+  anything, rediscoveries dedup. This is improvement with a *new* direction — not the blind
+  retry of a failed dispatch, which the rule below forbids.
 - Re-evaluate the full design (`./evaluate_design`) after a slot is filled — don't defer all
   re-evaluation to the end of the session (the budget may cut it off).
 - Do not retry a failed dispatch in a loop — inspect the slot, note what happened, move on.
