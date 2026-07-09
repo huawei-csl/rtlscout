@@ -6,6 +6,8 @@ import json
 
 import pytest
 
+from tests.conftest import requires_openroad
+
 from spire import UInt
 from spire.component import Netlist
 from spire.design_db import register_slot, seed_original, pick_design
@@ -31,6 +33,7 @@ def _adder_slot():
     return register_slot(m)
 
 
+@requires_openroad
 def test_db_score_asap7(db):
     key = _adder_slot()
     seed_original(key)
