@@ -56,10 +56,13 @@ class _FakeSandbox:
         raise NotImplementedError
 
     def run_command(self, argv, spec):
+        from pathlib import Path
         from core.sandbox import CommandResult
         self.specs.append(spec)
         s = self.scripts[min(self.calls, len(self.scripts) - 1)]
         self.calls += 1
+        for rel, content in (s.get("files") or {}).items():     # e.g. a file-redirected export
+            (Path(spec.workdir) / rel).write_text(content)
         if s.get("add_eval"):
             with open(self.run_root / "agent_evals.jsonl", "a") as f:
                 f.write(json.dumps({"eval_index": self.calls, "passed": True,
@@ -141,6 +144,7 @@ def test_render_agents_md_workflow_present(tmp_path):
     assert "No wrap-up needed" in md          # finishing-up wording (no manual final eval)
     assert "terminated automatically" in md   # agent is told it won't need to self-stop
     assert "summary.txt" not in md            # summary is harness-driven, not asked of the agent
+    assert ".final_eval_file" in md           # the final-score override is documented
     assert "time wisely" in md.lower()  # steered to iterate, not dig through the harness
 
 
@@ -320,9 +324,9 @@ def test_run_exports_child_sessions(tmp_path):
     scripts = [
         {"stdout": stdout, "returncode": 0},                       # main run (no evals → no nudge)
         {"stdout": '{"info":{},"messages":[]}', "returncode": 0},  # summary turn
-        {"stdout": '{"info":{},"messages":[]}', "returncode": 0},  # parent export
-        {"stdout": child_export, "returncode": 0},                 # child A export
-        {"stdout": child_export, "returncode": 0},                 # child B export
+        {"files": {"_export_ses_test.json": '{"info":{},"messages":[]}'}, "returncode": 0},
+        {"files": {"_export_ses_childA.json": child_export}, "returncode": 0},
+        {"files": {"_export_ses_childB.json": child_export}, "returncode": 0},
     ]
     prov = _run_with_fake(tmp_path, scripts, wall_clock_s=0)
     assert prov["child_sessions"]["found"] == ["ses_childA", "ses_childB"]
@@ -339,8 +343,10 @@ def test_export_tolerates_preamble(tmp_path):
         {"stdout": _SID + "\n" + '{"type":"text","part":{"text":"child ses_childA"}}',
          "returncode": 0},                        # main run
         {"stdout": "", "returncode": 0},          # summary turn
-        {"stdout": 'Exporting session: ses_test\n{"id": "ses_test"}', "returncode": 0},  # parent
-        {"stdout": 'Exporting session: ses_childA\n{"id": "ses_childA"}', "returncode": 0},
+        {"files": {"_export_ses_test.json": 'Exporting session: ses_test\n{"id": "ses_test"}'},
+         "returncode": 0},                        # parent (preamble in the file)
+        {"files": {"_export_ses_childA.json": 'Exporting session: x\n{"id": "ses_childA"}'},
+         "returncode": 0},
     ]
     prov = _run_with_fake(tmp_path, scripts, wall_clock_s=0)
     assert prov["session_json_saved"] is True
@@ -367,8 +373,37 @@ def test_final_framework_eval_runs_when_design_present(tmp_path):
     req.agent_sandbox = _FakeSandbox(req.workdir, scripts)
     OpenCodeBackend().run(req)
     prov = json.loads((req.workdir / "_opencode_provenance.json").read_text())
-    assert prov["final_framework_eval"] == {"ran": True, "returncode": 0}
+    assert prov["final_framework_eval"] == {"ran": True, "returncode": 0,
+                                            "design_file": "design.sv"}
     assert "ses_test" in prov["session_export_errors"]      # failed export recorded, not silent
+
+
+def test_final_eval_file_override(tmp_path):
+    """`.final_eval_file` redirects the closing score to the agent's actual final design;
+    an invalid override falls back to the default with a provenance note."""
+    from core.opencode_backend import OpenCodeBackend
+    req = _make_req(tmp_path, wall_clock_s=0)
+    (req.workspace / "alt_design.sv").write_text("module adder(); endmodule\n")
+    (req.workspace / ".final_eval_file").write_text("alt_design.sv\n")
+    scripts = [
+        {"stdout": _SID, "returncode": 0},        # main run
+        {"stdout": "eval ok", "returncode": 0},   # final framework eval (the override target)
+        {"stdout": "", "returncode": 0},          # summary turn
+        {"stdout": "", "returncode": 1},          # parent export fails
+    ]
+    req.agent_sandbox = _FakeSandbox(req.workdir, scripts)
+    OpenCodeBackend().run(req)
+    prov = json.loads((req.workdir / "_opencode_provenance.json").read_text())
+    assert prov["final_framework_eval"]["design_file"] == "alt_design.sv"
+
+    req2 = _make_req(tmp_path / "bad", wall_clock_s=0)
+    (req2.workspace / "design.sv").write_text("module adder(); endmodule\n")
+    (req2.workspace / ".final_eval_file").write_text("../escape.sv")
+    req2.agent_sandbox = _FakeSandbox(req2.workdir, scripts)
+    OpenCodeBackend().run(req2)
+    prov = json.loads((req2.workdir / "_opencode_provenance.json").read_text())
+    assert prov["final_framework_eval"]["design_file"] == "design.sv"    # fell back
+    assert "ignored invalid" in prov["final_framework_eval"]["note"]
 
 
 def test_local_sandbox_graceful_term(tmp_path):
@@ -384,6 +419,23 @@ def test_local_sandbox_graceful_term(tmp_path):
          "time.sleep(30)"], spec)
     assert res.timed_out is True and res.returncode == 124
     assert "GRACEFUL" in res.stdout                       # handler ran → SIGTERM, not SIGKILL
+
+
+def test_local_sandbox_kills_the_whole_process_tree(tmp_path):
+    """A grandchild survives a naive terminate() — the deadline kill must take the whole
+    process GROUP down (K8: an orphaned in-flight evaluate_design wrote an eval snapshot
+    9 s after the kill)."""
+    import time
+    from core.agent_backend import RunLimits
+    from core.sandbox import LocalSandbox, SandboxSpec
+    marker = tmp_path / "late_marker"
+    script = f"(sleep 3 && touch {marker}) & exec sleep 30"
+    res = LocalSandbox().run_command(
+        ["bash", "-c", script],
+        SandboxSpec(workdir=tmp_path, limits=RunLimits(wall_clock_s=1)))
+    assert res.timed_out and res.returncode == 124
+    time.sleep(3.5)                      # a surviving grandchild would touch the marker by now
+    assert not marker.exists(), "grandchild outlived the deadline kill"
 
 
 def test_container_sandbox_mounts_rw_args(tmp_path, monkeypatch):

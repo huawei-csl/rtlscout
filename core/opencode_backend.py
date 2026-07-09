@@ -184,8 +184,11 @@ low on ideas, try more variations rather than stopping — you have the full bud
 as a candidate, and after the session the harness independently re-scores all candidates and
 keeps the best one — so you do **not** need to restore your best design into `{design_file}`,
 run a "final" evaluation, or write a summary. Just make sure every version you want considered
-has been scored at least once (a design you edit but never evaluate is not a candidate). A short
-summary is requested from you separately after you're stopped.
+has been scored at least once (a design you edit but never evaluate is not a candidate). After
+your time is up, the harness also scores `{design_file}` one final time; if your final design
+lives in a **different** file, write that filename into `.final_eval_file` (a plain filename in
+this directory) so the closing score targets the right file. A short summary is requested from
+you separately after you're stopped.
 """
 
 
@@ -500,10 +503,19 @@ class OpenCodeBackend:
         # spire designs the recompile fires @from_design_db, i.e. this measures the final
         # spliced selection state. NOT counted against the optimization budget.
         final_eval = None
-        design_file = workspace / _DESIGN_FILE_BY_LANG.get(req.language, "design.sv")
-        if design_file.exists():
+        final_name = _DESIGN_FILE_BY_LANG.get(req.language, "design.sv")
+        final_eval_note = None
+        override_p = workspace / ".final_eval_file"
+        if override_p.exists():
+            cand = override_p.read_text().strip()
+            # agent-controlled, harness-validated: one plain filename in the workspace
+            if cand and "/" not in cand and ".." not in cand and (workspace / cand).is_file():
+                final_name = cand
+            else:
+                final_eval_note = f"ignored invalid .final_eval_file {cand!r}"
+        if (workspace / final_name).is_file():
             final_eval = sandbox.run_command(
-                ["bash", "-c", f"exec ./evaluate_design {shlex.quote(design_file.name)}",
+                ["bash", "-c", f"exec ./evaluate_design {shlex.quote(final_name)}",
                  "opencode-final-eval"],
                 SandboxSpec(workdir=workspace, network="none",
                             limits=RunLimits(wall_clock_s=600), env=env))
@@ -525,29 +537,37 @@ class OpenCodeBackend:
         export_errors: Dict[str, str] = {}
 
         def _export_session(sid: str, dest: Path) -> bool:
-            # Two attempts: opencode spawns an internal server per invocation and can fail
+            # The export is redirected to a FILE inside the sandbox, never captured through a
+            # pipe: opencode (Node) writes stdout asynchronously and exits — a pipe truncates
+            # at ~8 KB on fast exit (K8 finding: all in-run exports died at char ~8190 while
+            # file-redirected exports of the same sessions were complete). File writes are
+            # synchronous, so the redirect sidesteps the truncation class entirely.
+            # Two attempts: opencode spawns an internal server per invocation and can also fail
             # transiently right after the previous invocation (the summary turn) exits.
             last = ""
+            tmp = workspace / f"_export_{sid}.json"
             for attempt in (1, 2):
                 try:
                     exp = sandbox.run_command(
-                        ["bash", "-c", f"exec opencode export {shlex.quote(sid)}",
+                        ["bash", "-c", f"exec opencode export {shlex.quote(sid)} > {shlex.quote(tmp.name)}",
                          "opencode-export"],
                         SandboxSpec(workdir=workspace, network="none",
                                     limits=RunLimits(wall_clock_s=60), env=env))
-                    out = (exp.stdout or "").strip()
+                    out = tmp.read_text().strip() if tmp.exists() else ""
                     brace = out.find("{")           # tolerate any non-JSON preamble
                     if exp.returncode == 0 and brace != -1:
                         payload = out[brace:]
                         json.loads(payload)         # validate it's real JSON before trusting it
                         dest.write_text(payload)
+                        tmp.unlink(missing_ok=True)
                         return True
-                    last = (f"rc={exp.returncode} stdout[:120]={out[:120]!r} "
+                    last = (f"rc={exp.returncode} file[:120]={out[:120]!r} "
                             f"stderr[:120]={(exp.stderr or '')[:120]!r}")
                 except (json.JSONDecodeError, ValueError, OSError) as exc:
                     last = f"{type(exc).__name__}: {exc}"
                 if attempt == 1:
                     time.sleep(2)
+            tmp.unlink(missing_ok=True)
             export_errors[sid] = last               # surfaced in provenance, not swallowed
             return False
 
@@ -588,7 +608,9 @@ class OpenCodeBackend:
             "session_export_errors": export_errors,
             "session_store_saved": store_saved,
             "final_framework_eval": {"ran": final_eval is not None,
-                                     "returncode": getattr(final_eval, "returncode", None)},
+                                     "returncode": getattr(final_eval, "returncode", None),
+                                     "design_file": final_name if final_eval is not None else None,
+                                     **({"note": final_eval_note} if final_eval_note else {})},
             "summary_turn": {
                 "session_id": session_id,
                 "ran": summary_result is not None,

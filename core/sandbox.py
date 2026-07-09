@@ -88,21 +88,33 @@ class LocalSandbox:
             timeout = spec.limits.wall_clock_s
         env = None
         if spec.env is not None:
-            import os
             env = {**os.environ, **spec.env}
+        # start_new_session: the child leads its own process GROUP, so the deadline kill below
+        # reaches the whole tree (opencode → bash → eval shim → yosys …). Signaling only the
+        # direct child orphans in-flight grandchildren, which then outlive the deadline (K8:
+        # an evaluate_design kept running and wrote an eval snapshot 9 s after the kill).
         proc = subprocess.Popen(argv, cwd=str(spec.workdir), env=env,
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                start_new_session=True)
+
+        def _signal_group(sig: int) -> None:
+            try:
+                os.killpg(proc.pid, sig)         # pid == pgid under start_new_session
+            except ProcessLookupError:
+                pass                             # group already gone
+
         try:
             out, err = proc.communicate(timeout=timeout)
             return CommandResult(proc.returncode, out, err, timed_out=False)
         except subprocess.TimeoutExpired:
-            # Graceful first: SIGTERM lets the child flush state (opencode: its session store),
-            # then SIGKILL if it lingers. Output produced up to the end is still collected.
-            proc.terminate()
+            # Graceful first: SIGTERM to the WHOLE group lets opencode flush its session store
+            # and takes its descendants with it, then SIGKILL whatever lingers. Output produced
+            # up to the end is still collected.
+            _signal_group(signal.SIGTERM)
             try:
                 out, err = proc.communicate(timeout=self.TERM_GRACE_S)
             except subprocess.TimeoutExpired:
-                proc.kill()
+                _signal_group(signal.SIGKILL)
                 out, err = proc.communicate()
             return CommandResult(returncode=124, stdout=out or "", stderr=err or "",
                                  timed_out=True)
