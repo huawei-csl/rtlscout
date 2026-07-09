@@ -3,6 +3,7 @@
 # Output filename written by Spire/Amaranth scripts.
 # Used in evaluation.py (compile step) and prompts.py (canonical pattern).
 SPIREHDL_VERILOG_OUTPUT = "design.v"
+DB_SELECTIONS_FILE = "db_selections.jsonl"   # per-compile splice log (written by spire when asked)
 AMARANTH_VERILOG_OUTPUT = "design.v"
 
 import os
@@ -199,6 +200,14 @@ def _compile_spirehdl(workdir: Path, design_file: Optional[str] = None) -> tuple
     if stale_v.exists():
         stale_v.unlink()
 
+    # Compile-scoped selection log (spire appends one JSON line per @from_design_db splice):
+    # a fresh file per evaluation, so each eval snapshot carries exactly what IT spliced —
+    # selections are a property of the compiled artifact, not the library.
+    selection_log = workdir / DB_SELECTIONS_FILE
+    if selection_log.exists():
+        selection_log.unlink()
+    compile_env = {**os.environ, "SPIREHDL_DB_SELECTION_LOG": str(selection_log.resolve())}
+
     verbose = bool(os.environ.get("SPIREHDL_VERBOSE"))
     all_output = []
     for py_file in design_pys:
@@ -208,7 +217,7 @@ def _compile_spirehdl(workdir: Path, design_file: Optional[str] = None) -> tuple
                 proc = subprocess.Popen(
                     [sys.executable, "-u", py_file.name],
                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                    text=True, cwd=str(workdir.resolve()),
+                    text=True, cwd=str(workdir.resolve()), env=compile_env,
                 )
                 chunks = []
                 for line in proc.stdout:
@@ -224,7 +233,7 @@ def _compile_spirehdl(workdir: Path, design_file: Optional[str] = None) -> tuple
                 result = subprocess.run(
                     [sys.executable, py_file.name],
                     capture_output=True, text=True, timeout=COMPILE_TIMEOUT,
-                    cwd=str(workdir.resolve()),
+                    cwd=str(workdir.resolve()), env=compile_env,
                 )
                 if result.stdout:
                     all_output.append(result.stdout)

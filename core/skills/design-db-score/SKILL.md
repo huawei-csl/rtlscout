@@ -44,6 +44,6 @@ whole; isolated-best parts don't necessarily sum to whole-best, which is why bot
 
 ## After storing
 
-`@from_design_db(metric="asap7")` / `select_design(..., metric="asap7")` now work for that slot
+`@from_design_db(metric="asap7")` / `pick_design(..., metric="asap7")` now work for that slot
 — but only annotate a technology onto **all** of a slot's designs (the seeded `original:*`
 included) before selecting on it, or unscored designs become ineligible under that metric.

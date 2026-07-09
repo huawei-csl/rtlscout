@@ -43,12 +43,34 @@ def load_run(run_dir: Path):
             })
         designs.sort(key=lambda x: x["t"])
         slots[name] = {"designs": designs, "selected": entry.get("selected_id"),
-                       "objective": entry.get("objective"), "metric": entry.get("metric")}
+                       "objective": entry.get("objective"), "metric": entry.get("metric"),
+                       "spec_key": entry.get("spec_key")}
     evals = [json.loads(l) for l in (run_dir / "agent_evals.jsonl").read_text().splitlines()]
     eval_times = []
     for i in range(1, len(evals) + 1):
         p = run_dir / f"eval_{i}"
         eval_times.append(p.stat().st_mtime if p.exists() else None)
+    # The run's final selections: the LAST eval snapshot's compile log (spire appends one line
+    # per splice) — selections are artifact-side now; the manifest field above is the legacy
+    # fallback for runs predating the log.
+    latest, n = None, 1
+    while (run_dir / f"eval_{n}").exists():
+        cand = run_dir / f"eval_{n}" / "workspace" / "db_selections.jsonl"
+        if cand.exists():
+            latest = cand
+        n += 1
+    if latest is not None:
+        sel_by_key = {}
+        for line in latest.read_text().splitlines():
+            try:
+                e = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            sel_by_key[e.get("spec_key")] = e.get("design_id")
+        for slot in slots.values():
+            if slot.get("spec_key") in sel_by_key:
+                slot["selected"] = sel_by_key[slot["spec_key"]]
+
     deadline = None
     dl = run_dir / "_deadline_epoch"
     if dl.exists():
@@ -181,7 +203,7 @@ def pareto_panel(name, slot, colors, W=470, H=340):
             f'xmlns="http://www.w3.org/2000/svg">{"".join(out)}</svg></div>')
 
 
-def evolution_panel(name, slot, colors, t0, t_end, evals_at, W=960, H=230):
+def evolution_panel(name, slot, colors, t0, t_end, evals_at, W=960, H=230, kill_t=None):
     ds = slot["designs"]
     x0, y0, x1, y1 = 62, 14, W - 14, H - 44
     a = [d["area"] for d in ds]
@@ -220,11 +242,15 @@ def evolution_panel(name, slot, colors, t0, t_end, evals_at, W=960, H=230):
                        f'stroke="{SEL_COLOR}" stroke-width="2"/>')
     for te, cost in evals_at:
         px = sx((te - t0) / 60)
-        out.append(f'<line x1="{px:.1f}" y1="{y0}" x2="{px:.1f}" y2="{y1}" stroke="#64748b" '
-                   f'stroke-dasharray="3 3"><title>full-design eval: {cost} transistors</title></line>')
-    px = sx((t_end - t0) / 60)
-    out.append(f'<line x1="{px:.1f}" y1="{y0}" x2="{px:.1f}" y2="{y1}" stroke="{SEL_COLOR}" '
-               f'stroke-width="1.6"><title>wall-clock kill</title></line>')
+        post = kill_t is not None and te > kill_t
+        tip = ("final framework eval (harness, post-kill): " if post else "full-design eval: ")
+        out.append(f'<line x1="{px:.1f}" y1="{y0}" x2="{px:.1f}" y2="{y1}" '
+                   f'stroke="{BEST_COLOR if post else "#64748b"}" stroke-dasharray="3 3">'
+                   f'<title>{tip}{cost} transistors</title></line>')
+    if kill_t is not None:
+        px = sx((kill_t - t0) / 60)
+        out.append(f'<line x1="{px:.1f}" y1="{y0}" x2="{px:.1f}" y2="{y1}" stroke="{SEL_COLOR}" '
+                   f'stroke-width="1.6"><title>wall-clock kill</title></line>')
     head = f'<div class="ptitle">admissions over time — <code>{esc(name)}</code></div>'
     return (f'<div class="panel wide">{head}<svg viewBox="0 0 {W} {H}" width="{W}" height="{H}" '
             f'xmlns="http://www.w3.org/2000/svg">{"".join(out)}</svg></div>')
@@ -293,7 +319,7 @@ def composition_panel(comp, W=620, H=380):
             f'xmlns="http://www.w3.org/2000/svg">{"".join(out)}</svg></div>')
 
 
-def evals_over_time_panel(evals, eval_times, comp, t0, t_end, W=960, H=230):
+def evals_over_time_panel(evals, eval_times, comp, t0, t_end, W=960, H=230, kill_t=None):
     """The main agent's ./evaluate_design calls: recorded cost over time, with the measured
     offline composition references when available."""
     pts = []
@@ -328,15 +354,19 @@ def evals_over_time_panel(evals, eval_times, comp, t0, t_end, W=960, H=230):
                    f'{esc(label)}</text>')
     for q in pts:
         px, py = sx((q["t"] - t0) / 60), sy(q["area"])
+        post = kill_t is not None and q["t"] > kill_t
         extra = f"  depth {q['depth']}" if q.get("depth") is not None else ""
-        tip = f"eval {q['i']}\narea {q['area']}{extra}\npassed: {q.get('passed')}"
+        tip = (f"eval {q['i']}" + (" — final framework eval (harness, post-kill)" if post else "")
+               + f"\narea {q['area']}{extra}\npassed: {q.get('passed')}")
+        label = f"eval {q['i']}" + (" (framework)" if post else "")
         out.append(f'<rect x="{px - 5:.1f}" y="{py - 5:.1f}" width="10" height="10" '
-                   f'fill="#334155" fill-opacity="0.9" stroke="white" stroke-width="0.8">'
-                   f'<title>{esc(tip)}</title></rect>'
-                   f'<text x="{px + 8:.1f}" y="{py - 8:.1f}" class="tick">eval {q["i"]}</text>')
-    px = sx((t_end - t0) / 60)
-    out.append(f'<line x1="{px:.1f}" y1="{y0}" x2="{px:.1f}" y2="{y1}" stroke="{SEL_COLOR}" '
-               f'stroke-width="1.6"><title>wall-clock kill</title></line>')
+                   f'fill="{BEST_COLOR if post else "#334155"}" fill-opacity="0.9" '
+                   f'stroke="white" stroke-width="0.8"><title>{esc(tip)}</title></rect>'
+                   f'<text x="{px + 8:.1f}" y="{py - 8:.1f}" class="tick">{label}</text>')
+    if kill_t is not None:
+        px = sx((kill_t - t0) / 60)
+        out.append(f'<line x1="{px:.1f}" y1="{y0}" x2="{px:.1f}" y2="{y1}" stroke="{SEL_COLOR}" '
+                   f'stroke-width="1.6"><title>wall-clock kill</title></line>')
     head = ('<div class="ptitle">full-circuit evals over time'
             '<span class="psub">the main agent\'s ./evaluate_design calls'
             + (' · squares use the measured snapshot recompiles' if measured else '')
@@ -345,7 +375,7 @@ def evals_over_time_panel(evals, eval_times, comp, t0, t_end, W=960, H=230):
             f'xmlns="http://www.w3.org/2000/svg">{"".join(out)}</svg></div>')
 
 
-def lanes_panel(slots, colors, t0, t_end, evals_at, W=960, sessions=None):
+def lanes_panel(slots, colors, t0, t_end, evals_at, W=960, sessions=None, kill_t=None):
     sessions = sessions or {}
     clip = lambda t: max(0.0, min(t, (t_end - t0) / 60))
     parent = sessions.get("opencode_session.json")
@@ -353,7 +383,9 @@ def lanes_panel(slots, colors, t0, t_end, evals_at, W=960, sessions=None):
         else (0, (t_end - t0) / 60)
     exact = bool(sessions)
     rows = [("main agent (parent session)", ORIG_COLOR, [parent_span],
-             [((te - t0) / 60, f"full-design eval {c}") for te, c in evals_at])]
+             [((te - t0) / 60,
+               ("final framework eval " if kill_t is not None and te > kill_t
+                else "full-design eval ") + str(c)) for te, c in evals_at])]
     child_spans = {n: v for n, v in sessions.items() if n.startswith("opencode_child_")}
     for name, slot in slots.items():
         for tag in {d["source"] for d in slot["designs"]} - {"original"}:
@@ -382,10 +414,13 @@ def lanes_panel(slots, colors, t0, t_end, evals_at, W=960, sessions=None):
         for t, tip in marks:
             out.append(f'<line x1="{sx(t):.1f}" y1="{cy - 7:.1f}" x2="{sx(t):.1f}" y2="{cy + 7:.1f}" '
                        f'stroke="{color}" stroke-width="2"><title>{esc(tip)} @ {t:.1f} min</title></line>')
-    px = sx((t_end - t0) / 60)
-    out.append(f'<line x1="{px:.1f}" y1="{top}" x2="{px:.1f}" y2="{H - 34}" stroke="{SEL_COLOR}" '
-               f'stroke-width="1.6"/><text x="{px - 4:.1f}" y="{top + 10}" class="tick" '
-               f'text-anchor="end" fill="{SEL_COLOR}">wall-clock kill</text>')
+    if kill_t is not None:
+        px = sx((kill_t - t0) / 60)
+        out.append(f'<line x1="{px:.1f}" y1="{top}" x2="{px:.1f}" y2="{H - 34}" stroke="{SEL_COLOR}" '
+                   f'stroke-width="1.6"/><text x="{px - 4:.1f}" y="{top + 10}" class="tick" '
+                   f'text-anchor="end" fill="{SEL_COLOR}">wall-clock kill</text>'
+                   f'<text x="{px + 5:.1f}" y="{top + 10}" class="tick" fill="#64748b">'
+                   f'framework wrap-up →</text>')
     out.append(f'<text x="{(x0 + x1) / 2}" y="{H - 6}" class="lab" text-anchor="middle">minutes since run start</text>')
     sub = ("child spans = exact session windows (recovered exports)" if exact
            else "child spans = first→last gated admission")
@@ -420,10 +455,13 @@ def build_story(slots, colors, comp):
 def generate(run_dir: Path, out_path: Path) -> Path:
     slots, evals, eval_times, deadline, result = load_run(run_dir)
     colors = color_map(slots)
+    sessions = load_session_spans(run_dir)
     all_t = [d["t"] for s in slots.values() for d in s["designs"]]
     all_t += [t for t in eval_times if t]
     t0 = min(all_t)
-    t_end = deadline or max(all_t)
+    kill_t = deadline
+    t_end = max(all_t + ([deadline] if deadline else [])
+                + [hi for (_, hi, _, _) in sessions.values()])   # axis covers the wrap-up
     evals_at = [(t, e.get("cost_value")) for t, e in zip(eval_times, evals) if t]
     comp = None
     cs = run_dir / "composition_space.json"
@@ -479,10 +517,10 @@ code {{ background: #f1f5f9; border-radius: 4px; padding: 1px 5px; font-size: 12
 <div class="story"><b>The story.</b> {story}</div>
 <div>{legend}</div>
 <div class="panels">{"".join(pareto_panel(n, s, colors) for n, s in slots.items())}</div>
-{"".join(evolution_panel(n, s, colors, t0, t_end, evals_at) for n, s in slots.items())}
+{"".join(evolution_panel(n, s, colors, t0, t_end, evals_at, kill_t=kill_t) for n, s in slots.items())}
 {composition_panel(comp) if comp else ""}
-{evals_over_time_panel(evals, eval_times, comp, t0, t_end)}
-{lanes_panel(slots, colors, t0, t_end, evals_at, sessions=load_session_spans(run_dir))}
+{evals_over_time_panel(evals, eval_times, comp, t0, t_end, kill_t=kill_t)}
+{lanes_panel(slots, colors, t0, t_end, evals_at, sessions=sessions, kill_t=kill_t)}
 <div class="panel wide"><div class="ptitle">selections</div>
 <table><tr><th>slot</th><th>designs</th><th>objective/metric</th><th>original a/d</th>
 <th>selected a/d</th><th>Δ area</th><th>selected id</th></tr>{"".join(rows)}</table></div>

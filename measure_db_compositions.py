@@ -3,7 +3,8 @@
 
 For every combination of per-slot Pareto-front designs (plus the seeded-original baseline
 combo), the run's decorated ``design.py`` is recompiled with the selection FORCED to that
-combination (``select_design`` is patched to a ``pin=`` chooser inside the compile subprocess),
+combination (spire's temporary selection overrides — ``$SPIREHDL_DB_PINS`` — pin each slot
+inside the compile subprocess),
 and the composed Verilog is measured: transistors (rtlscout metric — the same system as the
 run's eval numbers) and AIG depth (from the gate's own AAG conversion). The starting point
 (``eval_1``'s workspace snapshot) is measured the same way when present.
@@ -49,33 +50,23 @@ def aag_depth(aag_lines):
     return max(depth.values(), default=0)
 
 
-#: compile bootstrap: force the decorator's selection to the given {spec_key: design_id} map by
-#: patching select_design to a pin= chooser — INSIDE the compile subprocess, where the
-#: decorators actually fire. An empty map leaves selection untouched (used for eval snapshots).
-_BOOT = """\
-import json, runpy, sys
-force = json.loads(sys.argv[1])
-if force:
-    import spire.design_db.decorator as dec
-    from spire.design_db.select import select_design as _real
-    def chooser(spec_key, objective="area", metric=None, pin=None, db=None, record=False):
-        return _real(spec_key, pin=force[spec_key], db=db, record=False)
-    dec.select_design = chooser
-runpy.run_path("design.py", run_name="__main__")
-"""
-
-
 def measure_design(design_py: Path, workdir: Path, force, env):
-    """Compile ``design_py`` (selections forced to ``force``) and measure the emitted design.v.
-
-    Returns ``(transistors, aig_depth)``.
+    """Compile ``design_py`` with selections FORCED to ``force`` — spire's temporary selection
+    overrides (``$SPIREHDL_DB_PINS``) pin each slot inside the compile subprocess, where the
+    decorators fire. An empty ``force`` compiles with the natural pick (used for eval
+    snapshots). Returns ``(transistors, aig_depth)``.
     """
     from core.cost import make_cost_metric
+    from spire.design_db import PINS_ENV
     from spire.design_db._yosys import run_yosys
     if Path(design_py).resolve() != (workdir / "design.py").resolve():
         shutil.copyfile(design_py, workdir / "design.py")
-    proc = subprocess.run([sys.executable, "-c", _BOOT, json.dumps(force)], cwd=str(workdir),
-                          capture_output=True, text=True, timeout=300, env=env)
+    child_env = dict(env)
+    child_env.pop(PINS_ENV, None)
+    if force:
+        child_env[PINS_ENV] = json.dumps(force)
+    proc = subprocess.run([sys.executable, "design.py"], cwd=str(workdir),
+                          capture_output=True, text=True, timeout=300, env=child_env)
     design_v = workdir / "design.v"
     if proc.returncode != 0 or not design_v.exists():
         raise RuntimeError(f"compile failed:\n{proc.stdout[-400:]}\n{proc.stderr[-400:]}")
@@ -119,6 +110,28 @@ def _measure_snapshot(ws_dir: Path, base_env):
         return measure_design(w / "design.py", w, {}, env)
 
 
+def _final_selection(run_dir: Path, man: dict) -> dict:
+    """{slot_name: design_id} of the run's final compile — from the LAST eval snapshot's
+    ``db_selections.jsonl`` (each eval carries exactly what it spliced). Falls back to the
+    legacy manifest ``selected_id`` fields for runs predating the compile log."""
+    key_to_name = {e["spec_key"]: n for n, e in man.get("slots", {}).items()}
+    latest, n = None, 1
+    while (run_dir / f"eval_{n}").exists():
+        cand = run_dir / f"eval_{n}" / "workspace" / "db_selections.jsonl"
+        if cand.exists():
+            latest = cand
+        n += 1
+    if latest is not None:
+        out = {}
+        for line in latest.read_text().splitlines():
+            e = json.loads(line)
+            name = key_to_name.get(e.get("spec_key"), e.get("name"))
+            out[name] = e.get("design_id")
+        return out
+    return {n_: e["selected_id"] for n_, e in man.get("slots", {}).items()
+            if e.get("selected_id")}
+
+
 def measure_run(run_dir: Path, all_designs: bool = False) -> Path:
     from spire.design_db import DesignDB
     from spire.design_db.store import DB_ENV
@@ -129,7 +142,7 @@ def measure_run(run_dir: Path, all_designs: bool = False) -> Path:
     slots = {n: e["spec_key"] for n, e in man.get("slots", {}).items()}
     if not slots:
         raise SystemExit(f"no slots in {db_root} — nothing to compose")
-    selected = {n: e.get("selected_id") for n, e in man["slots"].items()}
+    selected = _final_selection(run_dir, man)
 
     fronts, originals = {}, {}
     for name, key in slots.items():
@@ -145,6 +158,12 @@ def measure_run(run_dir: Path, all_designs: bool = False) -> Path:
         combos.append({n: originals[n] for n in names})          # the seeded-original baseline
 
     design_py = run_dir / "workspace" / "design.py"
+    override = run_dir / "workspace" / ".final_eval_file"
+    if override.exists():                    # same rule as the harness's final framework eval
+        cand = override.read_text().strip()
+        if cand and "/" not in cand and ".." not in cand \
+                and (run_dir / "workspace" / cand).is_file():
+            design_py = run_dir / "workspace" / cand
     results, seen = [], set()
     for i, combo in enumerate(combos):
         picks = {n: combo[n]["id"] for n in names}
@@ -157,7 +176,7 @@ def measure_run(run_dir: Path, all_designs: bool = False) -> Path:
             area, depth = measure_design(design_py, Path(td), force, env)
         results.append({"picks": picks, "area": area, "depth": depth,
                         "baseline": all(v.startswith("original:") for v in picks.values()),
-                        "selected": all(picks[n] == selected[n] for n in names)})
+                        "selected": all(picks[n] == selected.get(n) for n in names)})
         print(f"[{i + 1}/{len(combos)}] area={area} depth={depth} {picks}")
 
     out = {"slots": names, "results": results}

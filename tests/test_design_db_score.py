@@ -8,7 +8,7 @@ import pytest
 
 from spire import UInt
 from spire.component import Netlist
-from spire.design_db import register_slot, seed_original, select_design
+from spire.design_db import register_slot, seed_original, pick_design
 from spire.design_db.store import DB_ENV, VERSION_DIR
 
 from core.design_db_score import score_designs
@@ -51,7 +51,7 @@ def test_db_score_asap7(db):
     entry = next(iter(index.values()))
     assert entry["metrics"]["asap7"]["metrics"]["area"] > 0            # self-describing block
     assert entry["metrics"]["asap7"]["objectives"]["area"] == "area"
-    sel = select_design(key, objective="area", metric="asap7")
+    sel = pick_design(key, objective="area", metric="asap7")
     assert sel is not None and sel.metric == "asap7"
     # idempotent: second run skips
     again = score_designs([key], technology="asap7", run_netlist_sim=False)

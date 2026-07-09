@@ -10,7 +10,7 @@ import pytest
 
 from spire import UInt
 from spire.component import Netlist
-from spire.design_db import DesignDBError, register_slot, seed_original, select_design
+from spire.design_db import DesignDBError, register_slot, seed_original, pick_design
 from spire.design_db.store import DB_ENV, VERSION_DIR
 
 from core.design_db_fill import FILL_MODEL_ENV, fill_slot, make_rtlscout_fill
@@ -43,7 +43,7 @@ def test_fill_slot_offline_fake(db):
     assert not report.errors, report.errors
     index = json.loads((db / VERSION_DIR / key / "index.json").read_text())
     assert any(i.startswith("original:") for i in index)
-    sel = select_design(key, objective="area")
+    sel = pick_design(key, objective="area")
     assert sel is not None and sel.metric == "transistors"
 
 
@@ -73,12 +73,15 @@ def test_rtlscout_fill_hook(db, monkeypatch):
         rtlscout_fill(key, db_root=db)
 
 
-def test_decorator_fill_hook_composed(db):
+def test_decorator_fill_hook_composed(db, tmp_path, monkeypatch):
     """The composed end-to-end that neither side's tests cover alone: a decorator miss fires
     ``make_rtlscout_fill`` → a real (fake-provider) campaign → candidates through spire's gate →
     the SAME compile re-selects and splices (the decorator re-selects right after ``fill``).
-    The recorded manifest selection is the composition proof — it only exists if the post-fill
-    re-select found an admitted design in-compile."""
+    The compile's selection log is the composition proof — a splice entry only exists if the
+    post-fill re-pick found an admitted design in-compile (the miss path logs nothing)."""
+    from spire.design_db import SELECTION_LOG_ENV
+    log = tmp_path / "selections.jsonl"
+    monkeypatch.setenv(SELECTION_LOG_ENV, str(log))
     from spire import UInt
     from spire.component import Netlist
     from spire.design_db import from_design_db
@@ -100,8 +103,8 @@ def test_decorator_fill_hook_composed(db):
     key = slots[0].name
     index = json.loads((slots[0] / "index.json").read_text())
     assert any(i.startswith("original:") for i in index)          # fill seeded the floor
-    sel = select_design(key, objective="area")
+    sel = pick_design(key, objective="area")
     assert sel is not None
-    manifest = json.loads((db / VERSION_DIR / "manifest.json").read_text())
-    assert any(e.get("selected_id") for e in manifest["slots"].values()
-               if e.get("spec_key") == key), "in-compile post-fill selection must be recorded"
+    (entry,) = [json.loads(l) for l in log.read_text().splitlines()]
+    assert entry["spec_key"] == key and entry["design_id"] in index, \
+        "the same compile must have spliced an admitted design (post-fill re-pick)"

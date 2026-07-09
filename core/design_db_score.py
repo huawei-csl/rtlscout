@@ -2,7 +2,7 @@
 
 ``score_designs`` measures area/delay/… on admitted designs via the existing cost metrics
 (tech_eval/OpenROAD) and — unless ``dry_run`` — hands the values to spire's ``annotate`` gate,
-unlocking ``select_design(..., metric="asap7")``. This backs the ``design-db-score`` skill in
+unlocking ``pick_design(..., metric="asap7")``. This backs the ``design-db-score`` skill in
 the OpenCode skills flow (via ``rtlscout_cli.py db-score``); the non-agentic campaign filler
 lives separately in ``core.design_db_fill``.
 
@@ -29,7 +29,7 @@ def score_designs(spec_keys: Optional[Sequence[str]] = None, *, db: Optional[Any
     """Measure per-technology PPA on stored designs and (unless ``dry_run``) annotate the DB.
 
     Adds ``metrics[<technology>] = {area, delay, ...}`` to each design's ``metrics.json`` and the
-    slot ``index.json`` — after this, ``select_design(..., metric=technology)`` works.
+    slot ``index.json`` — after this, ``pick_design(..., metric=technology)`` works.
     ``designs`` limits scoring to the named design_ids (or unique prefixes) within the selected
     slots. ``dry_run`` runs the same cost flow but **writes nothing** — the measured values are
     only returned (report ``measured``), for looking at numbers without committing them.

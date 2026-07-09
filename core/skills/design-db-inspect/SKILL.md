@@ -30,7 +30,9 @@ The manifest itself is at `<db_root>/v1/manifest.json`.
   recorded in the manifest; your inspection is decision-support on trusted numbers.
 - **Did a fill improve the slot?** Compare the best admitted design to `original:*`:
   strictly better ⇒ yes; only ties/worse ⇒ the floor holds and the original stays selected.
-- `spire db ls` shows the last recorded `selected_id` per slot (a recompile refreshes it).
+- Selection is computed at compile time (nothing is recorded in the DB); each
+  `./evaluate_design` run leaves `db_selections.jsonl` in the workspace — exactly what
+  that compile spliced, one JSON line per slot.
 
 ## Rules
 
