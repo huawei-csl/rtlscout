@@ -7,7 +7,7 @@ from pathlib import Path
 
 from core.benchmarks import load_benchmark, load_benchmarks
 from core.cost import COST_METRICS, make_cost_metric
-from core.runner import DEFAULT_BENCHMARKS_ROOT, parse_model_spec, run_agent_on_benchmark
+from core.runner import default_benchmarks_roots, parse_model_spec, run_agent_on_benchmark
 
 
 def main():
@@ -16,7 +16,8 @@ def main():
     parser.add_argument("--model", default="deepinfra:meta-llama/Llama-3.3-70B-Instruct-Turbo",
                         help="Model spec as '<provider>:<model>' (e.g. 'anthropic:claude-sonnet-4-5-20250929'). "
                              "Provider prefix is required (deepinfra, anthropic, openrouter, fake)")
-    parser.add_argument("--benchmarks-root", default=str(DEFAULT_BENCHMARKS_ROOT), help="Benchmarks directory")
+    parser.add_argument("--benchmarks-root", nargs="+", default=None,
+                        help="Benchmark root dir(s); default: benchmarks/ plus internal/benchmarks/ when present")
     parser.add_argument("--runs-dir", default="runs", help="Output directory for runs")
     parser.add_argument("--max-steps", type=int, default=20, help="Max agent steps")
     parser.add_argument("--api-key", default=None, help="API key (provider-specific)")
@@ -69,7 +70,7 @@ def main():
                                    run_netlist_sim=not args.skip_netlist_sim,
                                    energy_exp=args.energy_exp)
 
-    benchmarks_root = Path(args.benchmarks_root)
+    benchmarks_root = args.benchmarks_root or default_benchmarks_roots()
     benchmarks = load_benchmarks(benchmarks_root, [args.benchmark])
     if not benchmarks:
         print(f"Benchmark not found: {args.benchmark}")
