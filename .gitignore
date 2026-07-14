@@ -54,3 +54,7 @@ obsolete/
 # is its OWN independent git repo — rtl_scout must not track or recurse into it.
 /list-sessions/
 metadocuments/
+# Private nested checkout (internal GitLab repo) — never tracked here
+/internal/
+inputs/
+method_collection*/
