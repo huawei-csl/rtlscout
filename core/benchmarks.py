@@ -3,7 +3,24 @@
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Sequence, Union
+
+# One root or several. Every discovery/loading entry point accepts both, so callers can
+# scan additional trees (e.g. a gitignored private internal/benchmarks/ checkout) in the
+# same sweep as the public benchmarks/.
+RootsLike = Union[str, Path, Sequence[Union[str, Path]]]
+
+
+def normalize_roots(roots: RootsLike) -> List[Path]:
+    """Coerce one path or a sequence of paths into a de-duplicated Path list."""
+    if isinstance(roots, (str, Path)):
+        roots = [roots]
+    out: List[Path] = []
+    for r in roots:
+        p = Path(r)
+        if p not in out:
+            out.append(p)
+    return out
 
 
 @dataclass
@@ -37,37 +54,51 @@ def load_benchmark(benchmark_root: Path) -> Benchmark:
     )
 
 
-def discover_benchmarks(benchmarks_root: Path) -> List[Path]:
+def discover_benchmarks(benchmarks_root: RootsLike) -> List[Path]:
     """Find all benchmark directories under *benchmarks_root*, at any depth.
 
-    A directory is a benchmark if it contains description.txt, metadata.json,
-    and tb.sv.  Supports nested grouping (e.g. ``benchmarks/fp/fpmul_f16/``).
+    ``benchmarks_root`` may be a single root or a sequence of roots; the roots
+    are scanned in order and the result is sorted per root. A directory is a
+    benchmark if it contains description.txt, metadata.json, and tb.sv.
+    Supports nested grouping (e.g. ``benchmarks/fp/fpmul_f16/``).
 
     Paths whose path-segments start with ``_`` are skipped — convention for
     auxiliary directories (e.g. ``_debug/`` artifacts, ``_scratch/``) that
     live inside a benchmark dir but are not themselves benchmarks.
     """
-    def _has_underscore_segment(p: Path) -> bool:
-        return any(part.startswith("_") for part in p.relative_to(benchmarks_root).parts)
+    found: List[Path] = []
+    for root in normalize_roots(benchmarks_root):
+        def _has_underscore_segment(p: Path) -> bool:
+            return any(part.startswith("_") for part in p.relative_to(root).parts)
 
-    return sorted(
-        p.parent for p in benchmarks_root.rglob("metadata.json")
-        if (p.parent / "description.txt").exists()
-        and (p.parent / "tb.sv").exists()
-        and not _has_underscore_segment(p.parent)
-    )
+        found.extend(sorted(
+            p.parent for p in root.rglob("metadata.json")
+            if (p.parent / "description.txt").exists()
+            and (p.parent / "tb.sv").exists()
+            and not _has_underscore_segment(p.parent)
+        ))
+    return found
 
 
 def load_benchmarks(
-    benchmarks_root: Path,
+    benchmarks_root: RootsLike,
     benchmark_names: Optional[List[str]] = None,
 ) -> List[Benchmark]:
-    available = [load_benchmark(p) for p in discover_benchmarks(benchmarks_root)]
+    roots = normalize_roots(benchmarks_root)
+    available = [load_benchmark(p) for p in discover_benchmarks(roots)]
     if not benchmark_names:
         return available
 
+    def _rel(b: Benchmark) -> str:
+        for root in roots:
+            try:
+                return str(b.root.relative_to(root))
+            except ValueError:
+                continue
+        return str(b.root)
+
     # Build lookup dicts: relative path > leaf dir name > metadata name.
-    by_rel = {str(b.root.relative_to(benchmarks_root)): b for b in available}
+    by_rel = {_rel(b): b for b in available}
     by_dir = {b.root.name: b for b in available}
     by_name = {b.name: b for b in available}
 

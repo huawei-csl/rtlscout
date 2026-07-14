@@ -160,7 +160,8 @@ def main():
                         help="Skip the combinational equivalence check (yosys-abc cec). "
                              "CEC runs by default against the benchmark's golden_reference "
                              "(if any) and gates pass/fail on it (all phases)")
-    parser.add_argument("--benchmarks-root", default=None, help="Benchmarks directory")
+    parser.add_argument("--benchmarks-root", nargs="+", default=None,
+                        help="Benchmark root dir(s); default: benchmarks/ plus internal/benchmarks/ when present")
     parser.add_argument("--runs-root", default="runs",
                         help="Base directory for campaign outputs (default: runs/)")
     parser.add_argument("--out", default=None,
@@ -189,10 +190,10 @@ def main():
 
     # Lazy imports — keeps --help / --dry-run usable without the EDA deps installed.
     from core.multirun import run_multirun
-    from core.runner import DEFAULT_BENCHMARKS_ROOT
+    from core.runner import default_benchmarks_roots
     from extract_pareto import extract
 
-    benchmarks_root = Path(args.benchmarks_root) if args.benchmarks_root else DEFAULT_BENCHMARKS_ROOT
+    benchmarks_root = args.benchmarks_root or default_benchmarks_roots()
 
     for c in plan:
         print(f"\n{'='*70}\n=== Phase {c['phase']} — cost metric '{c['metric']}' → {c['runs_root']}\n{'='*70}")
