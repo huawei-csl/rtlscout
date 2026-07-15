@@ -14,7 +14,7 @@
 
 # RTL Scout
 
-An RTL design agent powered by selectable LLM backends (DeepInfra, Anthropic, OpenRouter) with tool use. The agent iteratively creates and optimizes Verilog/SystemVerilog, [Spire HDL](https://github.com/huawei-csl/spire-hdl) or Amaranth designs, targeting **correctness first, then minimal cost** under a configurable cost metric. The agent can run as the built-in in-process loop or as an external OpenCode agent in a sandboxed, per-run container — see [Agent Flow](#agent-flow).
+An RTL design agent powered by selectable LLM backends (DeepInfra, Anthropic, OpenRouter) with tool use. The agent iteratively creates and optimizes Verilog/SystemVerilog, [Spire HDL](https://github.com/huawei-csl/spire-hdl) or Amaranth designs, targeting **correctness first, then minimal cost** under a configurable cost metric. The agent can run as the built-in in-process loop or as an external OpenCode agent in a sandboxed, per-run container.
 
 ## What RTL Scout does
 
