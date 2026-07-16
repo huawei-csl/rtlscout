@@ -105,6 +105,12 @@ class YosysTransistorCost(CostMetric):
             else:
                 cmds.append("hierarchy -check")
 
+            # No-op for single-module designs; on hierarchical ones it folds
+            # submodules into the top so the top-module stat below counts the
+            # whole design (yosys otherwise reports an incomplete "N+" estimate
+            # that excludes submodule contents).
+            cmds.append("flatten")
+
             cmds.append("proc; opt; fsm; memory; opt")
             cmds.append("techmap; opt; abc -fast; opt")
 
@@ -503,7 +509,11 @@ class _YosysStatCost(CostMetric):
 
     _name: str
 
-    def __init__(self, timeout: int = 60):
+    def __init__(self, timeout: Optional[int] = None):
+        # Large hierarchical designs (e.g. flattened third-party RTL) can need more
+        # than the 60s default; override per run via RTLSCOUT_YOSYS_STAT_TIMEOUT.
+        if timeout is None:
+            timeout = int(os.environ.get("RTLSCOUT_YOSYS_STAT_TIMEOUT", "60"))
         self.timeout = timeout
 
     @property
@@ -757,6 +767,7 @@ class _AigCost(CostMetric):
                 "num_gates": len(aig.gates()),
                 "depth": DepthAig(aig).num_levels(),
             }
+            pre_core["aig_adp"] = pre_core["num_gates"] * pre_core["depth"]
 
             best_aig, best_stats = optimize_aig_elaborate(
                 aig, n_iter_optimizations=self.n_iter_optimizations,
@@ -766,6 +777,7 @@ class _AigCost(CostMetric):
                 "num_gates": best_stats["num_gates"],
                 "depth": best_stats["depth"],
             }
+            post_core["aig_adp"] = post_core["num_gates"] * post_core["depth"]
 
             # optimize_aig_elaborate picks its best iteration by num_gates (depth
             # only as a tiebreaker), so for the depth objective — or any case
@@ -825,6 +837,18 @@ class AigDepthCost(_AigCost):
     """Cost metric: post-optimization AIG logic depth (``DepthAig.num_levels()``)."""
     _name = "aig_depth"
     primary_key = "depth"
+    tiebreaker_key = "num_gates"
+
+
+class AigAdpCost(_AigCost):
+    """Cost metric: AIG area-delay product = AND-node count × logic depth.
+
+    ``aig_adp = num_gates * depth`` on the same yosys-aigmap + optimize_aig_elaborate
+    AIG used by ``aig_count`` / ``aig_depth`` (whichever of pre/post-opt gives the
+    smaller product is scored). Balances gate count against logic depth.
+    """
+    _name = "aig_adp"
+    primary_key = "aig_adp"
     tiebreaker_key = "num_gates"
 
 
@@ -1432,6 +1456,7 @@ COST_METRICS = {
     "yosys_transistors": YosysTransistorsCost,
     "aig_count": AigCountCost,
     "aig_depth": AigDepthCost,
+    "aig_adp": AigAdpCost,
     "aig_count_deepsyn": AigCountDeepsynCost,
     "aig_depth_deepsyn": AigDepthDeepsynCost,
     "aig_count_resyn2": AigCountResyn2Cost,
@@ -1478,6 +1503,8 @@ def make_cost_metric(name: str, target_delay: float = 500.0,
         return AigCountCost()
     if name == "aig_depth":
         return AigDepthCost()
+    if name == "aig_adp":
+        return AigAdpCost()
     if name == "aig_count_deepsyn":
         return AigCountDeepsynCost()
     if name == "aig_depth_deepsyn":
