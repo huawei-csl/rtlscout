@@ -109,6 +109,14 @@ SPIREHDL_REFERENCES = [
         "lang": "python",
     },
     {
+        "name": "README_control_structures.md",
+        "path": str(_SPIRE / "docs/README_control_structures.md"),
+        "description": ("Control structures (if_/elif_/else_, switch_/case_) and selection "
+                        "emission modes (emit='tournament'/'andor'/'bittree', emit_hint/"
+                        "@emit_selection) — log-depth alternatives to nested mux cascades"),
+        "lang": "markdown",
+    },
+    {
         "name": "sequential_mac.py",
         "path": str(_SPIRE / "testing/basic_examples/sequential_mac.py"),
         "description": "Example: sequential multiply-accumulate (MAC) with clock and reset",
@@ -238,7 +246,7 @@ _TARGET_DELAY_NOTE = (
 # Delay optimization tips shared by both prompts.
 _DELAY_OPTIMIZATION_TIPS = (
     "## Delay Optimization Tips\n"
-    "- Varying `target_delay` during synthesis can help Yosys explore different trade-offs. Try aggressive values (e.g., 200–500 ps) to pressure the synthesizer toward faster logic, and also try higher values (1000–1500 ps) which may allow Yosys to re-map to smaller/faster cells differently.\n"
+    "- `target_delay` trades area against delay (a lower value pressures toward faster logic, a higher value lets Yosys re-map to smaller cells). Do not overly iterate on different target delays; often the RTL structure is the real lever, target_delay is only a minor secondary knob.\n"
     "- After getting a correct design, try different accumulation orderings (sequential vs. tree) and compare results — Yosys synthesis can produce noticeably different delays (~10 ps) from structurally similar descriptions.\n"
     "- For designs dominated by a multiply-accumulate chain, the critical path is the multiplier followed by the adder tree. Reducing the adder depth or splitting into parallel partial sums can help."
 )
@@ -329,6 +337,9 @@ def _build_optimization_guidance(abc_optimize: bool, flowy_optimize: bool,
     # --- Arithmetic auto-config ---
     if arith_autoconfig:
         parts.append(_ARITHMETIC_OPTIMIZATION_MD)
+        parts.append("(Apply `replace_arithmetic_ops` targeted to dedicated parts of the design, "
+                     "not as a blanket whole-design pass, and do not just import and wrap the "
+                     "starting point — optimize the RTL itself.)")
         # Newer sibling decorator to replace_arithmetic_ops — same idea but
         # scoped per-function and content-cached. Keep it alongside the
         # whole-component pass so the agent knows both exist.

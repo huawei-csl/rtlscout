@@ -321,8 +321,34 @@ def get_ppa(
     with open(constr_path, "w") as f:
         f.write(_abc_constr)
 
-    os.system(f"yosys {yosys_script_path} > {yosys_out_path}")
+    # Capture stderr too so synthesis ERRORs (e.g. "Latch inferred ... from
+    # always_comb process") land in the log, not just stdout.
+    yosys_rc = os.system(f"yosys {yosys_script_path} > {yosys_out_path} 2>&1")
     os.system(f"cp {netlist_path} /tmp/dbg_netlist.v 2>/dev/null; cp {yosys_out_path} /tmp/dbg_yosys.log 2>/dev/null")
+
+    # If yosys did not produce a (non-empty) netlist, synthesis failed. Surface
+    # the actual yosys error here instead of letting the downstream STA/Verilator
+    # step fail with a misleading "netlist.v not found" / "cannot read netlist.v".
+    if not os.path.exists(netlist_path) or os.path.getsize(netlist_path) == 0:
+        try:
+            with open(yosys_out_path) as f:
+                yosys_lines = f.readlines()
+        except OSError:
+            yosys_lines = []
+        # Prefer the actual error lines (yosys prints many "No latch inferred"
+        # confirmations, so a plain tail can bury the real "ERROR:" line).
+        err_lines = [ln for ln in yosys_lines
+                     if "ERROR" in ln or "Latch inferred for signal" in ln]
+        if err_lines:
+            detail = "".join(err_lines[-8:]).strip()
+        else:
+            detail = "".join(yosys_lines[-25:]).strip() or "(yosys log unavailable)"
+        raise RuntimeError(
+            "Yosys synthesis failed to produce a netlist (netlist.v missing/empty; "
+            f"yosys exit={yosys_rc}). A common cause is an inferred latch in an "
+            "always_comb block (incomplete assignment) or another synthesis error. "
+            "Yosys error:\n" + detail
+        )
 
     if run_verilator:
         verilator_build_dir = os.path.abspath(os.path.join(worker_path, "out"))

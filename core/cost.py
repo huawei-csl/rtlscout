@@ -43,7 +43,7 @@ class CostMetric(ABC):
     tiebreaker_key: ClassVar[Optional[str]] = None
     # Optional one-line explanation of what the cost is / how it's computed.
     # Surfaced next to the metric name in the agent's system prompt so the
-    # agent knows e.g. that 'adp' is area×runtime, not the classic area×delay.
+    # agent knows e.g. that 'area_runtime_product' is area×runtime, not the classic area×delay.
     cost_description: ClassVar[str] = ""
 
     @property
@@ -180,14 +180,31 @@ _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 _AREA_DELAY_RE = re.compile(r"Area\s*=\s*([0-9.]+).*?Delay\s*=\s*([0-9.]+)\s*ps", re.DOTALL)
 
 
+def _abc_stime_path(abc_out: str) -> str:
+    """Extract the critical path printed by yosys-abc ``stime -p``.
+
+    Returns the ``Path N -- ...`` hop lines (one per gate on the worst path;
+    gate type, per-hop arrival/slack, fanout and load caps).  Stored under
+    ``stats["worst_timing_path"]`` so evaluation surfaces it to the agent in
+    the same "Worst timing path:" block (and with the same middle-truncation)
+    as the OpenROAD-based PPA metrics.  Empty string when no path is present.
+    """
+    lines = [ln.rstrip() for ln in abc_out.splitlines() if ln.startswith("Path ")]
+    return "\n".join(lines)
+
+
 class Sky130ADPCost(CostMetric):
     """Area × Delay against sky130_fd_sc_hd__ff_n40C_1v95 via yosys + yosys-abc."""
 
     primary_key = "adp"
     tiebreaker_key = "area"
 
-    def __init__(self, lib_path: Optional[str] = None, timeout: int = 120):
+    def __init__(self, lib_path: Optional[str] = None, timeout: Optional[int] = None):
         self.lib_path = lib_path or SKY130_LIB_PATH
+        # Large designs (e.g. flattened third-party FP RTL) can need more than the
+        # 120s default for synth + abc dch/map; override via RTLSCOUT_SKY130_ADP_TIMEOUT.
+        if timeout is None:
+            timeout = int(os.environ.get("RTLSCOUT_SKY130_ADP_TIMEOUT", "120"))
         self.timeout = timeout
 
     @property
@@ -256,7 +273,7 @@ class Sky130ADPCost(CostMetric):
                 "topo\n"
                 "upsize\n"
                 "dnsize\n"
-                "stime\n"
+                "stime -p\n"
             )
             abc_script_path = os.path.join(tmp_dir, "abc.script")
             with open(abc_script_path, "w") as f:
@@ -277,10 +294,14 @@ class Sky130ADPCost(CostMetric):
             area = float(area)
             delay_ps = float(delay_ps)
             adp = area * delay_ps
+            stats = {"area": area, "delay_ps": delay_ps, "adp": adp}
+            timing_path = _abc_stime_path(abc_out)
+            if timing_path:
+                stats["worst_timing_path"] = timing_path
             return CostResult(
                 ok=True,
                 value=adp,
-                stats={"area": area, "delay_ps": delay_ps, "adp": adp},
+                stats=stats,
                 extra={"lib_path": self.lib_path},
             )
         except subprocess.TimeoutExpired as e:
@@ -317,9 +338,12 @@ class Sky130ADPCostV2(CostMetric):
     primary_key = "adp"
     tiebreaker_key = "area"
 
-    def __init__(self, lib_path: Optional[str] = None, timeout: int = 120,
+    def __init__(self, lib_path: Optional[str] = None, timeout: Optional[int] = None,
                  try_both_strategies: bool = True):
         self.lib_path = lib_path or SKY130_LIB_PATH
+        # Override via RTLSCOUT_SKY130_ADP_TIMEOUT for large designs (see Sky130ADPCost).
+        if timeout is None:
+            timeout = int(os.environ.get("RTLSCOUT_SKY130_ADP_TIMEOUT", "120"))
         self.timeout = timeout
         self.try_both_strategies = try_both_strategies
 
@@ -414,7 +438,7 @@ class Sky130ADPCostV2(CostMetric):
                 "topo\n"
                 "upsize\n"
                 "dnsize\n"
-                "stime\n"
+                "stime -p\n"
             )
             abc_script_path = os.path.join(tmp_dir, "abc.script")
             with open(abc_script_path, "w") as f:
@@ -435,10 +459,14 @@ class Sky130ADPCostV2(CostMetric):
             area = float(area)
             delay_ps = float(delay_ps)
             adp = area * delay_ps
+            stats = {"area": area, "delay_ps": delay_ps, "adp": adp}
+            timing_path = _abc_stime_path(abc_out)
+            if timing_path:
+                stats["worst_timing_path"] = timing_path
             return CostResult(
                 ok=True,
                 value=adp,
-                stats={"area": area, "delay_ps": delay_ps, "adp": adp},
+                stats=stats,
                 extra={"lib_path": self.lib_path},
             )
         except subprocess.TimeoutExpired:
@@ -561,16 +589,25 @@ class _YosysStatCost(CostMetric):
             cmds.append(f"tee -q -o {wc_file} stat{top_flag}")
 
             # Transistor side-stat -- hierarchy-correct, see TRANSISTOR_STAT_MODE.
+            # A fresh `abc; opt` runs before the transistor stat: yosys `synth`'s
+            # single internal abc call under-optimizes flattened netlists (e.g.
+            # Spire's lowered expression-graph emission), inflating the estimate
+            # ~2x; a second abc pass recovers it so the count reflects the design,
+            # not the emission style. It runs *after* the wires/cells stat above,
+            # so those counts stay untouched.
             if TRANSISTOR_STAT_MODE == "flatten":
-                # Flatten + re-synth, then read the cmos JSON. Runs *after* the
-                # wires/cells stat above, so those counts stay untouched.
+                # Flatten + re-synth, then read the cmos JSON.
                 cmds.append("flatten")
                 cmds.append(f"synth{top_flag}")
+                cmds.append("abc")
+                cmds.append("opt")
                 cmds.append("clean -purge")
                 cmds.append(f"tee -q -o {tr_file} stat{top_flag} -tech cmos -json")
             else:  # "hierarchy"
                 # Text `stat -tech cmos`: its `=== design hierarchy ===` block
                 # sums transistors recursively across submodule instances.
+                cmds.append("abc")
+                cmds.append("opt")
                 cmds.append(f"tee -q -o {tr_file} stat{top_flag} -tech cmos")
             script = "; ".join(cmds)
 
@@ -1183,7 +1220,7 @@ class PPAAreaDelayProductCost(PPACost):
     primary_key = "area_delay_product"
     tiebreaker_key = "delay"
     cost_description = ("area × achieved critical-path delay — the classic area-delay product. "
-                        "Does NOT include simulation cycle count (contrast with the 'adp' metric).")
+                        "Does NOT include simulation cycle count (contrast with the 'area_runtime_product' metric).")
 
     def evaluate(self, workdir: Path, top_module: Optional[str] = None,
                  design_file: Optional[Path] = None,
@@ -1235,7 +1272,7 @@ class CyclesCost(CostMetric):
             return CostResult(
                 ok=False, value=None, stats={},
                 error="No cycle count available; the testbench must print "
-                      "'TB_CYCLES total=<C>' for the cycles/runtime/adp metrics",
+                      "'TB_CYCLES total=<C>' for the cycles/runtime/area_runtime_product metrics",
             )
         cycles = float(cycles)
         return CostResult(ok=True, value=cycles, stats={"cycles": cycles})
@@ -1284,21 +1321,23 @@ class RuntimeCost(PPACost):
         return result
 
 
-class AdpCost(PPACost):
-    """Cost metric: adp = area × delay × sim cycles (≡ area × runtime).
+class AreaRuntimeProductCost(PPACost):
+    """Cost metric: area_runtime_product = area × runtime = area × sim-cycles × delay.
 
-    Inverse throughput-per-area for this fixed workload. Requires
-    ``sim_stats['cycles']``.
+    Inverse throughput-per-area for this fixed workload. This is NOT the classic
+    area×delay product (see ``area_delay_product``) — it multiplies in the
+    simulation cycle count. Requires ``sim_stats['cycles']``.
     """
 
     _ppa_key = "area"  # base extracts area; we override to compute the product
-    _name = "adp"
-    primary_key = "adp"
+    _name = "area_runtime_product"
+    primary_key = "area_runtime_product"
     tiebreaker_key = "area"
-    cost_description = ("adp = area × runtime = area × cycles × achieved-delay. "
-                        "NOTE: this is NOT the classic area×delay product — it multiplies in "
-                        "the simulation cycle count, so a faster-but-bigger design wins only if "
-                        "the area growth is smaller than the cycle/time savings.")
+    cost_description = ("area_runtime_product = area × runtime = area × cycles × achieved-delay. "
+                        "NOTE: this is NOT the classic area×delay product (that is "
+                        "'area_delay_product') — it multiplies in the simulation cycle count, so a "
+                        "faster-but-bigger design wins only if the area growth is smaller than the "
+                        "cycle/time savings.")
 
     def evaluate(self, workdir: Path, top_module: Optional[str] = None,
                  design_file: Optional[Path] = None,
@@ -1308,7 +1347,7 @@ class AdpCost(PPACost):
             return CostResult(
                 ok=False, value=None, stats={},
                 error="No cycle count available; the testbench must print "
-                      "'TB_CYCLES total=<C>' for the adp metric",
+                      "'TB_CYCLES total=<C>' for the area_runtime_product metric",
             )
         result = super().evaluate(workdir, top_module, design_file)
         if not result.ok:
@@ -1318,15 +1357,15 @@ class AdpCost(PPACost):
         if area is None or delay is None:
             return CostResult(
                 ok=False, value=None, stats=result.stats,
-                error="PPA extraction missing area or delay for adp",
+                error="PPA extraction missing area or delay for area_runtime_product",
             )
         cycles = float(cycles)
         runtime = cycles * float(delay)
-        adp = float(area) * runtime
-        result.value = adp
+        arp = float(area) * runtime
+        result.value = arp
         result.stats["cycles"] = cycles
         result.stats["runtime"] = runtime
-        result.stats["adp"] = adp  # first-class stats key for primary_key lookups
+        result.stats["area_runtime_product"] = arp  # first-class stats key for primary_key lookups
         return result
 
 
@@ -1384,7 +1423,7 @@ class EdapCost(PPACost):
     """Cost metric: edap = energy**k × runtime × area (energy-weighted EDAP).
 
     runtime = cycles × achieved delay, so edap = energy**k × cycles × delay × area
-    — i.e. (adp × energy) at k=1, the faithful energy-delay-area product. It
+    — i.e. (area_runtime_product × energy) at k=1, the faithful energy-delay-area product. It
     penalizes re-fetching (energy) AND big reuse buffers (area) at once, so the
     optimum reuses operands without over-buffering (rewards tiling).
 
@@ -1463,7 +1502,7 @@ COST_METRICS = {
     "aig_depth_resyn2": AigDepthResyn2Cost,
     "cycles": CyclesCost,
     "runtime": RuntimeCost,
-    "adp": AdpCost,
+    "area_runtime_product": AreaRuntimeProductCost,
     "energy": EnergyCost,
     "edap": EdapCost,
 }
@@ -1479,13 +1518,13 @@ def make_cost_metric(name: str, target_delay: float = 500.0,
         name: One of 'transistors', 'delay', 'area', 'power', 'area_delay_product'.
         target_delay: Target delay in {target_delay_time_unit} for PPA metrics (ignored for transistors).
         technology: Process technology for PPA metrics (ignored for transistors/sky130).
-        run_netlist_sim: For PPA metrics (delay/area/power/area_delay_product/runtime/adp/edap),
+        run_netlist_sim: For PPA metrics (delay/area/power/area_delay_product/runtime/area_runtime_product/edap),
             whether to re-simulate the synthesized gate-level netlist as a correctness
             cross-check. False skips it (much faster for large designs); ignored by
             non-PPA metrics.
         energy_exp: For the 'edap' metric only — the exponent k in
             edap = energy**k × runtime × area. k=1 is the balanced EDAP, k>1 weights
-            data-movement (reuse) harder, k=0 reduces to plain adp. Ignored by other metrics.
+            data-movement (reuse) harder, k=0 reduces to plain area_runtime_product. Ignored by other metrics.
     """
     if name == "transistors":
         return YosysTransistorCost()
@@ -1520,7 +1559,7 @@ def make_cost_metric(name: str, target_delay: float = 500.0,
     if name == "edap":
         return EdapCost(target_delay=target_delay, technology=technology,
                         run_netlist_sim=run_netlist_sim, energy_exp=energy_exp)
-    # runtime / adp subclass PPACost and fall through to the PPA constructor
+    # runtime / area_runtime_product subclass PPACost and fall through to the PPA constructor
     # below so they receive target_delay / technology.
     cls = COST_METRICS.get(name)
     if cls is None:

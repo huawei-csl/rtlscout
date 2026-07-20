@@ -112,11 +112,22 @@ def _build_tools(target_delay_is_settable: bool) -> list:
             "type": "function",
             "function": {
                 "name": "read_file",
-                "description": "Read the contents of a file in the working directory",
+                "description": "Read the contents of a file in the working directory. "
+                               "By default returns the whole file; pass offset/limit to read a line range.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "filename": {"type": "string", "description": "Name of the file to read"},
+                        "offset": {
+                            "type": "integer",
+                            "description": "1-based line number to start reading from. "
+                                           "Omit to start at the first line.",
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "Maximum number of lines to return (from offset). "
+                                           "Omit to read to the end of the file.",
+                        },
                     },
                     "required": ["filename"],
                 },
@@ -276,7 +287,8 @@ class RTLAgent:
             elif tool_name == "ls":
                 return self._ls()
             elif tool_name == "read_file":
-                return self._read_file(arguments["filename"])
+                return self._read_file(arguments["filename"],
+                                       arguments.get("offset"), arguments.get("limit"))
             elif tool_name == "run_evaluation":
                 return self._run_evaluation(arguments.get("filename", ""),
                                             target_delay=arguments.get("target_delay"))
@@ -465,16 +477,32 @@ class RTLAgent:
             return "Working directory is empty"
         return "Files:\n" + "\n".join(sorted(files))
 
-    def _read_file(self, filename: str) -> str:
+    def _read_file(self, filename: str, offset: Optional[int] = None,
+                   limit: Optional[int] = None) -> str:
         filepath = self._safe_path(filename)
         if filepath is None:
             return "Error: Invalid filename"
         if not filepath.exists():
             return f"Error: File not found: {filename}"
         try:
-            return filepath.read_text()
+            content = filepath.read_text()
         except Exception as e:
             return f"Error reading file: {e}"
+        # Whole file by default; offset/limit select a line range. read_file
+        # self-manages length, so the generic result-truncation in the tool loop
+        # skips read_file entirely (design sources are never silently capped).
+        if offset is None and limit is None:
+            return content
+        lines = content.splitlines(keepends=True)
+        n = len(lines)
+        start = max(0, (offset or 1) - 1)  # 1-based -> 0-based
+        if start >= n:
+            return f"(file has {n} lines; offset {offset} is past end of file)"
+        end = n if limit is None else min(n, start + limit)
+        out = "".join(lines[start:end])
+        if start > 0 or end < n:
+            out += f"\n... (showing lines {start + 1}-{end} of {n}; use offset/limit for more)"
+        return out
 
     def _snapshot_best(self, eval_index, design_file=None) -> None:
         """Save a copy of the current design files as the best workspace."""
@@ -715,12 +743,15 @@ class RTLAgent:
                 )
                 print(f"  [{step}] {tool_name}({_arg_str})")
                 result = self._execute_tool(tool_name, arguments)
-                # Truncate very long results to avoid context overflow,
-                # but skip truncation for .py file reads (context files).
-                skip_truncate = (
-                    tool_name == "read_file"
-                    and arguments.get("filename", "").endswith(".py")
-                )
+                # Truncate very long results to avoid context overflow, but skip
+                # tools whose output is already length-managed internally:
+                #  - read_file: self-limits via offset/limit (default whole file),
+                #    so design sources (.py/.sv/.v) are never silently capped.
+                #  - run_evaluation: summary_str() already middle-elides each field
+                #    (sim output, worst timing path @ MAX_TIMING_PATH_CHARS, CEC),
+                #    so the generic 2000-char cap must not re-truncate it at the end
+                #    (that would clobber the middle-elided timing path).
+                skip_truncate = tool_name in ("read_file", "run_evaluation")
                 if not skip_truncate and len(result) > 2000:
                     result = result[:2000] + "\n... (truncated)"
                 print(f"    -> {result[:500]}")

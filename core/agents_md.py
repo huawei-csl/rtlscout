@@ -37,6 +37,9 @@ _SPIRE_DOC_READMES = [
     ("docs/README_optimization_decorators.md", "@abc_optimized / @flowy_optimized / etc."),
     ("docs/README_fsm_optimization.md", "FSM / state-encoding optimization"),
     ("docs/README_state_machines.md", "state machines"),
+    ("docs/README_control_structures.md",
+     "if_/switch_ control structures + selection emission modes "
+     "(emit='tournament'/'andor'/'bittree' — log-depth mux-cascade rewrites)"),
     ("docs/README_composite_types.md", "structs / arrays / composite types"),
     ("docs/README_memories.md", "memories"),
     ("docs/README_custom_verilog.md", "embedding custom Verilog"),
@@ -155,7 +158,8 @@ def _optimization_guidance(req: "BackendRequest", cfg: dict) -> str:
     if req.arith_autoconfig:
         items.append(f"- **`replace_arithmetic_ops()` / `@arithmetic_optimized`** — reconfigure how "
                      f"`*`/`+`/etc. map to multiplier/adder architectures instead of the default "
-                     f"operator mapping. See {R('README_arithmetic_optimization.md')}.")
+                     f"operator mapping (apply it targeted to dedicated parts of the design, not as a "
+                     f"blanket whole-design pass). See {R('README_arithmetic_optimization.md')}.")
     if req.fsm_optimize:
         items.append(f"- **FSM / state-encoding** — the `State` API plus the `optimized_fsm` / "
                      f"`optimized_encoding` wrappers, for alternative state encodings on sequential "

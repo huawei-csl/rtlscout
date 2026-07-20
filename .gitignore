@@ -30,6 +30,7 @@ obj_dir/
 # Excluded dependencies (not part of the public release)
 deps/flowy/
 deps/mockturtle/
+deps/abc-eslim/
 
 # Misc
 *.patch
@@ -54,3 +55,4 @@ metadocuments/
 # Optional Private nested checkout (internal GitLab repo) — never tracked here
 /internal/
 inputs/
+input/

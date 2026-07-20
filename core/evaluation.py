@@ -62,7 +62,7 @@ class EvaluationResult:
 
     MAX_OUTPUT_CHARS: int = 400
     MAX_JSON_CHARS: int = 1_000
-    MAX_TIMING_PATH_CHARS: int = 3_000  # ~50-60 lines of OpenROAD report_checks
+    MAX_TIMING_PATH_CHARS: int = 4_500  # ~75-90 lines of OpenROAD report_checks; middle-elided by _truncate (keeps startpoint + endpoint/slack)
 
     def metrics(self) -> Dict[str, float]:
         """Return the flat scalar bag (``int``/``float`` only) from ``cost.stats``.

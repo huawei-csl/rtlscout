@@ -55,6 +55,20 @@ Hopcroft state minimisation and bit-assignment search as two composable context 
 
 An 8-opcode CPU decoder sees **−66.7% cells** from a single `optimized_encoding`, because the search discovers an opcode layout where each wide OR collapses to one bit-test. See [`README_fsm_optimization.md`](docs/README_fsm_optimization.md).
 
+### 🔀 Selection-cascade emission: `mux_emission`
+
+`switch_`/`case_`, `if_`/`elif_`, and hand-nested `mux()` all lower to linear mux cascades — O(N) logic depth that downstream synthesis cannot rebalance. `mux_emission` sets a log-depth emission style for a scope, as a region context manager or a decorator:
+
+```python
+with mux_emission("andor"):          # one-hot AND-OR (the parallel $pmux form)
+    with switch_(op): ...            #   requires provably disjoint case labels
+
+@mux_emission("tournament")          # balanced first-match tree — always legal,
+def ff1_index(bits): ...             #   preserves priority (if_ chains, priority encoders)
+```
+
+Modes: `andor` / `bittree` (one-hot forms, validated against provably-disjoint constant labels — overlap-safe by construction), `tournament` (universal, priority-preserving), `auto` (best legal form per cascade). Rewrites are eager, so Verilog, AIG export, and the simulator all see the same structure; `to_verilog_file(..., selection_emission=True)` additionally auto-detects large cascades design-wide. Independently, provably-disjoint arms skip the redundant first-match gating altogether. See [`README_control_structures.md`](docs/README_control_structures.md).
+
 ### 🛠️ Fine-grained architecture selection: `arithmetic_generator`
 
 Beyond the automatic passes above, the unified arithmetic generator lets you hand-pick the exact micro-architecture of an adder, multiplier, MAC, or matmul (partial-product generation, compression-tree topology, and final-stage adder), then emit Verilog/AIG, simulate, and collect Yosys metrics for direct comparison. See [`README_arithmetic_generator.md`](docs/README_arithmetic_generator.md).
