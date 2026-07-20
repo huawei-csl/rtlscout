@@ -112,8 +112,8 @@ SPIREHDL_REFERENCES = [
         "name": "README_control_structures.md",
         "path": str(_SPIRE / "docs/README_control_structures.md"),
         "description": ("Control structures (if_/elif_/else_, switch_/case_) and selection "
-                        "emission modes (emit='tournament'/'andor'/'bittree', emit_hint/"
-                        "@emit_selection) — log-depth alternatives to nested mux cascades"),
+                        "emission modes (selection_topology('tournament'/'onehot'/'bittree'), "
+                        "region/decorator forms) — log-depth alternatives to nested mux cascades"),
         "lang": "markdown",
     },
     {

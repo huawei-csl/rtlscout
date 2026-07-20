@@ -39,7 +39,7 @@ _SPIRE_DOC_READMES = [
     ("docs/README_state_machines.md", "state machines"),
     ("docs/README_control_structures.md",
      "if_/switch_ control structures + selection emission modes "
-     "(emit='tournament'/'andor'/'bittree' — log-depth mux-cascade rewrites)"),
+     "(selection_topology('tournament'/'onehot'/'bittree') — log-depth mux-cascade rewrites)"),
     ("docs/README_composite_types.md", "structs / arrays / composite types"),
     ("docs/README_memories.md", "memories"),
     ("docs/README_custom_verilog.md", "embedding custom Verilog"),
