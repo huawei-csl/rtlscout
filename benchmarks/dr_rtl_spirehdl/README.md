@@ -247,18 +247,17 @@ Once a `<case>/context/starting_point.py` is written, smoke-test it via:
 ~/pyenv_eda/bin/python run_eval.py \
     benchmarks/dr_rtl_spirehdl/<case>/context/starting_point.py \
     --benchmark benchmarks/dr_rtl_spirehdl/<case> \
-    --language spirehdl --cost-metric yosys_cells \
-    --workdir /tmp/dr_rtl_spirehdl_<case>_smoke
+    --language spirehdl --cost-metric yosys_cells
 ```
 
 Expected: `Correctness: PASS, 2000/2000` and finite `yosys_cells`.
 
-**Important gotcha** (per `benchmarks/turbo_rtl/README.md:89-103`): if
-you omit `--workdir`, `run_eval.py` writes `obj_dir/`, `design.v`,
-`tb.sv`, `vectors.dat` into the benchmark's own `context/` — these then
-get picked up by future runs and (worse) by `core/runner.py`'s
-context-copy step, leaking into every future agent workspace. Always
-use `--workdir /tmp/...`.
+`run_eval.py` sandboxes by default (throwaway temp copy of the design's
+folder, deleted afterwards), so `context/` stays pristine — the old
+"always pass `--workdir /tmp/...`" workaround is no longer needed. If you
+want the emitted `design.v` afterwards (e.g. for the dual-instantiation
+probe), run the starting point directly (`python starting_point.py` in a
+scratch dir) or pass `--in-place` from a scratch copy.
 
 ## Nangate45 PPA comparison (verilog vs spirehdl)
 

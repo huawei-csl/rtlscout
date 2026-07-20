@@ -17,6 +17,62 @@ endmodule
 """
 
 
+def _fingerprint(d: Path):
+    return sorted((p.relative_to(d).as_posix(), p.stat().st_size, p.stat().st_mtime_ns)
+                  for p in d.rglob("*") if p.is_file())
+
+
+@requires_verilator
+@requires_yosys
+def test_run_eval_cli_sandbox_leaves_source_pristine(tmp_path):
+    """run_eval.py's default mode runs in a throwaway sandbox: the source dir
+    (e.g. a benchmark context/) must be byte-and-mtime identical afterwards —
+    no tb.sv/vectors.dat overlay, no obj_dir, no design.v."""
+    import subprocess, sys
+
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "design.sv").write_text(SIMPLE_ADDER_VERILOG)
+    (src / ".spire_cache").mkdir()
+    (src / ".spire_cache" / "marker.json").write_text("{}")  # must survive untouched
+
+    before = _fingerprint(src)
+    proc = subprocess.run(
+        [sys.executable, "run_eval.py", str(src / "design.sv"),
+         "--benchmark", str(SIMPLE_ADDER_ROOT), "--cost-metric", "yosys_cells"],
+        cwd=Path(__file__).parent.parent, capture_output=True, text=True, timeout=300,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "Correctness: PASS" in proc.stdout
+    assert "(sandbox)" in proc.stdout
+    assert _fingerprint(src) == before
+
+
+@requires_verilator
+@requires_yosys
+def test_run_eval_cli_in_place(tmp_path):
+    """--in-place runs in the source dir; the inputs run_eval copied in
+    (tb.sv) and the build scratch (obj_dir) are cleaned, the source stays."""
+    import subprocess, sys
+
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "design.sv").write_text(SIMPLE_ADDER_VERILOG)
+
+    proc = subprocess.run(
+        [sys.executable, "run_eval.py", str(src / "design.sv"), "--in-place",
+         "--benchmark", str(SIMPLE_ADDER_ROOT), "--cost-metric", "yosys_cells"],
+        cwd=Path(__file__).parent.parent, capture_output=True, text=True, timeout=300,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "Correctness: PASS" in proc.stdout
+    assert "(sandbox)" not in proc.stdout
+    leftovers = {p.name for p in src.iterdir()}
+    assert "design.sv" in leftovers
+    assert "tb.sv" not in leftovers      # copied input removed at exit
+    assert "obj_dir" not in leftovers    # build scratch removed by simulate()
+
+
 @requires_verilator
 @requires_yosys
 def test_run_eval_simple_adder(tmp_path):

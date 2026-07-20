@@ -5,13 +5,24 @@ Given a path to a design file (e.g. a .py or .sv file inside a workspace),
 this script runs the full evaluation pipeline (Spire compile if needed,
 Verilator correctness, Yosys cost) and prints the result.
 
-The workspace directory is inferred from the file's location — it must
-contain tb.sv and (for data-driven testbenches) the .dat file.
+Execution model — two orthogonal knobs:
+  * ``--workdir DIR``  — the SOURCE folder holding the design + its collateral
+                         (helpers, data files, ``.spire_cache``). Default: the
+                         design file's parent directory.
+  * sandbox / in-place — by default the eval runs in a throwaway TEMP COPY of
+                         the source folder (minus ``obj_dir``/``_*`` junk) that
+                         is deleted afterwards, so the source directory is
+                         never touched — pointing at a benchmark's ``context/``
+                         is safe. A pre-existing ``.spire_cache`` is copied in
+                         (warm reads) but never written back; to build/refresh
+                         a source cache, or to keep artifacts (``design.v``,
+                         ``obj_dir``) for inspection, pass ``--in-place``.
 
 Usage:
-  python run_eval.py runs/fpmul_f16/.../workspace/starting_point.py
-  python run_eval.py runs/fpmul_f16/.../workspace/starting_point.py --language spirehdl
-  python run_eval.py runs/fpmul_f16/.../workspace/design.sv --language verilog
+  python run_eval.py benchmarks/fpmul_f16/context/starting_point.py --benchmark benchmarks/fpmul_f16
+      (sandboxed: context/ stays pristine)
+  python run_eval.py runs/fpmul_f16/.../workspace/design.py --in-place
+      (evaluate inside the workspace itself; artifacts + .spire_cache land there)
   python run_eval.py runs/fpmul_f16/.../workspace/design.py --cost-metric delay --target-delay 500
   python run_eval.py design.aig --benchmark benchmarks/mac_2x8s_sat16 --cost-metric area
       (AIG input: with symbols -> sim+cost; symbol-less -> RTL sim skipped automatically)
@@ -20,11 +31,13 @@ Usage:
 """
 
 import argparse
+import atexit
 import json
 import os
 import re
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 from core.cost import COST_METRICS, make_cost_metric
@@ -120,6 +133,52 @@ def _prepare_aig_input(args, design_path: Path, workdir: Path) -> tuple:
     return "design.v", not symboled   # symbol-less -> force cost-only (no recoverable I/O)
 
 
+# Sandbox provisioning: junk is never copied; everything else comes along, including a pre-existing .spire_cache
+# (read-shared like core/runner.py's context copy — the temp dir is deleted at exit, so it is never written back).
+_SANDBOX_SKIP = ("obj_dir", "__pycache__")
+_SANDBOX_SIZE_CAP = 100 * 1024 * 1024  # refuse to silently copy huge dirs
+
+
+def _dir_size_capped(src: Path, cap: int) -> int:
+    total = 0
+    for p in src.rglob("*"):
+        try:
+            if p.is_file() and not p.is_symlink():
+                total += p.stat().st_size
+                if total > cap:
+                    return total
+        except OSError:
+            continue
+    return total
+
+
+def _provision_sandbox(source_dir: Path, is_aig: bool) -> Path:
+    """Throwaway workdir: a copy of the source folder minus junk. AIG inputs get an empty one (design.v is
+    reconstructed there; tb/data come from --benchmark)."""
+    tmp = Path(tempfile.mkdtemp(prefix="run_eval_"))
+    atexit.register(shutil.rmtree, tmp, ignore_errors=True)
+    if is_aig:
+        return tmp
+
+    if _dir_size_capped(source_dir, _SANDBOX_SIZE_CAP) > _SANDBOX_SIZE_CAP:
+        shutil.rmtree(tmp, ignore_errors=True)
+        sys.exit(
+            f"Refusing to sandbox {source_dir}: contents exceed "
+            f"{_SANDBOX_SIZE_CAP // (1024 * 1024)}MB. Pass --workdir with a "
+            f"smaller source folder, or --in-place to run there directly.")
+
+    for item in source_dir.iterdir():
+        if item.name in _SANDBOX_SKIP or item.name.startswith("_"):
+            continue
+        dest = tmp / item.name
+        if item.is_dir():
+            shutil.copytree(item, dest,
+                            ignore=shutil.ignore_patterns(*_SANDBOX_SKIP, "_*"))
+        else:
+            shutil.copy2(item, dest)
+    return tmp
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Run evaluation on a design file (for debugging)",
@@ -139,7 +198,16 @@ def main():
     parser.add_argument("--top-module", default=None,
                         help="Design top module name (default: auto-detect from description)")
     parser.add_argument("--workdir", default=None,
-                        help="Workspace directory (default: parent of the design file)")
+                        help="Source folder holding the design + its collateral "
+                             "(default: parent of the design file). Orthogonal to "
+                             "--in-place: without it the eval runs in a throwaway "
+                             "temp copy of this folder.")
+    parser.add_argument("--in-place", action="store_true",
+                        help="Run directly in the source folder instead of a "
+                             "sandbox copy: artifacts (design.v, obj_dir) and "
+                             ".spire_cache updates land there. Inputs this tool "
+                             "copies in (tb.sv/*.dat/_golden) are still removed "
+                             "at exit if they were not already present.")
     parser.add_argument("--benchmark", default=None,
                         help="Benchmark directory to use tb.sv/vectors.dat from (e.g. benchmarks/fpmul_f16)")
     parser.add_argument("--skip-cec", action="store_true",
@@ -168,11 +236,26 @@ def main():
         print(f"File not found: {design_path}")
         sys.exit(1)
 
-    workdir = Path(args.workdir).resolve() if args.workdir else design_path.parent
+    source_dir = Path(args.workdir).resolve() if args.workdir else design_path.parent
     design_filename = design_path.name
+    is_aig = design_filename.endswith((".aig", ".aag"))
+
+    # Sandbox by default: run in a throwaway copy so the source (e.g. a benchmark's context/) is never touched.
+    sandbox = None
+    created_paths: list[Path] = []  # inputs WE placed into an in-place workdir
+    if args.in_place:
+        workdir = source_dir
+    else:
+        sandbox = _provision_sandbox(source_dir, is_aig)
+        workdir = sandbox
+
+    if not is_aig and not (workdir / design_filename).exists():
+        sys.exit(f"Design file '{design_filename}' not found in workdir {source_dir} "
+                 f"(the workdir must be the folder containing the design).")
+
     # AIG input (.aig/.aag): reconstruct to design.v; force_cost_only=True for symbol-less AIGs.
     force_cost_only = False
-    if design_filename.endswith((".aig", ".aag")):
+    if is_aig:
         design_filename, force_cost_only = _prepare_aig_input(args, design_path, workdir)
     # Skip the RTL correctness sim (+CEC) on request, or for un-simulatable symbol-less AIGs.
     skip_sim = args.skip_rtl_sim or force_cost_only
@@ -188,16 +271,18 @@ def main():
     else:
         language = args.language
 
-    # Copy testbench files from benchmark directory if specified
+    # Copy testbench + ALL *.dat files from the benchmark dir (mirrors core/runner.py's workspace provisioning).
     if args.benchmark:
         bench_dir = Path(args.benchmark).resolve()
         if not bench_dir.is_dir():
             print(f"Benchmark directory not found: {bench_dir}")
             sys.exit(1)
-        for name in ["tb.sv", "vectors.dat"]:
-            src = bench_dir / name
+        for src in [bench_dir / "tb.sv", *sorted(bench_dir.glob("*.dat"))]:
             if src.exists():
-                shutil.copy2(src, workdir / name)
+                dest = workdir / src.name
+                if args.in_place and not dest.exists():
+                    created_paths.append(dest)
+                shutil.copy2(src, dest)
 
     # Check workspace has tb.sv (not required when the RTL sim is skipped)
     if not skip_sim and not (workdir / "tb.sv").exists():
@@ -235,7 +320,7 @@ def main():
                 )
                 top_module = next((n for n in matches if n != "tb"), None)
 
-    print(f"Workdir:  {workdir}")
+    print(f"Workdir:  {workdir}{' (sandbox)' if sandbox is not None else ''}")
     print(f"Design:   {design_filename}")
     print(f"Language: {language}")
     print(f"Metric:   {args.cost_metric}")
@@ -252,7 +337,21 @@ def main():
         from core.benchmarks import load_benchmark
         from core.equivalence import resolve_golden_reference
         bench = load_benchmark(Path(args.benchmark).resolve())
-        cec_reference = resolve_golden_reference(bench, workdir / "_golden")
+        golden_dir = workdir / "_golden"
+        golden_preexisting = golden_dir.exists()
+        cec_reference = resolve_golden_reference(bench, golden_dir)
+        if args.in_place and golden_dir.exists() and not golden_preexisting:
+            created_paths.append(golden_dir)
+
+    # In-place runs still remove the inputs THIS tool copied in (sandbox cleanup is registered at provisioning).
+    if args.in_place and created_paths:
+        def _cleanup_created(paths=tuple(created_paths)):
+            for p in paths:
+                if p.is_dir():
+                    shutil.rmtree(p, ignore_errors=True)
+                else:
+                    p.unlink(missing_ok=True)
+        atexit.register(_cleanup_created)
 
     import time
     t0 = time.monotonic()

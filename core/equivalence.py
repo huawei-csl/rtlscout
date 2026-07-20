@@ -141,6 +141,8 @@ def run_cec(
     if "NOT EQUIVALENT" in upper:
         return CECResult(ran=True, equivalent=False, tool_ok=True, log=full_log)
     if "ARE EQUIVALENT" in upper:
+        # On a pass the BLIFs add nothing beyond the captured log; on fail/error the dir is kept as forensics.
+        shutil.rmtree(cec_dir, ignore_errors=True)
         return CECResult(ran=True, equivalent=True, tool_ok=True, log=full_log)
     return CECResult(ran=True, equivalent=None, tool_ok=False,
                      error="could not parse cec verdict from yosys-abc output",

@@ -88,15 +88,20 @@ def simulate(sources: List[Path], top_module: str, workdir: Path, build_timeout:
         "verilator", "--binary", "--sv", "--top-module", top_module,
         "-o", "simv",
     ] + verilator_common_flags + [str(s.resolve()) for s in sources]
-    build = _run(build_args, abs_workdir, timeout=build_timeout)
-    if not build.ok:
-        return SimResult(
-            ok=False,
-            stdout=build.stdout,
-            stderr=build.stderr,
-            returncode=build.returncode,
-        )
-    return _run([str(obj_dir / "simv")], abs_workdir)
+    try:
+        build = _run(build_args, abs_workdir, timeout=build_timeout)
+        if not build.ok:
+            return SimResult(
+                ok=False,
+                stdout=build.stdout,
+                stderr=build.stderr,
+                returncode=build.returncode,
+            )
+        return _run([str(obj_dir / "simv")], abs_workdir)
+    finally:
+        # Pure scratch: all diagnostics are captured in the returned SimResult and nothing downstream reads
+        # obj_dir, so remove it here — workspaces stay free of build residue by construction.
+        shutil.rmtree(obj_dir, ignore_errors=True)
 
 
 def parse_testbench_checks(sim_stdout: str, sim_stderr: str) -> List[Dict[str, Any]]:

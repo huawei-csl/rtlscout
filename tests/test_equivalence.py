@@ -40,6 +40,9 @@ def test_run_cec_equivalent(tmp_path):
     assert r.ran
     assert r.tool_ok, r.error
     assert r.equivalent is True
+    # on a pass the _cec scratch (mitre BLIFs) is removed — the log is captured
+    assert not (tmp_path / "_cec").exists()
+    assert r.log
 
 
 @requires_yosys
@@ -55,6 +58,8 @@ def test_run_cec_not_equivalent(tmp_path):
     assert r.ran
     assert r.tool_ok, r.error
     assert r.equivalent is False
+    # on a fail the _cec scratch is kept: the mitre BLIFs are the forensics
+    assert (tmp_path / "_cec").exists()
 
 
 @requires_yosys

@@ -86,24 +86,15 @@ Every turbo_rtl benchmark's `metadata.json` carries a `source` block pointing ba
 
 Expected on a freshly-added benchmark: both say `Correctness: PASS, 2002/2002`, the two `sky130_adp` values should be within a few percent of each other (perfectly equal if the spirehdl translation emits the same logical netlist as the golden).
 
-## Important gotcha — don't run starting_point.py in place
+## Running starting_point.py through run_eval — sandboxed by default
 
-`run_eval.py` uses `dirname(<file>)` as the workspace when you don't pass `--workdir`. If you point it at `context/starting_point.py`, it builds `obj_dir/`, `design.v`, and copies `tb.sv` + `vectors.dat` **into `context/`**. Those artifacts then get picked up by later runs and — worse — by `core/runner.py`'s context-copy step, leaking into every future agent workspace.
-
-After any in-place smoke test, clean up:
-
-```bash
-rm -rf benchmarks/turbo_rtl_spirehdl/*/context/obj_dir \
-       benchmarks/turbo_rtl_spirehdl/*/context/design.v \
-       benchmarks/turbo_rtl_spirehdl/*/context/tb.sv \
-       benchmarks/turbo_rtl_spirehdl/*/context/vectors.dat \
-       benchmarks/turbo_rtl_spirehdl/*/context/__pycache__
-rm -rf benchmarks/turbo_rtl/*/context/obj_dir \
-       benchmarks/turbo_rtl/*/context/tb.sv \
-       benchmarks/turbo_rtl/*/context/vectors.dat
-```
-
-Better: copy the starting_point file to `/tmp/...` before running, or pass `--workdir /tmp/foo` explicitly.
+`run_eval.py` runs in a *throwaway sandbox copy* of the design's folder by
+default, so pointing it at `context/starting_point.py` leaves `context/`
+pristine — the historical footgun (artifacts leaking into `context/` and from
+there into every agent workspace via `core/runner.py`'s context-copy) is gone.
+If you deliberately want artifacts (`design.v`, `obj_dir/`) or a warmed
+`.spire_cache` next to the source, pass `--in-place` — and then keep `context/`
+clean yourself (the internal tree's `.gitignore` guards the worst offenders).
 
 ---
 
