@@ -45,6 +45,29 @@ def test_run_eval_simple_adder(tmp_path):
     assert result.correctness.passed_checks == 3
 
 
+@requires_yosys
+def test_run_eval_skip_sim_cec_only(tmp_path):
+    """run_rtl_sim=False (run_eval.py --skip-rtl-sim / db-score): no testbench needed,
+    correctness is skipped, pass comes from the CEC verdict alone — and pass_rate is
+    None (not measured), not a misleading 0.0 on a formally proven pass."""
+    from core.evaluation import evaluate
+
+    workdir = tmp_path / "workspace"
+    workdir.mkdir()
+    (workdir / "design.sv").write_text(SIMPLE_ADDER_VERILOG)
+    golden = tmp_path / "golden.v"
+    golden.write_text(SIMPLE_ADDER_VERILOG)
+
+    result = evaluate(workdir=workdir, design_top_module="adder", design_file="design.sv",
+                      run_rtl_sim=False, cec_reference=golden)
+
+    assert result.correctness is None
+    assert result.passed                      # CEC-proven equivalent to the golden
+    assert result.pass_rate is None
+    d = result.to_dict()
+    assert d["pass_rate"] is None and d["correctness"] is None
+
+
 @requires_verilator
 @requires_yosys
 def test_run_benchmark_simple_adder(tmp_path):

@@ -56,7 +56,7 @@ class EvaluationResult:
     passed: bool
     cost_value: Optional[float]
     cost_metric_name: str
-    pass_rate: float
+    pass_rate: Optional[float]                 # None -> sim skipped: no check fraction was measured
 
     python_run_output: str = ""
     cec: Optional[CECResult] = None
@@ -334,6 +334,8 @@ def evaluate(
                      Pass False to skip it — cost still runs, and CEC still runs if a
                      cec_reference is given (a formal check without simulation). The
                      spire/amaranth compile always runs (cost needs the generated Verilog).
+                     With the sim skipped, ``correctness`` and ``pass_rate`` are None —
+                     a CEC-proven pass must not report a 0.0 check fraction.
     """
     if cost_metric is None:
         cost_metric = YosysTransistorCost()
@@ -412,7 +414,7 @@ def evaluate(
         passed=passed,
         cost_value=cost.value if cost.ok else None,
         cost_metric_name=cost_metric.metric_name,
-        pass_rate=correctness.pass_rate if correctness else 0.0,
+        pass_rate=correctness.pass_rate if correctness else None,
         python_run_output=python_run_output,
         cec=cec_result,
     )
