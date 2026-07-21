@@ -17,6 +17,7 @@ import argparse
 from pathlib import Path
 from datetime import datetime
 
+from core.agent_backend import BackendConfig
 from core.cost import COST_METRICS
 from core.multirun import run_multirun
 from core.runner import DEFAULT_BENCHMARKS_ROOT
@@ -102,6 +103,12 @@ def main():
         parser.error("--mode orchestrated applies to --agent-backend opencode only; the react "
                      "agent runs in-process. Use --mode single-container, or --agent-backend opencode.")
 
+    backend_cfg = BackendConfig(
+        name=args.agent_backend, deploy_mode=args.mode, reeval=args.reeval,
+        wall_clock_s=int(args.wall_clock_min * 60), design_db_skills=args.design_db_skills,
+        design_db_path=Path(args.design_db_path) if args.design_db_path else None,
+    )
+
     runs_root = None
     if args.runs_root:
         runs_root = Path(args.runs_root)
@@ -130,12 +137,7 @@ def main():
         dont_touch_main_arith=args.dont_touch_main_arith,
         fsm_optimize=args.fsm_optimize,
         run_cec=not args.skip_cec,
-        agent_backend=args.agent_backend,
-        deploy_mode=args.mode,
-        reeval=args.reeval,
-        wall_clock_s=int(args.wall_clock_min * 60),
-        design_db_skills=args.design_db_skills,
-        design_db_path=Path(args.design_db_path) if args.design_db_path else None,
+        backend_cfg=backend_cfg,
     )
 
 

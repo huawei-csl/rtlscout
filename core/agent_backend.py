@@ -47,6 +47,48 @@ class RunLimits:
 
 
 @dataclass
+class BackendConfig:
+    """Backend selection + backend-specific knobs, bundled once at the CLI layer.
+
+    Travels opaquely through ``run_multirun`` → task dict → ``run_agent_on_benchmark``, so
+    the shared plumbing never enumerates backend-specific fields — a new knob touches this
+    dataclass and the backend that reads it, nothing in between.
+
+    ``name`` selects the backend ('react' | 'opencode'). ``deploy_mode``
+    ('single-container' | 'orchestrated') selects the Sandbox implementation for the agent
+    and the judge; 'orchestrated' applies to the opencode backend only — the react agent
+    has no shell and always runs in-process (its in-process score is already trustworthy),
+    so containerizing it — or its judge — buys nothing. ``reeval`` forces the authoritative
+    post-run re-score on the react path for apples-to-apples A/B parity (it is always on
+    for opencode — see ``wants_reeval``). ``wall_clock_s`` is the opencode hard per-run
+    budget (0 = no limit; react is step-bounded and ignores it). ``design_db_skills`` /
+    ``design_db_path`` opt the opencode run into the design-DB skills layer (see
+    ``BackendRequest``). ``session_id`` labels + scopes a campaign's orchestrated
+    containers; ``run_multirun`` stamps it per campaign.
+    """
+    name: str = "react"
+    deploy_mode: str = "single-container"
+    reeval: bool = False
+    wall_clock_s: int = 0
+    design_db_skills: bool = False
+    design_db_path: Optional[Path] = None
+    session_id: str = ""
+
+    def __post_init__(self):
+        if self.deploy_mode == "orchestrated" and self.name != "opencode":
+            raise ValueError(
+                f"deploy_mode 'orchestrated' applies to the opencode backend only (got "
+                f"backend {self.name!r}). The react agent runs in-process; use "
+                f"'single-container', or switch to the opencode backend.")
+
+    @property
+    def wants_reeval(self) -> bool:
+        """Authoritative re-eval is mandatory on the opencode path (its container is
+        untrusted); on react it is opt-in via ``reeval`` purely for A/B parity."""
+        return self.reeval or self.name == "opencode"
+
+
+@dataclass
 class BackendRequest:
     """Everything a backend needs to run one already-provisioned session.
 

@@ -97,6 +97,7 @@ def test_run_benchmark_simple_adder_spirehdl(tmp_path):
 @requires_yosys
 def test_run_multirun_simple_adder(tmp_path):
     """Run multirun on simple_adder with a fake Verilog provider."""
+    from core.agent_backend import BackendConfig
     from core.multirun import run_multirun
 
     summary = run_multirun(
@@ -108,7 +109,7 @@ def test_run_multirun_simple_adder(tmp_path):
         elite_size=2,
         cost_metric="transistors",
         runs_root=tmp_path / "ms_runs",
-        design_db_skills=True,
+        backend_cfg=BackendConfig(design_db_skills=True),
     )
 
     assert summary["global_best_cost"] is not None

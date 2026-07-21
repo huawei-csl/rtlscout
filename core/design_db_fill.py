@@ -3,7 +3,8 @@
 ``fill_slot`` turns a DB slot into an **ephemeral RTLScout benchmark** (auto description/metadata;
 the slot's golden as the CEC reference; an advisory data-driven ``tb.sv`` — the slot's frozen sim tb
 when present, else golden-simulated random/corner vectors), runs a normal campaign
-(``run_multirun(reeval=True)``), and pushes **every verification-passing candidate through Spire's
+(``run_multirun`` with ``BackendConfig(reeval=True)``), and pushes **every verification-passing
+candidate through Spire's
 insert gate** — the gate re-verifies each design against the slot's frozen verification, so the
 campaign's own numbers never decide admission. The slot's own golden is **seeded first**
 (``seed_original``) as the selection floor / report baseline.
@@ -186,12 +187,14 @@ def fill_slot(spec_key: str, *, model: str, db: Optional[Any] = None,
         bench_root = root / "benchmarks"
         _materialize_benchmark(slot, spec, verification, bench_root / module, module,
                                n_advisory_vectors, sim_budget_s)
+        from core.agent_backend import BackendConfig
         from core.multirun import run_multirun
         run_multirun(
             benchmark_name=module, model=model, total_runs=total_runs,
             max_concurrent=max_concurrent, max_steps=max_steps, cost_metric=cost,
             language=language, benchmarks_root=bench_root, runs_root=root / "runs",
-            run_cec=(verification.get("method") == "cec"), agent_backend="react", reeval=True)
+            run_cec=(verification.get("method") == "cec"),
+            backend_cfg=BackendConfig(name="react", reeval=True))
 
         for cand in _harvest_candidates(root / "runs"):
             report.attempted += 1

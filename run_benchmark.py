@@ -5,6 +5,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from core.agent_backend import BackendConfig
 from core.benchmarks import load_benchmark, load_benchmarks
 from core.cost import COST_METRICS, make_cost_metric
 from core.runner import DEFAULT_BENCHMARKS_ROOT, parse_model_spec, run_agent_on_benchmark
@@ -95,10 +96,10 @@ def main():
         fsm_optimize=args.fsm_optimize,
         dont_touch_main_arith=args.dont_touch_main_arith,
         run_cec=not args.skip_cec,
-        agent_backend=args.agent_backend,
-        wall_clock_s=int(args.wall_clock_min * 60),
-        design_db_skills=args.design_db_skills,
-        design_db_path=Path(args.design_db_path) if args.design_db_path else None,
+        backend_cfg=BackendConfig(
+            name=args.agent_backend, wall_clock_s=int(args.wall_clock_min * 60),
+            design_db_skills=args.design_db_skills,
+            design_db_path=Path(args.design_db_path) if args.design_db_path else None),
     )
 
     if result.passed:
