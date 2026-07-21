@@ -23,6 +23,7 @@ import re
 import shlex
 import shutil
 import tempfile
+import traceback
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -278,6 +279,43 @@ def reeval_run(run_dir: Path, benchmark, judge_sandbox, *, cost_metric, language
             f"{len(report['tamper_signatures'])} tamper-signature hit(s) in session log")
 
     return report
+
+
+# result.json keys the authoritative re-score rewrites — pool/Pareto selection then reads
+# these, never the agent-container numbers.
+_AUTHORITATIVE_KEYS = ("passed", "best_cost", "best_metrics", "best_eval", "all_evals", "cost_metric")
+
+
+def adopt_authoritative_result(result_dict: Dict[str, Any], benchmark, judge_sandbox, *,
+                               cost_metric, language: str, run_cec: bool = True,
+                               run_label: str = "") -> None:
+    """Re-score a finished run and adopt the authoritative numbers into *result_dict* in place.
+
+    Handover §4.4/§5.3: recorded numbers come from the judge re-scoring the candidate set
+    against the benchmark's own inputs, never the agent's container. Runs ``reeval_run`` on
+    ``result_dict["workdir"]``, overwrites the authoritative keys, attaches the report as
+    ``reeval_report``, and prints a line when the agreement gate flags divergence. Never
+    raises: a failed re-eval is recorded as ``reeval_error`` (the advisory numbers stand).
+    """
+    try:
+        workdir = Path(result_dict["workdir"])
+        # opencode_session.json is the complete record; opencode_session.log is the fallback
+        # (only present if the export failed). The scan reads whichever exist.
+        session_logs = [workdir / "opencode_session.json", workdir / "opencode_session.log",
+                        workdir / "chat_log.txt"]
+        report = reeval_run(workdir, benchmark, judge_sandbox, cost_metric=cost_metric,
+                            language=language, run_cec=run_cec, session_logs=session_logs)
+        auth = json.loads((workdir / "result.json").read_text())
+        for k in _AUTHORITATIVE_KEYS:
+            if k in auth:
+                result_dict[k] = auth[k]
+        result_dict["reeval_report"] = report
+        if report.get("diverged"):
+            print(f"[REEVAL] {run_label or workdir.name}: DIVERGENCE flagged: "
+                  f"{report.get('flags')}", flush=True)
+    except Exception as e:
+        traceback.print_exc()
+        result_dict["reeval_error"] = str(e)
 
 
 def _container_judge_argv(eval_dir: Path, benchmark, cost_metric, language: str,

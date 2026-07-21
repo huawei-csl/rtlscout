@@ -480,32 +480,17 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
         else:
             result_dict["workdir"] = str(run_dir)
 
-    # Authoritative re-evaluation (handover §4.4/§5.3): recorded numbers come from the
-    # judge re-scoring the candidate set against the benchmark's own inputs, never the
-    # agent's container. Adopt the authoritative numbers for pool/Pareto selection.
+    # Authoritative re-evaluation (handover §4.4/§5.3): the judge re-scores the candidate
+    # set against the benchmark's own inputs and its numbers replace the agent's for
+    # pool/Pareto selection.
     if cfg.wants_reeval and result_dict.get("status") == "ok" and result_dict.get("workdir"):
-        try:
-            from core.reeval import reeval_run
-            workdir = Path(result_dict["workdir"])
-            judge_sandbox = _make_judge_sandbox(cfg.deploy_mode, session_id=cfg.session_id,
-                                                work_root=workdir, run_index=run_index)
-            # opencode_session.json is the complete record; opencode_session.log is the fallback
-            # (only present if the export failed). The scan reads whichever exist.
-            session_logs = [workdir / "opencode_session.json", workdir / "opencode_session.log",
-                            workdir / "chat_log.txt"]
-            report = reeval_run(workdir, bench, judge_sandbox, cost_metric=cost_metric,
-                                language=language, run_cec=run_cec, session_logs=session_logs)
-            auth = json.loads((workdir / "result.json").read_text())
-            for k in ("passed", "best_cost", "best_metrics", "best_eval", "all_evals", "cost_metric"):
-                if k in auth:
-                    result_dict[k] = auth[k]
-            result_dict["reeval_report"] = report
-            if report.get("diverged"):
-                print(f"[REEVAL] run_{run_index:03d}: DIVERGENCE flagged: {report.get('flags')}",
-                      flush=True)
-        except Exception as e:
-            traceback.print_exc()
-            result_dict["reeval_error"] = str(e)
+        from core.reeval import adopt_authoritative_result
+        judge_sandbox = _make_judge_sandbox(cfg.deploy_mode, session_id=cfg.session_id,
+                                            work_root=Path(result_dict["workdir"]),
+                                            run_index=run_index)
+        adopt_authoritative_result(result_dict, bench, judge_sandbox, cost_metric=cost_metric,
+                                   language=language, run_cec=run_cec,
+                                   run_label=f"run_{run_index:03d}")
 
     tag = f"run_{run_index:03d}"
     cost = result_dict.get("best_cost", "N/A")
