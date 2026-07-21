@@ -294,8 +294,16 @@ def main():
                                    run_netlist_sim=not args.skip_netlist_sim,
                                    energy_exp=args.energy_exp)
 
-    # Auto-detect top module if not specified
+    # Auto-detect top module if not specified: the benchmark's module_name is
+    # authoritative (file scanning picks the FIRST module declaration, which is
+    # wrong for multi-module files like sv2v output where the top comes last).
     top_module = args.top_module
+    if top_module is None and args.benchmark:
+        try:
+            from core.benchmarks import load_benchmark
+            top_module = load_benchmark(Path(args.benchmark).resolve()).module_name
+        except Exception:
+            top_module = None
     if top_module is None:
         # For spirehdl, run the .py first to generate design.v, then infer
         # For verilog, infer directly from the .v/.sv file

@@ -34,12 +34,15 @@ _SPIRE_DOC_READMES = [
     ("README.md", "main Spire overview — start here"),
     ("docs/README_arithmetic_generator.md", "configurable multiplier/adder generators"),
     ("docs/README_arithmetic_optimization.md", "arithmetic architecture optimization"),
-    ("docs/README_optimization_decorators.md", "@abc_optimized / @flowy_optimized / etc."),
+    ("docs/README_optimization_decorators.md", "@abc_optimized / etc."),
     ("docs/README_fsm_optimization.md", "FSM / state-encoding optimization"),
     ("docs/README_state_machines.md", "state machines"),
     ("docs/README_control_structures.md",
      "if_/switch_ control structures + selection emission modes "
      "(selection_topology('tournament'/'onehot'/'bittree') — log-depth mux-cascade rewrites)"),
+    ("docs/README_reductions.md",
+     "balanced log-depth reduction trees (spire.reduce: max_/min_/argmax_/sum_/reduce_tree/prefix_scan "
+     "— loop-built running max/min chains are O(N) deep and synthesis cannot rebalance them)"),
     ("docs/README_composite_types.md", "structs / arrays / composite types"),
     ("docs/README_memories.md", "memories"),
     ("docs/README_custom_verilog.md", "embedding custom Verilog"),

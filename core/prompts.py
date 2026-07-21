@@ -117,6 +117,14 @@ SPIREHDL_REFERENCES = [
         "lang": "markdown",
     },
     {
+        "name": "README_reductions.md",
+        "path": str(_SPIRE / "docs/README_reductions.md"),
+        "description": ("Balanced log-depth reduction trees (spire.reduce: max_/min_/argmax_/"
+                        "sum_/reduce_tree/prefix_scan) — use instead of loop-built running max/min chains, "
+                        "which are O(N) deep and cannot be rebalanced by synthesis"),
+        "lang": "markdown",
+    },
+    {
         "name": "sequential_mac.py",
         "path": str(_SPIRE / "testing/basic_examples/sequential_mac.py"),
         "description": "Example: sequential multiply-accumulate (MAC) with clock and reset",
