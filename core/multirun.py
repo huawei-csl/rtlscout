@@ -351,39 +351,12 @@ def build_seed_prompt(
 
 # ── worker function (module-level for pickling) ─────────────────────────────
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-_AGENT_IMAGE = "rtlscout-opencode:latest"
-
-
-def _make_judge_sandbox(mode: str, *, session_id: str = "", work_root=None, run_index: int = 0):
-    """Build the judge-role Sandbox for the deployment mode (handover §3.1)."""
-    from core.sandbox import LocalSandbox
-    if mode == "single-container":
-        return LocalSandbox()
-    if mode == "orchestrated":
-        from core.sandbox import ContainerSandbox
-        return ContainerSandbox(role="judge", session_id=session_id, work_root=work_root,
-                                host_repo=_REPO_ROOT, run_index=run_index,
-                                image=_AGENT_IMAGE, network="none", cpus=4, memory="8g")
-    raise ValueError(f"Unknown mode: {mode!r}. Use 'single-container' or 'orchestrated'.")
-
-
-def _make_agent_sandbox(mode: str, *, session_id: str, work_root, run_index: int):
-    """Build the agent-role Sandbox. Orchestrated agents need egress to the model
-    provider, so they use the default bridge network (judge stays network=none)."""
-    if mode == "orchestrated":
-        from core.sandbox import ContainerSandbox
-        return ContainerSandbox(role="agent", session_id=session_id, work_root=work_root,
-                                host_repo=_REPO_ROOT, run_index=run_index,
-                                image=_AGENT_IMAGE, network="bridge", cpus=4, memory="8g")
-    return None  # single-container: backend uses an in-process LocalSandbox
-
-
 def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
     """Execute a single agent run.  Runs in a subprocess."""
     from core.benchmarks import Benchmark, load_benchmark
     from core.cost import make_cost_metric
     from core.runner import parse_model_spec, run_agent_on_benchmark
+    from core.sandbox import make_agent_sandbox, make_judge_sandbox
 
     runs_root = Path(runs_root_str)
     run_index = task["run_index"]
@@ -427,8 +400,8 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
     run_dir.mkdir(parents=True, exist_ok=True)
 
     # Orchestrated mode: the agent runs in its own fresh container (mounts run_dir).
-    agent_sandbox = _make_agent_sandbox(cfg.deploy_mode, session_id=cfg.session_id,
-                                        work_root=run_dir, run_index=run_index)
+    agent_sandbox = make_agent_sandbox(cfg.deploy_mode, session_id=cfg.session_id,
+                                       work_root=run_dir, run_index=run_index)
 
     start = time.time()
     try:
@@ -485,9 +458,9 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
     # pool/Pareto selection.
     if cfg.wants_reeval and result_dict.get("status") == "ok" and result_dict.get("workdir"):
         from core.reeval import adopt_authoritative_result
-        judge_sandbox = _make_judge_sandbox(cfg.deploy_mode, session_id=cfg.session_id,
-                                            work_root=Path(result_dict["workdir"]),
-                                            run_index=run_index)
+        judge_sandbox = make_judge_sandbox(cfg.deploy_mode, session_id=cfg.session_id,
+                                           work_root=Path(result_dict["workdir"]),
+                                           run_index=run_index)
         adopt_authoritative_result(result_dict, bench, judge_sandbox, cost_metric=cost_metric,
                                    language=language, run_cec=run_cec,
                                    run_label=f"run_{run_index:03d}")

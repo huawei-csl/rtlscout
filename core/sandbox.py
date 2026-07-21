@@ -245,3 +245,33 @@ class ContainerSandbox:
             )
         finally:
             _ACTIVE_CONTAINERS.discard(name)
+
+
+# --- Deployment-mode factories: map --mode to the Sandbox impl for each role ----------------
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_AGENT_IMAGE = "rtlscout-opencode:latest"
+
+
+def make_judge_sandbox(mode: str, *, session_id: str = "", work_root: Optional[Path] = None,
+                       run_index: int = 0) -> Sandbox:
+    """Build the judge-role Sandbox for the deployment mode (handover §3.1)."""
+    if mode == "single-container":
+        return LocalSandbox()
+    if mode == "orchestrated":
+        return ContainerSandbox(role="judge", session_id=session_id, work_root=work_root,
+                                host_repo=_REPO_ROOT, run_index=run_index,
+                                image=_AGENT_IMAGE, network="none", cpus=4, memory="8g")
+    raise ValueError(f"Unknown mode: {mode!r}. Use 'single-container' or 'orchestrated'.")
+
+
+def make_agent_sandbox(mode: str, *, session_id: str, work_root: Path,
+                       run_index: int) -> Optional[Sandbox]:
+    """Build the agent-role Sandbox, or None in single-container mode (the backend then
+    uses an in-process LocalSandbox). Orchestrated agents need egress to the model
+    provider, so they use the default bridge network (judge stays network=none)."""
+    if mode == "orchestrated":
+        return ContainerSandbox(role="agent", session_id=session_id, work_root=work_root,
+                                host_repo=_REPO_ROOT, run_index=run_index,
+                                image=_AGENT_IMAGE, network="bridge", cpus=4, memory="8g")
+    return None
