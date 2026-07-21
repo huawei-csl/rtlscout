@@ -16,18 +16,14 @@ import tempfile
 import time
 import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.agent_backend import BackendConfig
-from core.benchmarks import Benchmark, load_benchmark, load_benchmarks
-from core.cost import COST_METRICS, make_cost_metric
-from core.runner import (
-    DEFAULT_BENCHMARKS_ROOT,
-    parse_model_spec,
-    run_agent_on_benchmark,
-)
+from core.benchmarks import Benchmark, load_benchmarks
+from core.cost import COST_METRICS
+from core.runner import DEFAULT_BENCHMARKS_ROOT
 
 
 # ── dataclasses ──────────────────────────────────────────────────────────────

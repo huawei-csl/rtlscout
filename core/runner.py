@@ -6,16 +6,15 @@ import shutil
 import time
 import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 
-from core.agent import AgentResult, RTLAgent
-from core.benchmarks import Benchmark, load_benchmark, load_benchmarks
-from core.cost import CostMetric, YosysTransistorCost
+from core.agent import AgentResult
+from core.benchmarks import Benchmark, load_benchmarks
+from core.cost import CostMetric
 from core.llm_client import AnthropicClient, DeepInfraClient, OpenRouterClient, LLMClient
 
 # Load .env for API keys

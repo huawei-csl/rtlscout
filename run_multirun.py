@@ -15,7 +15,6 @@ Usage:
 
 import argparse
 from pathlib import Path
-from datetime import datetime
 
 from core.agent_backend import BackendConfig
 from core.cost import COST_METRICS
