@@ -1102,9 +1102,12 @@ class PPACost(CostMetric):
     _ppa_key: str  # key in get_ppa() result dict
     _name: str     # metric_name returned to callers
 
-    def __init__(self, target_delay: float = 500.0, ppa_timeout: int = 1800,
+    def __init__(self, target_delay: float = 500.0, ppa_timeout: Optional[int] = None,
                  technology: str = "asap7", run_netlist_sim: bool = True):
         self.target_delay = target_delay
+        # defaults suits small/medium designs; override via RTLSCOUT_PPA_TIMEOUT for heavy ones.
+        if ppa_timeout is None:
+            ppa_timeout = int(os.environ.get("RTLSCOUT_PPA_TIMEOUT", "1800"))
         self.ppa_timeout = ppa_timeout
         self.technology = technology
         # When True (default), PPA extraction also re-simulates the synthesized

@@ -62,6 +62,11 @@ _TECH_CONFIGS = {
     set_load 10.0 [all_outputs]
     """,
         verilator_netlist_flags=[
+            # Workaround for a Verilator 5.040 internal crash on large abc-mapped
+            # netlists (V3DfgBreakCycles.cpp:183 "Wrong result width", seen on the
+            # ofdm benchmark): disable the DFG cycle-breaker optimization. No
+            # semantic effect — the netlist re-sim only gets slightly slower.
+            "-fno-dfg-break-cycles",
             "/prog/OpenROAD-flow-scripts/flow/platforms/asap7/verilog/stdcell/empty.v",
             "/prog/OpenROAD-flow-scripts/flow/platforms/asap7/verilog/stdcell/asap7sc7p5t_SIMPLE_RVT_TT_201020.v",
             "/prog/OpenROAD-flow-scripts/flow/platforms/asap7/verilog/stdcell/asap7sc7p5t_INVBUF_RVT_TT_201020.v",
