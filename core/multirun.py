@@ -9,23 +9,21 @@ fresh (exploration, with decaying probability).
 
 import json
 import math
+import os
 import random
 import shutil
 import tempfile
 import time
 import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass, field
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.benchmarks import Benchmark, load_benchmark, load_benchmarks
-from core.cost import COST_METRICS, make_cost_metric
-from core.runner import (
-    DEFAULT_BENCHMARKS_ROOT,
-    parse_model_spec,
-    run_agent_on_benchmark,
-)
+from core.agent_backend import BackendConfig
+from core.benchmarks import Benchmark, load_benchmarks
+from core.cost import COST_METRICS
+from core.runner import DEFAULT_BENCHMARKS_ROOT
 
 
 # ── dataclasses ──────────────────────────────────────────────────────────────
@@ -349,39 +347,12 @@ def build_seed_prompt(
 
 # ── worker function (module-level for pickling) ─────────────────────────────
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-_AGENT_IMAGE = "rtlscout-opencode:latest"
-
-
-def _make_judge_sandbox(mode: str, *, session_id: str = "", work_root=None, run_index: int = 0):
-    """Build the judge-role Sandbox for the deployment mode (handover §3.1)."""
-    from core.sandbox import LocalSandbox
-    if mode == "single-container":
-        return LocalSandbox()
-    if mode == "orchestrated":
-        from core.sandbox import ContainerSandbox
-        return ContainerSandbox(role="judge", session_id=session_id, work_root=work_root,
-                                host_repo=_REPO_ROOT, run_index=run_index,
-                                image=_AGENT_IMAGE, network="none", cpus=4, memory="8g")
-    raise ValueError(f"Unknown mode: {mode!r}. Use 'single-container' or 'orchestrated'.")
-
-
-def _make_agent_sandbox(mode: str, *, session_id: str, work_root, run_index: int):
-    """Build the agent-role Sandbox. Orchestrated agents need egress to the model
-    provider, so they use the default bridge network (judge stays network=none)."""
-    if mode == "orchestrated":
-        from core.sandbox import ContainerSandbox
-        return ContainerSandbox(role="agent", session_id=session_id, work_root=work_root,
-                                host_repo=_REPO_ROOT, run_index=run_index,
-                                image=_AGENT_IMAGE, network="bridge", cpus=4, memory="8g")
-    return None  # single-container: backend uses an in-process LocalSandbox
-
-
 def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
     """Execute a single agent run.  Runs in a subprocess."""
     from core.benchmarks import Benchmark, load_benchmark
     from core.cost import make_cost_metric
     from core.runner import parse_model_spec, run_agent_on_benchmark
+    from core.sandbox import make_agent_sandbox, make_judge_sandbox
 
     runs_root = Path(runs_root_str)
     run_index = task["run_index"]
@@ -401,13 +372,7 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
     fsm_optimize = task.get("fsm_optimize", False)
     run_cec = task.get("run_cec", True)
     technology = task.get("technology", "asap7")
-    agent_backend = task.get("agent_backend", "react")
-    deploy_mode = task.get("mode", "single-container")
-    session_id = task.get("session_id", "")
-    wall_clock_s = task.get("wall_clock_s", 0)
-    # Authoritative re-eval is mandatory on the opencode path (its container is
-    # untrusted); on react it is opt-in via --reeval purely for A/B parity.
-    do_reeval = bool(task.get("reeval", False)) or agent_backend == "opencode"
+    cfg: BackendConfig = task.get("backend_cfg") or BackendConfig()
 
     provider, model = parse_model_spec(model_spec)
     cost_metric = make_cost_metric(cost_metric_name, target_delay=target_delay,
@@ -431,8 +396,8 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
     run_dir.mkdir(parents=True, exist_ok=True)
 
     # Orchestrated mode: the agent runs in its own fresh container (mounts run_dir).
-    agent_sandbox = _make_agent_sandbox(deploy_mode, session_id=session_id,
-                                        work_root=run_dir, run_index=run_index)
+    agent_sandbox = make_agent_sandbox(cfg.deploy_mode, session_id=cfg.session_id,
+                                       work_root=run_dir, run_index=run_index)
 
     start = time.time()
     try:
@@ -452,8 +417,7 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
             dont_touch_main_arith=dont_touch_main_arith,
             fsm_optimize=fsm_optimize,
             run_cec=run_cec,
-            agent_backend=agent_backend,
-            wall_clock_s=wall_clock_s,
+            backend_cfg=cfg,
             agent_sandbox=agent_sandbox,
         )
         result_dict = result.to_dict()
@@ -485,32 +449,17 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
         else:
             result_dict["workdir"] = str(run_dir)
 
-    # Authoritative re-evaluation (handover §4.4/§5.3): recorded numbers come from the
-    # judge re-scoring the candidate set against the benchmark's own inputs, never the
-    # agent's container. Adopt the authoritative numbers for pool/Pareto selection.
-    if do_reeval and result_dict.get("status") == "ok" and result_dict.get("workdir"):
-        try:
-            from core.reeval import reeval_run
-            workdir = Path(result_dict["workdir"])
-            judge_sandbox = _make_judge_sandbox(deploy_mode, session_id=session_id,
-                                                work_root=workdir, run_index=run_index)
-            # opencode_session.json is the complete record; opencode_session.log is the fallback
-            # (only present if the export failed). The scan reads whichever exist.
-            session_logs = [workdir / "opencode_session.json", workdir / "opencode_session.log",
-                            workdir / "chat_log.txt"]
-            report = reeval_run(workdir, bench, judge_sandbox, cost_metric=cost_metric,
-                                language=language, run_cec=run_cec, session_logs=session_logs)
-            auth = json.loads((workdir / "result.json").read_text())
-            for k in ("passed", "best_cost", "best_metrics", "best_eval", "all_evals", "cost_metric"):
-                if k in auth:
-                    result_dict[k] = auth[k]
-            result_dict["reeval_report"] = report
-            if report.get("diverged"):
-                print(f"[REEVAL] run_{run_index:03d}: DIVERGENCE flagged: {report.get('flags')}",
-                      flush=True)
-        except Exception as e:
-            traceback.print_exc()
-            result_dict["reeval_error"] = str(e)
+    # Authoritative re-evaluation (handover §4.4/§5.3): the judge re-scores the candidate
+    # set against the benchmark's own inputs and its numbers replace the agent's for
+    # pool/Pareto selection.
+    if cfg.wants_reeval and result_dict.get("status") == "ok" and result_dict.get("workdir"):
+        from core.reeval import adopt_authoritative_result
+        judge_sandbox = make_judge_sandbox(cfg.deploy_mode, session_id=cfg.session_id,
+                                           work_root=Path(result_dict["workdir"]),
+                                           run_index=run_index)
+        adopt_authoritative_result(result_dict, bench, judge_sandbox, cost_metric=cost_metric,
+                                   language=language, run_cec=run_cec,
+                                   run_label=f"run_{run_index:03d}")
 
     tag = f"run_{run_index:03d}"
     cost = result_dict.get("best_cost", "N/A")
@@ -553,18 +502,14 @@ def run_multirun(
     dont_touch_main_arith: bool = False,
     fsm_optimize: bool = False,
     run_cec: bool = True,
-    agent_backend: str = "react",
-    deploy_mode: str = "single-container",
-    reeval: bool = False,
-    wall_clock_s: int = 0,
+    backend_cfg: Optional[BackendConfig] = None,
 ) -> Dict[str, Any]:
-    """Run the async elite-pool multi-run optimization (one ``session_id`` per campaign,
-    used to label + sweep this campaign's orchestrated containers).
+    """Run the async elite-pool multi-run optimization.
 
-    ``agent_backend`` ('react'|'opencode') selects the per-run agent; ``deploy_mode``
-    ('single-container'|'orchestrated') selects the Sandbox impl for both the agent and
-    the judge. ``reeval`` forces the authoritative post-run re-score on the react path
-    too (it is always on for opencode) — used for apples-to-apples A/B parity.
+    ``backend_cfg`` (``core.agent_backend.BackendConfig``) selects the per-run agent
+    backend and carries its knobs (deploy mode, re-eval, wall clock, design-DB layer);
+    the default (None) is the plain in-process react backend. A fresh ``session_id`` is
+    stamped per campaign, used to label + sweep this campaign's orchestrated containers.
     """
     import uuid
     from datetime import datetime
@@ -574,20 +519,27 @@ def run_multirun(
         runs_root = Path("runs") / f"multirun_{ts}"
     runs_root.mkdir(parents=True, exist_ok=True)
 
-    # --mode applies to the OpenCode backend only. The react agent has no shell and always runs
-    # in-process (its in-process score is already trustworthy), so containerizing it — or its
-    # judge — buys nothing. Reject the combination rather than silently ignoring the flag.
-    if agent_backend != "opencode" and deploy_mode == "orchestrated":
-        raise ValueError(
-            f"--mode orchestrated applies to --agent-backend opencode only (got "
-            f"--agent-backend {agent_backend}). The react agent runs in-process; use "
-            f"--mode single-container, or switch to --agent-backend opencode.")
+    cfg = backend_cfg or BackendConfig()
 
-    session_id = uuid.uuid4().hex  # labels + scopes this campaign's orchestrated containers
-    if deploy_mode == "orchestrated":
-        print(f"[ORCHESTRATED] session={session_id}  agent+judge containers carry "
-              f"rtlscout.session={session_id}; clean up with: python rtlscout_cli.py "
-              f"cleanup --session {session_id}", flush=True)
+    # Campaign design DB: with the skills layer on, all runs share one library by default —
+    # run N starts with everything runs 1..N-1 verified (and an elite seed's @from_design_db
+    # decorators re-splice against the populated library instead of an empty one). Concurrent
+    # fills are safe (derived per-slot index, atomic admits). Precedence: an explicit
+    # design_db_path beats $SPIREHDL_DB_PATH beats this campaign default — so a persistent
+    # cross-campaign library set via the env var is respected.
+    design_db_path = cfg.design_db_path
+    if cfg.design_db_skills and design_db_path is None and not os.environ.get("SPIREHDL_DB_PATH"):
+        design_db_path = runs_root / "design_db"
+    if cfg.design_db_skills and design_db_path is not None:
+        design_db_path.mkdir(parents=True, exist_ok=True)
+
+    # Stamp the campaign copy: resolved DB root + this campaign's session_id (labels + scopes
+    # its orchestrated containers). replace() re-runs validation (orchestrated ⇒ opencode).
+    cfg = replace(cfg, design_db_path=design_db_path, session_id=uuid.uuid4().hex)
+    if cfg.deploy_mode == "orchestrated":
+        print(f"[ORCHESTRATED] session={cfg.session_id}  agent+judge containers carry "
+              f"rtlscout.session={cfg.session_id}; clean up with: python rtlscout_cli.py "
+              f"cleanup --session {cfg.session_id}", flush=True)
 
     # Load benchmark
     benchmarks = load_benchmarks(benchmarks_root, [benchmark_name])
@@ -669,6 +621,8 @@ def run_multirun(
         "dont_touch_main_arith": dont_touch_main_arith,
         "fsm_optimize": fsm_optimize,
         "run_cec": run_cec,
+        "design_db_skills": cfg.design_db_skills,
+        "design_db_path": str(cfg.design_db_path) if cfg.design_db_path else None,
     }
     (runs_root / "config.json").write_text(json.dumps(config, indent=2))
 
@@ -731,11 +685,7 @@ def run_multirun(
             "dont_touch_main_arith": dont_touch_main_arith,
             "fsm_optimize": fsm_optimize,
             "run_cec": run_cec,
-            "agent_backend": agent_backend,
-            "mode": deploy_mode,
-            "reeval": reeval,
-            "wall_clock_s": wall_clock_s,
-            "session_id": session_id,
+            "backend_cfg": cfg,
         }
 
     with ProcessPoolExecutor(max_workers=max_concurrent) as executor:

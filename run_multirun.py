@@ -15,8 +15,8 @@ Usage:
 
 import argparse
 from pathlib import Path
-from datetime import datetime
 
+from core.agent_backend import BackendConfig
 from core.cost import COST_METRICS
 from core.multirun import run_multirun
 from core.runner import DEFAULT_BENCHMARKS_ROOT
@@ -92,11 +92,21 @@ def main():
                         help="Hard per-run wall-clock budget in MINUTES for the opencode backend "
                              "(default 10; 0 = no limit). The react backend ignores this and uses "
                              "--max-steps instead.")
+    parser.add_argument("--design-db-skills", action="store_true",
+                        help="Include the design-DB skills layer in the opencode runs: skill pack, rtl-subcircuit/rtl-dv-prep subagents, AGENTS.md section, and the DB handover. The DB itself is spire's (auto-creates on use); this flag adds the guidance.")
+    parser.add_argument("--design-db-path", default=None,
+                        help="Explicit design-DB root shared by all runs (default: a campaign DB at <runs-root>/design_db; $SPIREHDL_DB_PATH overrides the campaign default). Implies nothing without --design-db-skills.")
     args = parser.parse_args()
 
     if args.mode == "orchestrated" and args.agent_backend != "opencode":
         parser.error("--mode orchestrated applies to --agent-backend opencode only; the react "
                      "agent runs in-process. Use --mode single-container, or --agent-backend opencode.")
+
+    backend_cfg = BackendConfig(
+        name=args.agent_backend, deploy_mode=args.mode, reeval=args.reeval,
+        wall_clock_s=int(args.wall_clock_min * 60), design_db_skills=args.design_db_skills,
+        design_db_path=Path(args.design_db_path) if args.design_db_path else None,
+    )
 
     runs_root = None
     if args.runs_root:
@@ -126,10 +136,7 @@ def main():
         dont_touch_main_arith=args.dont_touch_main_arith,
         fsm_optimize=args.fsm_optimize,
         run_cec=not args.skip_cec,
-        agent_backend=args.agent_backend,
-        deploy_mode=args.mode,
-        reeval=args.reeval,
-        wall_clock_s=int(args.wall_clock_min * 60),
+        backend_cfg=backend_cfg,
     )
 
 

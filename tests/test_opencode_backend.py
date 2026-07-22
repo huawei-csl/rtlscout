@@ -22,7 +22,7 @@ requires_opencode_live = pytest.mark.skipif(
 
 
 def _make_req(tmp_path, language="verilog", model="z-ai/glm-4.6", provider="openrouter",
-              wall_clock_s=0):
+              wall_clock_s=0, design_db_skills=False):
     from core.agent_backend import BackendRequest, RunLimits
     from core.benchmarks import load_benchmark
     from core.cost import make_cost_metric
@@ -35,7 +35,7 @@ def _make_req(tmp_path, language="verilog", model="z-ai/glm-4.6", provider="open
         benchmark=bench, workdir=workdir, workspace=ws, model=model, provider=provider,
         cost_metric=make_cost_metric("transistors"), language=language,
         limits=RunLimits(max_steps=20, wall_clock_s=wall_clock_s),
-        cec_reference=cec, run_cec=False,
+        cec_reference=cec, run_cec=False, design_db_skills=design_db_skills,
     )
 
 
@@ -50,14 +50,19 @@ class _FakeSandbox:
         self.run_root = Path(run_root)
         self.scripts = scripts
         self.calls = 0
+        self.specs = []
 
     def run_callable(self, fn, spec):
         raise NotImplementedError
 
     def run_command(self, argv, spec):
+        from pathlib import Path
         from core.sandbox import CommandResult
+        self.specs.append(spec)
         s = self.scripts[min(self.calls, len(self.scripts) - 1)]
         self.calls += 1
+        for rel, content in (s.get("files") or {}).items():     # e.g. a file-redirected export
+            (Path(spec.workdir) / rel).write_text(content)
         if s.get("add_eval"):
             with open(self.run_root / "agent_evals.jsonl", "a") as f:
                 f.write(json.dumps({"eval_index": self.calls, "passed": True,
@@ -66,10 +71,10 @@ class _FakeSandbox:
                              stderr="", timed_out=s.get("timed_out", False))
 
 
-def _run_with_fake(tmp_path, scripts, wall_clock_s=300):
+def _run_with_fake(tmp_path, scripts, wall_clock_s=300, design_db_skills=False):
     """Run OpenCodeBackend.run with a fake sandbox; return the provenance dict."""
     from core.opencode_backend import OpenCodeBackend
-    req = _make_req(tmp_path, wall_clock_s=wall_clock_s)
+    req = _make_req(tmp_path, wall_clock_s=wall_clock_s, design_db_skills=design_db_skills)
     req.agent_sandbox = _FakeSandbox(req.workdir, scripts)
     OpenCodeBackend().run(req)
     return json.loads((req.workdir / "_opencode_provenance.json").read_text())
@@ -139,6 +144,7 @@ def test_render_agents_md_workflow_present(tmp_path):
     assert "No wrap-up needed" in md          # finishing-up wording (no manual final eval)
     assert "terminated automatically" in md   # agent is told it won't need to self-stop
     assert "summary.txt" not in md            # summary is harness-driven, not asked of the agent
+    assert ".final_eval_file" in md           # the final-score override is documented
     assert "time wisely" in md.lower()  # steered to iterate, not dig through the harness
 
 
@@ -218,6 +224,250 @@ def test_render_opencode_config(tmp_path):
     assert "rtl" in cfg["agent"]
     # Key must NOT be embedded in the config (handover O4).
     assert "OPENROUTER_API_KEY" not in json.dumps(cfg)
+
+    # Default (no --design-db-skills): the plain pre-K3 config — primary rtl agent only.
+    assert set(cfg["agent"]) == {"rtl"}
+    assert cfg["agent"]["rtl"]["permission"]["task"] == "allow"
+    assert cfg["permission"]["task"] == "allow"
+
+
+def test_render_opencode_config_design_db_skills(tmp_path):
+    """--design-db-skills merges the subagents: mode subagent, hidden, task tool denied (structural
+    depth cap); the primary rtl agent keeps its task allowance."""
+    from core.opencode_backend import render_opencode_config
+    cfg = render_opencode_config(_make_req(tmp_path, design_db_skills=True))
+    for name in ("rtl-subcircuit", "rtl-dv-prep"):
+        sub = cfg["agent"][name]
+        assert sub["mode"] == "subagent" and sub["hidden"] is True
+        assert sub["tools"]["task"] is False
+        assert sub["permission"]["task"] == "deny"
+        assert sub["model"] == "openrouter/z-ai/glm-4.6"
+    assert cfg["agent"]["rtl"]["permission"]["task"] == "allow"
+
+
+def test_agents_md_design_db_section_gated(tmp_path):
+    from core.opencode_backend import render_agents_md
+    md = render_agents_md(_make_req(tmp_path, design_db_skills=True))
+    assert "## Design DB" in md
+    assert "design-db-dispatch" in md and "design-db-inspect" in md
+    assert "spire db insert" in md                       # the gate is named, hand-edits banned
+    assert "## Design DB" not in render_agents_md(_make_req(tmp_path))   # default: absent
+
+
+def test_run_provisions_skills(tmp_path):
+    """A --design-db-skills backend run (fake sandbox, no LLM) leaves the skill pack in the
+    workspace; a default run leaves none."""
+    from core.design_db_skills import SKILL_NAMES
+    _run_with_fake(tmp_path, [{"stdout": _SID, "returncode": 0}], wall_clock_s=0,
+                   design_db_skills=True)
+    skills = tmp_path / "wd" / "workspace" / ".opencode" / "skills"
+    for name in SKILL_NAMES:
+        assert (skills / name / "SKILL.md").exists()
+    assert (skills / "design-db-score" / "scripts" / "db-score").exists()
+
+
+def test_run_default_provisions_no_skills(tmp_path):
+    _run_with_fake(tmp_path, [{"stdout": _SID, "returncode": 0}], wall_clock_s=0)
+    assert not (tmp_path / "wd" / "workspace" / ".opencode").exists()
+
+
+def test_design_db_handover_env_and_mount(tmp_path):
+    """req.design_db_path flows to the sandbox as $SPIREHDL_DB_PATH + a writable mount, and
+    the dir is pre-created (a docker mount of a missing host dir would be root-owned). With
+    the skills layer off the path is ignored entirely."""
+    from pathlib import Path
+    from core.opencode_backend import OpenCodeBackend
+    db_root = tmp_path / "campaign_db"
+    req = _make_req(tmp_path, wall_clock_s=0, design_db_skills=True)
+    req.design_db_path = db_root
+    fake = _FakeSandbox(req.workdir, [{"stdout": _SID, "returncode": 0}])
+    req.agent_sandbox = fake
+    OpenCodeBackend().run(req)
+    spec = fake.specs[0]
+    assert spec.env.get("SPIREHDL_DB_PATH") == str(db_root)
+    assert Path(str(db_root)) in [Path(str(m)) for m in spec.mounts_rw]
+    assert db_root.is_dir()
+
+    req2 = _make_req(tmp_path / "off", wall_clock_s=0)          # skills layer off
+    req2.design_db_path = tmp_path / "ignored_db"
+    fake2 = _FakeSandbox(req2.workdir, [{"stdout": _SID, "returncode": 0}])
+    req2.agent_sandbox = fake2
+    OpenCodeBackend().run(req2)
+    assert "SPIREHDL_DB_PATH" not in (fake2.specs[0].env or {})
+    assert not (tmp_path / "ignored_db").exists()
+
+
+def test_child_session_extraction_and_store_preservation(tmp_path):
+    from core.opencode_backend import _extract_child_session_ids, _preserve_session_store
+    text = 'x {"sessionID":"ses_parent1"} task ses_childA … ses_childB … ses_childA again'
+    assert _extract_child_session_ids(text, "ses_parent1") == ["ses_childA", "ses_childB"]
+    assert _extract_child_session_ids(text, None) == ["ses_childA", "ses_childB", "ses_parent1"]
+
+    oc_home = tmp_path / "_ochome"
+    store = oc_home / ".local" / "share" / "opencode" / "opencode.db"
+    store.parent.mkdir(parents=True)
+    store.write_bytes(b"sqlite-bytes")
+    Path(str(store) + "-wal").write_bytes(b"wal")
+    workdir = tmp_path / "wd"
+    workdir.mkdir()
+    assert _preserve_session_store(oc_home, workdir) is True
+    assert (workdir / "opencode_store.db").read_bytes() == b"sqlite-bytes"
+    assert (workdir / "opencode_store.db-wal").read_bytes() == b"wal"
+    assert _preserve_session_store(tmp_path / "nope", workdir) is False
+
+
+def test_run_exports_child_sessions(tmp_path):
+    """A fake-sandbox run whose transcript references child sessions exports each child
+    (the export calls also flow through the sandbox)."""
+    stdout = _SID + '\ntask started ses_childA output … {"tool":"task"} ses_childB done'
+    child_export = json.dumps({"info": {"id": "child"}, "messages": []})
+    scripts = [
+        {"stdout": stdout, "returncode": 0},                       # main run (no evals → no nudge)
+        {"stdout": '{"info":{},"messages":[]}', "returncode": 0},  # summary turn
+        {"files": {"_export_ses_test.json": '{"info":{},"messages":[]}'}, "returncode": 0},
+        {"files": {"_export_ses_childA.json": child_export}, "returncode": 0},
+        {"files": {"_export_ses_childB.json": child_export}, "returncode": 0},
+    ]
+    prov = _run_with_fake(tmp_path, scripts, wall_clock_s=0)
+    assert prov["child_sessions"]["found"] == ["ses_childA", "ses_childB"]
+    assert prov["child_sessions"]["exported"] == ["ses_childA", "ses_childB"]
+    for sid in ("ses_childA", "ses_childB"):
+        assert json.loads((tmp_path / "wd" / f"opencode_child_{sid}.json").read_text())
+    assert prov["final_framework_eval"]["ran"] is False     # no design file → skipped
+    assert prov["session_export_errors"] == {}              # all exports succeeded
+
+
+def test_export_tolerates_preamble(tmp_path):
+    """`opencode export` may print a human preamble before the JSON — parsing must survive it."""
+    scripts = [
+        {"stdout": _SID + "\n" + '{"type":"text","part":{"text":"child ses_childA"}}',
+         "returncode": 0},                        # main run
+        {"stdout": "", "returncode": 0},          # summary turn
+        {"files": {"_export_ses_test.json": 'Exporting session: ses_test\n{"id": "ses_test"}'},
+         "returncode": 0},                        # parent (preamble in the file)
+        {"files": {"_export_ses_childA.json": 'Exporting session: x\n{"id": "ses_childA"}'},
+         "returncode": 0},
+    ]
+    prov = _run_with_fake(tmp_path, scripts, wall_clock_s=0)
+    assert prov["session_json_saved"] is True
+    assert prov["child_sessions"]["exported"] == ["ses_childA"]
+    assert json.loads((tmp_path / "wd" / "opencode_session.json").read_text()) == {"id": "ses_test"}
+    assert prov["session_export_errors"] == {}
+
+
+def test_final_framework_eval_runs_when_design_present(tmp_path):
+    """The harness scores the final workspace state itself (react parity) — a parent killed
+    mid-wrap-up loses nothing measurable. design_db_skills=True: the wrap-up lifecycle (final eval →
+    summary turn → export) must be identical with the design-DB layer on."""
+    from core.opencode_backend import OpenCodeBackend
+    req = _make_req(tmp_path, wall_clock_s=0, design_db_skills=True)
+    (req.workspace / "design.sv").write_text(
+        "module adder(input [7:0] a, input [7:0] b, output [7:0] sum);\n"
+        "  assign sum = a + b;\nendmodule\n")
+    scripts = [
+        {"stdout": _SID, "returncode": 0},        # main run
+        {"stdout": "eval ok", "returncode": 0},   # final framework eval
+        {"stdout": "", "returncode": 0},          # summary turn
+        {"stdout": "", "returncode": 1},          # parent export (fails → .log fallback)
+    ]
+    req.agent_sandbox = _FakeSandbox(req.workdir, scripts)
+    OpenCodeBackend().run(req)
+    prov = json.loads((req.workdir / "_opencode_provenance.json").read_text())
+    assert prov["final_framework_eval"] == {"ran": True, "returncode": 0,
+                                            "design_file": "design.sv"}
+    assert "ses_test" in prov["session_export_errors"]      # failed export recorded, not silent
+
+
+def test_final_eval_file_override(tmp_path):
+    """`.final_eval_file` redirects the closing score to the agent's actual final design;
+    an invalid override falls back to the default with a provenance note."""
+    from core.opencode_backend import OpenCodeBackend
+    req = _make_req(tmp_path, wall_clock_s=0)
+    (req.workspace / "alt_design.sv").write_text("module adder(); endmodule\n")
+    (req.workspace / ".final_eval_file").write_text("alt_design.sv\n")
+    scripts = [
+        {"stdout": _SID, "returncode": 0},        # main run
+        {"stdout": "eval ok", "returncode": 0},   # final framework eval (the override target)
+        {"stdout": "", "returncode": 0},          # summary turn
+        {"stdout": "", "returncode": 1},          # parent export fails
+    ]
+    req.agent_sandbox = _FakeSandbox(req.workdir, scripts)
+    OpenCodeBackend().run(req)
+    prov = json.loads((req.workdir / "_opencode_provenance.json").read_text())
+    assert prov["final_framework_eval"]["design_file"] == "alt_design.sv"
+
+    req2 = _make_req(tmp_path / "bad", wall_clock_s=0)
+    (req2.workspace / "design.sv").write_text("module adder(); endmodule\n")
+    (req2.workspace / ".final_eval_file").write_text("../escape.sv")
+    req2.agent_sandbox = _FakeSandbox(req2.workdir, scripts)
+    OpenCodeBackend().run(req2)
+    prov = json.loads((req2.workdir / "_opencode_provenance.json").read_text())
+    assert prov["final_framework_eval"]["design_file"] == "design.sv"    # fell back
+    assert "ignored invalid" in prov["final_framework_eval"]["note"]
+
+
+def test_local_sandbox_graceful_term(tmp_path):
+    """Wall-clock expiry sends SIGTERM first (child can flush state), SIGKILL only after grace."""
+    from core.agent_backend import RunLimits
+    from core.sandbox import LocalSandbox, SandboxSpec
+    spec = SandboxSpec(workdir=tmp_path, limits=RunLimits(max_steps=1, wall_clock_s=1))
+    res = LocalSandbox().run_command(
+        ["python3", "-c",
+         "import signal, sys, time\n"
+         "signal.signal(signal.SIGTERM,"
+         " lambda *a: (print('GRACEFUL', flush=True), sys.exit(7)))\n"
+         "time.sleep(30)"], spec)
+    assert res.timed_out is True and res.returncode == 124
+    assert "GRACEFUL" in res.stdout                       # handler ran → SIGTERM, not SIGKILL
+
+
+def test_local_sandbox_kills_the_whole_process_tree(tmp_path):
+    """A grandchild survives a naive terminate() — the deadline kill must take the whole
+    process GROUP down (K8: an orphaned in-flight evaluate_design wrote an eval snapshot
+    9 s after the kill)."""
+    import time
+    from core.agent_backend import RunLimits
+    from core.sandbox import LocalSandbox, SandboxSpec
+    marker = tmp_path / "late_marker"
+    script = f"(sleep 3 && touch {marker}) & exec sleep 30"
+    res = LocalSandbox().run_command(
+        ["bash", "-c", script],
+        SandboxSpec(workdir=tmp_path, limits=RunLimits(wall_clock_s=1)))
+    assert res.timed_out and res.returncode == 124
+    time.sleep(3.5)                      # a surviving grandchild would touch the marker by now
+    assert not marker.exists(), "grandchild outlived the deadline kill"
+
+
+def test_container_sandbox_mounts_rw_args(tmp_path, monkeypatch):
+    """SandboxSpec.mounts_rw becomes writable identity -v flags (no docker needed — capture
+    the constructed argv)."""
+    from core.agent_backend import RunLimits
+    from core.sandbox import ContainerSandbox, SandboxSpec
+
+    captured = {}
+
+    def fake_run(argv, **kwargs):
+        captured["argv"] = argv
+        class R:  # minimal CompletedProcess stand-in
+            returncode = 0
+            stdout = ""
+            stderr = ""
+        return R()
+
+    import core.sandbox as sb
+    monkeypatch.setattr(sb.subprocess, "run", fake_run)
+    box = ContainerSandbox(work_root=tmp_path, host_repo=tmp_path, image="rtlscout:latest",
+                           session_id="t" * 8, role="agent", run_index=0)
+    db_root = tmp_path / "shared_db"
+    db_root.mkdir()
+    spec = SandboxSpec(workdir=tmp_path, limits=RunLimits(max_steps=1, wall_clock_s=5),
+                       env={"SPIREHDL_DB_PATH": str(db_root)}, mounts_rw=(db_root,))
+    box.run_command(["true"], spec)
+    argv = captured["argv"]
+    assert f"{db_root.resolve()}:{db_root.resolve()}" in argv     # writable identity mount
+    assert f"SPIREHDL_DB_PATH={db_root}" in argv                  # env forwarded via -e
+    ro = [a for a in argv if str(a).endswith(":ro")]
+    assert ro, "repo ro mount still present"
 
 
 def test_write_eval_config_and_wrapper(tmp_path):

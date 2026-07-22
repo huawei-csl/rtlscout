@@ -80,6 +80,45 @@ register_fake_script("simple_adder_pass", [
     ),
 ])
 
+# Same canned flow, but with the port shape of a decorator-traced slot: a single traced return
+# value is always named `y` (spire.optimize._build_component), so the composed
+# @from_design_db(fill=make_rtlscout_fill(...)) test needs a candidate with `a, b -> y`.
+_ADDER_Y_VERILOG = """\
+module adder(input [7:0] a, b, output [7:0] y);
+  assign y = a + b;
+endmodule
+"""
+
+register_fake_script("adder8_y_pass", [
+    ChatResponse(
+        content="Creating adder design.",
+        tool_calls=[ToolCall(
+            id="fake_1",
+            name="create_file",
+            arguments=json.dumps({"filename": "design.sv", "content": _ADDER_Y_VERILOG}),
+        )],
+        usage=TokenUsage(input_tokens=10, output_tokens=10),
+    ),
+    ChatResponse(
+        content="Evaluating.",
+        tool_calls=[ToolCall(
+            id="fake_2",
+            name="run_evaluation",
+            arguments=json.dumps({"filename": "design.sv"}),
+        )],
+        usage=TokenUsage(input_tokens=10, output_tokens=10),
+    ),
+    ChatResponse(
+        content="Done.",
+        tool_calls=[ToolCall(
+            id="fake_3",
+            name="done",
+            arguments=json.dumps({"message": "Complete."}),
+        )],
+        usage=TokenUsage(input_tokens=10, output_tokens=10),
+    ),
+])
+
 _SIMPLE_ADDER_SPIREHDL = """\
 from spire import Component, IORecord, Input, Output, UInt
 

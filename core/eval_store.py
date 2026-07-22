@@ -107,8 +107,14 @@ def read_evals(evals_path: Path) -> List[Dict[str, Any]]:
     out = []
     for line in evals_path.read_text().splitlines():
         line = line.strip()
-        if line:
+        if not line:
+            continue
+        try:
             out.append(json.loads(line))
+        except json.JSONDecodeError:
+            # A torn trailing line: the deadline kill now takes the whole process group,
+            # so the eval shim can die mid-append. Completed evals must still be readable.
+            continue
     return out
 
 
