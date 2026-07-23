@@ -522,6 +522,7 @@ class RTLAgent:
         # Write a small metadata file
         meta = {
             "eval_index": eval_index,
+            "step_index": (self.best_eval or {}).get("step_index"),
             "best_cost": self.best_cost,
             "cost_metric": self.cost_metric.metric_name,
             "design_file": design_file,
@@ -569,6 +570,7 @@ class RTLAgent:
                           run_cec=self.run_cec, cec_reference=self.cec_reference)
         eval_dict = result.to_dict()
         eval_dict["eval_index"] = eval_index
+        eval_dict["step_index"] = getattr(self, "_current_step", None)
         eval_dict["design_file"] = design_file or None
         eval_dict["target_delay"] = target_delay
         if self._last_step_usage is not None:
@@ -670,6 +672,7 @@ class RTLAgent:
         step = 0
         while not self.is_done and step < self.max_steps:
             step += 1
+            self._current_step = step
             try:
                 response = self.client.chat_completion(
                     messages=self.messages,

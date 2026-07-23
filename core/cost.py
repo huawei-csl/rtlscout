@@ -307,15 +307,69 @@ class Sky130ADPCost(CostMetric):
         except subprocess.TimeoutExpired as e:
             return CostResult(
                 ok=False, value=None, stats={},
-                error=f"sky130_adp timed out after {self.timeout}s",
+                error=f"{self.metric_name} timed out after {self.timeout}s",
             )
         except Exception as e:
             return CostResult(
                 ok=False, value=None, stats={},
-                error=f"sky130_adp failed: {e}",
+                error=f"{self.metric_name} failed: {e}",
             )
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+ASAP7_MERGED_NLDM = os.environ.get(
+    "ASAP7_MERGED_NLDM",
+    str(Path(__file__).resolve().parent.parent / ".cache" / "asap7_merged_rvt_tt_nldm.lib"),
+)
+
+_ASAP7_NLDM_SOURCES = [
+    "/prog/OpenROAD-flow-scripts/flow/platforms/asap7/lib/NLDM/asap7sc7p5t_SIMPLE_RVT_TT_nldm_211120.lib.gz",
+    "/prog/OpenROAD-flow-scripts/flow/platforms/asap7/lib/NLDM/asap7sc7p5t_INVBUF_RVT_TT_nldm_220122.lib.gz",
+    "/prog/OpenROAD-flow-scripts/flow/platforms/asap7/lib/NLDM/asap7sc7p5t_AO_RVT_TT_nldm_211120.lib.gz",
+    "/prog/OpenROAD-flow-scripts/flow/platforms/asap7/lib/NLDM/asap7sc7p5t_OA_RVT_TT_nldm_211120.lib.gz",
+    "/prog/OpenROAD-flow-scripts/flow/platforms/asap7/lib/NLDM/asap7sc7p5t_SEQ_RVT_TT_nldm_220123.lib",
+]
+
+
+def _build_asap7_merged_lib(dest: str) -> None:
+    """Merge the asap7 RVT_TT NLDM liberties into one file for yosys-abc read_lib
+    (which takes a single liberty). Concatenates each source's library body into
+    the first library group; abc's reader tolerates the duplicated attributes and
+    skips sequential cells itself."""
+    import gzip
+    import re as _re
+    texts = []
+    for f in _ASAP7_NLDM_SOURCES:
+        texts.append(gzip.open(f, "rt").read() if f.endswith(".gz") else Path(f).read_text())
+    first = texts[0].rstrip()
+    parts = [first[:first.rfind("}")]]
+    for t in texts[1:]:
+        m = _re.search(r"library\s*\([^)]*\)\s*\{", t)
+        parts.append(t[m.end():t.rstrip().rfind("}")])
+    Path(dest).parent.mkdir(parents=True, exist_ok=True)
+    Path(dest).write_text("".join(parts) + "\n}\n")
+
+
+class Asap7FastADPCost(Sky130ADPCost):
+    """area_delay_product_fast: Area x Delay on the asap7 RVT_TT library via the
+    direct yosys -> BLIF -> yosys-abc (dch/map/stime) path — the sky130_adp flow
+    retargeted to asap7. No OpenROAD, no netlist sim, no target-delay constraint;
+    abc prices BLIF latches at zero area, so flop area is NOT counted (same
+    caveat as sky130_adp). Not comparable to `area_delay_product` numbers.
+    Timeout override: RTLSCOUT_ADP_FAST_TIMEOUT (seconds)."""
+
+    def __init__(self, lib_path: Optional[str] = None, timeout: Optional[int] = None):
+        lib = lib_path or ASAP7_MERGED_NLDM
+        if not os.path.exists(lib):
+            _build_asap7_merged_lib(lib)
+        if timeout is None:
+            timeout = int(os.environ.get("RTLSCOUT_ADP_FAST_TIMEOUT", "600"))
+        super().__init__(lib_path=lib, timeout=timeout)
+
+    @property
+    def metric_name(self) -> str:
+        return "area_delay_product_fast"
 
 
 class Sky130ADPCostV2(CostMetric):
@@ -1492,6 +1546,7 @@ COST_METRICS = {
     "power": PPAPowerCost,
     "area_delay_product": PPAAreaDelayProductCost,
     "sky130_adp": Sky130ADPCost,
+    "area_delay_product_fast": Asap7FastADPCost,
     "sky130_adp_v2": Sky130ADPCostV2,
     "yosys_wires": YosysWiresCost,
     "yosys_cells": YosysCellsCost,
@@ -1533,6 +1588,8 @@ def make_cost_metric(name: str, target_delay: float = 500.0,
         return YosysTransistorCost()
     if name == "sky130_adp":
         return Sky130ADPCost()
+    if name == "area_delay_product_fast":
+        return Asap7FastADPCost()
     if name == "sky130_adp_v2":
         return Sky130ADPCostV2()
     if name == "yosys_wires":

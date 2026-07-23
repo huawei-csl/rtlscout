@@ -364,16 +364,39 @@ def get_ppa(
         if tb_filename:
             sources.append(tb_filename)
 
-        _run_verilator_generic(
-            sources=sources,
-            tb_top_module=tb_name,
-            build_dir=verilator_build_dir,
-            log_path=verilator_log_path,
-            flags=flags,
-            test_name="Verilator Netlist Simulation",
-            output_parser=output_parser,
-            run_cwd=worker_path if run_in_worker_path else None, # set to worker path to be able to open files in the same directory (e.g. dat stimuli files)
-        )
+        try:
+            _run_verilator_generic(
+                sources=sources,
+                tb_top_module=tb_name,
+                build_dir=verilator_build_dir,
+                log_path=verilator_log_path,
+                flags=flags,
+                test_name="Verilator Netlist Simulation",
+                output_parser=output_parser,
+                run_cwd=worker_path if run_in_worker_path else None, # set to worker path to be able to open files in the same directory (e.g. dat stimuli files)
+            )
+        except RuntimeError:
+            # Verilator 5.040's DFG cycle-breaker ICEs on some large abc-mapped
+            # netlists (V3DfgBreakCycles "Wrong result width"). Retry with the
+            # pass disabled ONLY on that signature — disabling it globally makes
+            # netlists with false combinational cycles (multi-output FA/HA cells)
+            # fail to CONVERGE at runtime instead (observed on jpeg_idct_2d).
+            try:
+                log_text = open(verilator_log_path).read()
+            except OSError:
+                log_text = ""
+            if "V3DfgBreakCycles" not in log_text:
+                raise
+            _run_verilator_generic(
+                sources=sources,
+                tb_top_module=tb_name,
+                build_dir=verilator_build_dir + "_nodfg",
+                log_path=verilator_log_path,
+                flags=list(flags) + ["-fno-dfg-break-cycles"],
+                test_name="Verilator Netlist Simulation",
+                output_parser=output_parser,
+                run_cwd=worker_path if run_in_worker_path else None,
+            )
 
     os.system(f"openroad -exit {sta_script_path} > {sta_out_path}")
 
