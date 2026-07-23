@@ -1,4 +1,4 @@
-"""Tests for the simulation-driven cost metrics (cycles / runtime / adp) and the
+"""Tests for the simulation-driven cost metrics (cycles / runtime / area_runtime_product) and the
 matmul/16x16x16_1r1w benchmark.
 
 Unit tests (no external tools) cover TB_CYCLES parsing, the metric math, and the
@@ -65,7 +65,7 @@ def test_cycles_cost_fails_without_cycles(sim_stats):
     assert "TB_CYCLES" in r.error
 
 
-# ── Unit: RuntimeCost / AdpCost math (PPA layer stubbed) ─────────────────────
+# ── Unit: RuntimeCost / AreaRuntimeProductCost math (PPA layer stubbed) ──────
 
 @pytest.fixture
 def stub_ppa(monkeypatch):
@@ -89,38 +89,39 @@ def test_runtime_cost_math(stub_ppa):
     assert r.stats["area"] == 100.0 and r.stats["delay"] == 50.0
 
 
-def test_adp_cost_math(stub_ppa):
-    from core.cost import AdpCost
-    r = AdpCost().evaluate(Path("."), "matmul_core", sim_stats={"cycles": 8192})
+def test_area_runtime_product_cost_math(stub_ppa):
+    from core.cost import AreaRuntimeProductCost
+    r = AreaRuntimeProductCost().evaluate(Path("."), "matmul_core", sim_stats={"cycles": 8192})
     assert r.ok
     assert r.value == pytest.approx(100.0 * 50.0 * 8192)
-    assert r.stats["adp"] == pytest.approx(100.0 * 50.0 * 8192)
+    assert r.stats["area_runtime_product"] == pytest.approx(100.0 * 50.0 * 8192)
     assert r.stats["runtime"] == pytest.approx(50.0 * 8192)
 
 
-def test_runtime_adp_fail_without_cycles(stub_ppa):
-    from core.cost import RuntimeCost, AdpCost
+def test_runtime_arp_fail_without_cycles(stub_ppa):
+    from core.cost import RuntimeCost, AreaRuntimeProductCost
     assert not RuntimeCost().evaluate(Path("."), "matmul_core", sim_stats={}).ok
-    assert not AdpCost().evaluate(Path("."), "matmul_core").ok
+    assert not AreaRuntimeProductCost().evaluate(Path("."), "matmul_core").ok
 
 
 # ── Unit: registry / factory wiring ──────────────────────────────────────────
 
 def test_new_metrics_registered():
-    from core.cost import COST_METRICS, CyclesCost, RuntimeCost, AdpCost
+    from core.cost import COST_METRICS, CyclesCost, RuntimeCost, AreaRuntimeProductCost
     assert COST_METRICS["cycles"] is CyclesCost
     assert COST_METRICS["runtime"] is RuntimeCost
-    assert COST_METRICS["adp"] is AdpCost
+    assert COST_METRICS["area_runtime_product"] is AreaRuntimeProductCost
 
 
 def test_make_cost_metric_new():
-    from core.cost import make_cost_metric, CyclesCost, RuntimeCost, AdpCost
+    from core.cost import make_cost_metric, CyclesCost, RuntimeCost, AreaRuntimeProductCost
     c = make_cost_metric("cycles")
     assert isinstance(c, CyclesCost) and c.primary_key == "cycles"
     r = make_cost_metric("runtime", target_delay=500)
     assert isinstance(r, RuntimeCost) and r.primary_key == "runtime" and r.target_delay == 500
-    a = make_cost_metric("adp", target_delay=500)
-    assert isinstance(a, AdpCost) and a.primary_key == "adp" and a.target_delay == 500
+    a = make_cost_metric("area_runtime_product", target_delay=500)
+    assert isinstance(a, AreaRuntimeProductCost)
+    assert a.primary_key == "area_runtime_product" and a.target_delay == 500
 
 
 # ── Unit: energy / edap (data-movement) metrics ──────────────────────────────
@@ -165,7 +166,7 @@ def test_edap_energy_exp_knob(stub_ppa):
     # k=2 weights energy harder: edap = energy**2 * runtime * area
     r2 = EdapCost(energy_exp=2.0).evaluate(Path("."), "matmul_core", sim_stats=ss)
     assert r2.value == pytest.approx(4608.0**2 * 50000.0 * 100.0)
-    # k=0 reduces to plain adp (energy ignored): edap = runtime * area
+    # k=0 reduces to plain area_runtime_product (energy ignored): edap = runtime * area
     r0 = EdapCost(energy_exp=0.0).evaluate(Path("."), "matmul_core", sim_stats=ss)
     assert r0.value == pytest.approx(50000.0 * 100.0)
     # the knob is plumbed through the factory
@@ -193,19 +194,19 @@ def test_energy_edap_registered():
 def test_run_netlist_sim_default_and_toggle():
     from core.cost import make_cost_metric
     # PPA metrics default to running the netlist sim; --skip-netlist-sim turns it off.
-    for name in ("area", "delay", "runtime", "adp", "area_delay_product"):
+    for name in ("area", "delay", "runtime", "area_runtime_product", "area_delay_product"):
         assert make_cost_metric(name).run_netlist_sim is True, name
         assert make_cost_metric(name, run_netlist_sim=False).run_netlist_sim is False, name
 
 
 def test_skip_netlist_sim_drops_tb_path(tmp_path):
     """With run_netlist_sim=False, PPACost must not pass tb.sv to get_ppa."""
-    from core.cost import AdpCost, CostResult
+    from core.cost import AreaRuntimeProductCost, CostResult
     (tmp_path / "tb.sv").write_text("// tb\n")
     (tmp_path / "design.v").write_text("module matmul_core(); endmodule\n")
     captured = {}
 
-    class Probe(AdpCost):
+    class Probe(AreaRuntimeProductCost):
         # Intercept the worker launch to inspect the tb_path that would be used.
         def evaluate(self, workdir, top_module=None, design_file=None, sim_stats=None):
             tb = workdir / "tb.sv"
@@ -221,19 +222,20 @@ def test_skip_netlist_sim_drops_tb_path(tmp_path):
 # ── Unit: cost_description note in the system prompt ──────────────────────────
 
 def test_cost_description_present():
-    from core.cost import AdpCost, RuntimeCost, CyclesCost, PPAAreaDelayProductCost
-    assert "NOT the classic" in AdpCost.cost_description
+    from core.cost import AreaRuntimeProductCost, RuntimeCost, CyclesCost, PPAAreaDelayProductCost
+    assert "NOT the classic" in AreaRuntimeProductCost.cost_description
     assert "critical-path delay" in RuntimeCost.cost_description
     assert CyclesCost.cost_description
-    # The classic area*delay metric is disambiguated from 'adp'.
+    # The classic area*delay metric is disambiguated from 'area_runtime_product'.
     assert "classic area-delay product" in PPAAreaDelayProductCost.cost_description
 
 
 def test_cost_note_injected_into_prompt():
     from core.prompts import build_spirehdl_system_prompt, build_system_prompt
-    from core.cost import AdpCost
-    sp = build_spirehdl_system_prompt("SPEC", "adp", cost_metric_note=AdpCost.cost_description)
-    assert "**Cost metric `adp`:**" in sp
+    from core.cost import AreaRuntimeProductCost
+    sp = build_spirehdl_system_prompt("SPEC", "area_runtime_product",
+                                      cost_metric_note=AreaRuntimeProductCost.cost_description)
+    assert "**Cost metric `area_runtime_product`:**" in sp
     assert "NOT the classic area×delay product" in sp
     # Omitted entirely when there's no note (existing benchmarks unaffected).
     assert "Cost metric `transistors`" not in build_system_prompt("SPEC", "transistors")
