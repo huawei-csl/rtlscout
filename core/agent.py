@@ -19,6 +19,10 @@ from core.llm_client import LLMClient, TokenUsage
 from core.prompts import build_amaranth_system_prompt, build_spirehdl_system_prompt, build_system_prompt
 from tech_eval.ppa_extract.core.template import target_delay_time_unit
 
+# Default read_file cap: a no-argument read returns at most this many characters, for every file
+# type alike (a whole-file default would let e.g. a 300 KB vectors.dat flood the context).
+READ_FILE_DEFAULT_MAX_CHARS = 5_000
+
 def _build_tools(target_delay_is_settable: bool) -> list:
     """Build the tool definitions list for the agent.
 
@@ -113,7 +117,9 @@ def _build_tools(target_delay_is_settable: bool) -> list:
             "function": {
                 "name": "read_file",
                 "description": "Read the contents of a file in the working directory. "
-                               "By default returns the whole file; pass offset/limit to read a line range.",
+                               f"By default returns the whole file up to {READ_FILE_DEFAULT_MAX_CHARS} characters; "
+                               "longer files are cut off there with a note. "
+                               "Pass offset/limit to read any line range in full.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -488,13 +494,18 @@ class RTLAgent:
             content = filepath.read_text()
         except Exception as e:
             return f"Error reading file: {e}"
-        # Whole file by default; offset/limit select a line range. read_file
-        # self-manages length, so the generic result-truncation in the tool loop
-        # skips read_file entirely (design sources are never silently capped).
-        if offset is None and limit is None:
-            return content
+        # Default read returns the whole file up to READ_FILE_DEFAULT_MAX_CHARS; offset/limit
+        # select a line range in full. Same rules for every file type — read_file self-manages
+        # length, so the generic result-truncation in the tool loop skips it entirely.
         lines = content.splitlines(keepends=True)
         n = len(lines)
+        if offset is None and limit is None:
+            if len(content) <= READ_FILE_DEFAULT_MAX_CHARS:
+                return content
+            head = content[:READ_FILE_DEFAULT_MAX_CHARS]
+            head = head[:head.rfind("\n") + 1] or head  # cut at a line boundary when possible
+            shown = max(1, head.count("\n"))
+            return head + f"\n... (showing lines 1-{shown} of {n}; use offset/limit for more)"
         start = max(0, (offset or 1) - 1)  # 1-based -> 0-based
         if start >= n:
             return f"(file has {n} lines; offset {offset} is past end of file)"
@@ -748,8 +759,9 @@ class RTLAgent:
                 result = self._execute_tool(tool_name, arguments)
                 # Truncate very long results to avoid context overflow, but skip
                 # tools whose output is already length-managed internally:
-                #  - read_file: self-limits via offset/limit (default whole file),
-                #    so design sources (.py/.sv/.v) are never silently capped.
+                #  - read_file: self-limits (default read capped at READ_FILE_DEFAULT_MAX_CHARS
+                #    with an explicit note; offset/limit reads any range in full), same rules
+                #    for every file type.
                 #  - run_evaluation: summary_str() already middle-elides each field
                 #    (sim output, worst timing path @ MAX_TIMING_PATH_CHARS, CEC),
                 #    so the generic 2000-char cap must not re-truncate it at the end
