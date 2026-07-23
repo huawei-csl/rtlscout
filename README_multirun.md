@@ -139,6 +139,12 @@ python run_multirun.py [options]
 | `--runs-root` | auto | Output directory (default: `runs/multirun_<timestamp>`) |
 | `--seed-from` | none | Path to a previous `multirun_summary.json` or its directory to seed the elite pool |
 | `--flowy-optimize` | off | Enable `@flowy_optimized` decorator guidance in system prompt (Spire only). Requires Flowy/Mockturtle/ABC installed — see `docs/flowy_setup.md` |
+| `--agent-backend` | react | `react` (in-process loop, budgeted by `--max-steps`) or `opencode` (external shell agent, budgeted by `--wall-clock-min`; authoritative re-eval always applied) |
+| `--mode` | single-container | `single-container` or `orchestrated` (fresh `--rm` container per agent run + per judge; opencode only) — see [README_orchestration.md](README_orchestration.md) |
+| `--reeval` | off | Force the authoritative post-run re-score on the react path too (always on for opencode) |
+| `--wall-clock-min` | 10 | Hard per-run wall-clock budget in minutes (opencode; 0 = no limit) |
+| `--design-db-skills` | off | OpenCode only: add the design-DB skills layer (skill pack, `rtl-subcircuit`/`rtl-dv-prep` subagents, AGENTS.md section, DB handover) — see [campaign design DB](README_orchestration.md#campaign-design-db---design-db-skills) |
+| `--design-db-path` | campaign | Explicit design-DB root shared by all runs; default is `<runs-root>/design_db`, `$SPIREHDL_DB_PATH` overrides the default |
 
 ## Resuming from a previous run
 
@@ -209,6 +215,7 @@ The propagation lives in `core.multirun.build_seed_context`, which whitelists `.
 ```
 runs/multirun_<timestamp>/
   config.json                        # full run configuration
+  design_db/                         # campaign design DB (only with --design-db-skills)
   run_000/<bench>/<model>/<ts>/      # standard run layout per agent
     workspace/
     best_design/

@@ -6,16 +6,15 @@ import shutil
 import time
 import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 
-from core.agent import AgentResult, RTLAgent
-from core.benchmarks import Benchmark, RootsLike, load_benchmark, load_benchmarks, normalize_roots
-from core.cost import CostMetric, YosysTransistorCost
+from core.agent import AgentResult
+from core.benchmarks import Benchmark, RootsLike, load_benchmarks, normalize_roots
+from core.cost import CostMetric
 from core.llm_client import AnthropicClient, DeepInfraClient, OpenRouterClient, LLMClient
 
 # Load .env for API keys
@@ -228,17 +227,18 @@ def run_agent_on_benchmark(
     dont_touch_main_arith: bool = False,
     fsm_optimize: bool = False,
     run_cec: bool = True,
-    agent_backend: str = "react",
-    wall_clock_s: int = 0,
+    backend_cfg=None,
     agent_sandbox=None,
 ) -> AgentResult:
     """Execute the agent on a single benchmark and return the result.
 
-    ``agent_backend`` selects the agent implementation (``core.agent_backend``):
-    ``"react"`` (default) is the in-process ReAct loop and is byte-for-byte
-    identical to the pre-seam behaviour; ``"opencode"`` runs the external OpenCode
-    agent. Workspace provisioning is shared via ``provision_workspace`` and the
-    backend dispatch is the only behavioural change on the default path.
+    ``backend_cfg`` (``core.agent_backend.BackendConfig``) selects the agent
+    implementation and carries its backend-specific knobs; the default (None) is the
+    react backend — the in-process ReAct loop, byte-for-byte identical to the pre-seam
+    behaviour. ``agent_sandbox`` is the injected agent-role Sandbox (None ⇒ the backend
+    runs in-process/locally). Workspace provisioning is shared via
+    ``provision_workspace`` and the backend dispatch is the only behavioural change on
+    the default path.
     """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     workdir = runs_dir / benchmark.name / model.replace("/", "_") / timestamp
@@ -251,8 +251,9 @@ def run_agent_on_benchmark(
     )
 
     # Dispatch to the selected agent backend (default 'react' == today's loop).
-    from core.agent_backend import BackendRequest, RunLimits, make_backend
-    backend = make_backend(agent_backend)
+    from core.agent_backend import BackendConfig, BackendRequest, RunLimits, make_backend
+    cfg = backend_cfg or BackendConfig()
+    backend = make_backend(cfg.name)
     request = BackendRequest(
         benchmark=benchmark,
         workdir=workdir,
@@ -266,17 +267,19 @@ def run_agent_on_benchmark(
         cec_reference=cec_reference,
         run_cec=run_cec,
         save_workspaces=save_workspaces,
-        limits=RunLimits(max_steps=max_steps, wall_clock_s=wall_clock_s),
+        limits=RunLimits(max_steps=max_steps, wall_clock_s=cfg.wall_clock_s),
         flowy_optimize=flowy_optimize,
         abc_optimize=abc_optimize,
         arith_autoconfig=arith_autoconfig,
         dont_touch_main_arith=dont_touch_main_arith,
         fsm_optimize=fsm_optimize,
+        design_db_skills=cfg.design_db_skills,
+        design_db_path=Path(cfg.design_db_path) if cfg.design_db_path else None,
         agent_sandbox=agent_sandbox,
     )
 
     print(f"\n{'='*60}")
-    print(f"Benchmark: {benchmark.name} | Model: {model} | Backend: {agent_backend}")
+    print(f"Benchmark: {benchmark.name} | Model: {model} | Backend: {cfg.name}")
     print(f"Workdir: {workdir}")
     print(f"{'='*60}")
 

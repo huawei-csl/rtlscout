@@ -14,7 +14,7 @@
 
 # RTL Scout
 
-An RTL design agent powered by selectable LLM backends (DeepInfra, Anthropic, OpenRouter) with tool use. The agent iteratively creates and optimizes Verilog/SystemVerilog, [Spire HDL](https://github.com/huawei-csl/spire-hdl) or Amaranth designs, targeting **correctness first, then minimal cost** under a configurable cost metric. The agent can run as the built-in in-process loop or as an external OpenCode agent in a sandboxed, per-run container — see [Agent Flow](#agent-flow).
+An RTL design agent powered by selectable LLM backends (DeepInfra, Anthropic, OpenRouter) with tool use. The agent iteratively creates and optimizes Verilog/SystemVerilog, [Spire HDL](https://github.com/huawei-csl/spire-hdl) or Amaranth designs, targeting **correctness first, then minimal cost** under a configurable cost metric. The agent can run as the built-in in-process loop or as an external OpenCode agent in a sandboxed, per-run container.
 
 ## What RTL Scout does
 
@@ -194,19 +194,116 @@ flowchart TD
   ADV --> RUN
   RUN -->|"stops early + time left"| NUDGE["nudge:<br/>keep going"]
   NUDGE --> RUN
-  RUN -->|"wall-clock up"| SUM["summary turn<br/>(same session &rarr; summary.txt)"]
+  RUN -->|"wall-clock up"| FEV["final framework eval<br/>(harness scores the last workspace state)"]
+  FEV --> SUM["summary turn<br/>(same session &rarr; summary.txt)"]
   SUM --> RV["reeval_run<br/>re-score every eval_i/ vs the benchmark's own inputs"]
   RV --> POOL["authoritative result.json + best_design/<br/>&rarr; elite pool + Pareto"]
 ```
 
 Budget: `--wall-clock-min` sets the hard per-run time budget — the agent is terminated when it's
-up, and nudged to keep going if it stops early. Build the agent image once with
+up, and nudged to keep going if it stops early. The wrap-up is framework-driven (react parity):
+after the process ends the harness itself scores the final workspace state, resumes the session
+for `summary.txt`, and exports the full session (parent + task-tool children) — so a run killed
+mid-step loses nothing measurable. Optional: `--design-db-skills` adds the
+[design-DB skills layer](#skill-based-flow---agent-backend-opencode---design-db-skills). Build
+the agent image once with
 `docker build -f .devcontainer/Dockerfile.opencode -t rtlscout-opencode:latest .`; clean up
 orchestrated containers with `python rtlscout_cli.py cleanup`.
 
 See **[README_orchestration.md](README_orchestration.md)** for the full sandboxing + integrity
 model: assurance by mode, the advisory/authoritative split, OpenCode permissions/launch quirks,
 and label-based cleanup.
+
+
+## Design DB — an agent-filled library of verified subcircuits
+
+Spire ships a **design DB** (`spire.design_db`, see
+[deps/spire-hdl/docs/README_design_db.md](deps/spire-hdl/docs/README_design_db.md)): a
+content-addressed store of *slots* (subcircuits with a golden reference), where every stored
+implementation passed the slot's **frozen verification** (CEC or a golden-simulated trace tb) on
+insert, and builds *select* deterministically via `@from_design_db(objective=..., metric=...)`.
+RTLScout is the DB's filler and its agentic layer.
+
+### Skill-based flow (`--agent-backend opencode --design-db-skills`)
+
+Any standard OpenCode run (`run_benchmark.py` / `run_multirun.py --agent-backend opencode`,
+both sandbox modes) gains the design-DB skills layer with the **`--design-db-skills`** flag —
+one flag, no extra command; without it the run is a plain OpenCode run (nothing DB-related is
+provisioned, mentioned, or forwarded). The DB *capability* is spire's and exists regardless
+(`spire db` auto-creates `./design_db` on first use); this flag adds the guidance and the
+handover. It includes:
+
+- **Skills** at `.opencode/skills/` (copied from [core/skills/](core/skills/)) —
+  `design-db-inspect` (slots/designs/Pareto + how to judge results), `design-db-insert` /
+  `design-db-eval` (spire-first: submit/check `cand.py` candidates through the gate),
+  `design-db-dv-prep` (verification prep for sequential slots), `design-db-dispatch`
+  (delegation protocol), `design-db-score` (on-demand technology PPA, measure-and-store or
+  `--dry-run`). Actions are plain `spire db …` commands wherever spire has them.
+- **Subagents** in the rendered `opencode.json` — `rtl-subcircuit` and `rtl-dv-prep`
+  (`mode: subagent`, hidden, **task tool denied** = structural recursion cap), delegated to via
+  the primary agent's task tool; results are read from the DB (`spire db show --pareto`), never
+  from subagent claims.
+- **DB handover**: `run_benchmark.py` defaults to a per-run workspace `./design_db`;
+  `run_multirun.py` defaults to a **campaign DB** at `<runs-root>/design_db` shared by all runs
+  of the campaign — run N starts with everything runs 1..N-1 verified, and an elite seed's
+  `@from_design_db` decorators re-splice against the populated library instead of an empty
+  one. `--design-db-path PATH` (or `$SPIREHDL_DB_PATH`, e.g. for a persistent cross-campaign
+  library) overrides; the resolved root is forwarded into orchestrated agent containers with a
+  writable mount. Concurrent fills are safe (the per-slot index is derived from
+  atomically-admitted design dirs; manifest writes are fcntl-locked), so a shared DB +
+  `--max-concurrent > 1` and parallel slot dispatch are supported.
+
+```bash
+# one run, private workspace DB (./design_db inside the run's workspace)
+python run_benchmark.py --benchmark sat_mac4 --model openrouter:z-ai/glm-5.2 \
+    --agent-backend opencode --language spirehdl --design-db-skills --wall-clock-min 20
+
+# campaign: all runs share <runs-root>/design_db — later runs start from the filled library
+python run_multirun.py --benchmark sat_mac4 --model openrouter:z-ai/glm-5.2 \
+    --agent-backend opencode --language spirehdl --design-db-skills \
+    --total-runs 10 --max-concurrent 4 --wall-clock-min 20
+
+# persistent library across campaigns: point both at the same root
+python run_multirun.py ... --design-db-skills --design-db-path /data/my_subcircuit_lib
+```
+
+Whether the DB actually gets used is up to the benchmark: the skills are progressive-disclosure
+(the agent's context carries only the one-line listing until it opens one), so on a benchmark
+that doesn't invite decomposition the layer costs a few lines and stays idle. `--language
+spirehdl` is what makes it productive — `@from_design_db` slots register and splice only from
+spire designs.
+
+Trust model unchanged: agents propose, spire's gate disposes — inserts only via
+`spire db insert` (verify → dedup → metric-stamp → admit), frozen verifications are immutable,
+and technology PPA enters only through the measure-and-store `db-score` (never hand-typed).
+
+**Visualizing a run:**
+
+```bash
+python measure_db_compositions.py <run_dir>   # optional: measure full-circuit splice combos
+python visualize_db_run.py <run_dir>          # -> <run_dir>/visualization.html
+```
+
+One self-contained HTML report (inline SVG, no dependencies): per-slot Pareto fronts
+(area × AIG depth) colored by subagent source tag, the main agent's selections, admission
+timelines with running best, agent activity lanes — and, after `measure_db_compositions.py`,
+the **full-circuit composition space**: every splice combination of the per-slot fronts
+recompiled with forced (`pin=`-style) selections and measured for real (`--all-designs` widens
+to all admitted designs).
+
+### Non-agentic tools (campaign filler & scorer)
+
+| Command | What it does |
+|---|---|
+| `python rtlscout_cli.py fill-db --slot <key> --model <provider:model>` | Campaign filler: slot → ephemeral benchmark → `run_multirun(reeval=True)` → every passing candidate through Spire's gate (the slot's own golden is seeded first as the baseline/floor). |
+| `python rtlscout_cli.py db-score [--slot K --design ID --technology asap7 --dry-run]` | Measures per-technology PPA on stored designs and annotates the DB (enables `metric="asap7"` selection); `--design` scopes to one design, `--dry-run` measures without writing. Backs the `design-db-score` skill. |
+
+The decorator's generate-on-miss hook is `core.design_db_fill.rtlscout_fill`
+(`@from_design_db(fill=rtlscout_fill)`; model via `$RTLSCOUT_FILL_MODEL` or
+`make_rtlscout_fill(model=...)` — never a silent default). Trust model in one line: **agents
+propose; spire's gate disposes** — inserts only ever pass through `spire db insert`
+(verify → dedup → metric-stamp → admit), recursion is structurally denied (the subagents have
+no task tool), and reports/selections are computed from the DB, never taken from agent claims.
 
 
 ## Running benchmarks
@@ -239,7 +336,7 @@ These flags (all **Spire-only**; Verilog/Amaranth runs ignore them) opt the agen
 
 ### Multirun campaign — `run_multirun.py`
 
-Many agents run in parallel sharing an **elite pool**: some start fresh (exploration), the rest are seeded from the best designs found so far (exploitation). This is the core optimizer and usually beats single runs on a given objective. See **[README_multirun.md](README_multirun.md)** for the full set of knobs: elite-pool sizing, the fresh schedule, seeding formats, and per-campaign plotting.
+Many agents run in parallel sharing an **elite pool**: some start fresh (exploration), the rest are seeded from the best designs found so far (exploitation). This is the core optimizer and usually beats single runs on a given objective. See **[README_multirun.md](README_multirun.md)** for the full set of knobs: elite-pool sizing, the fresh schedule, seeding formats, and per-campaign plotting. With the OpenCode backend, `--design-db-skills` additionally gives all runs a shared **campaign design DB** (verified subcircuits accumulate across runs — see [the skill-based flow](#skill-based-flow---agent-backend-opencode---design-db-skills)).
 
 ```bash
 python run_multirun.py \
@@ -567,6 +664,23 @@ python plot_results.py --input runs/sweep/all_results.json --output-dir my_plots
 ```bash
 python plot_pareto_paper.py runs/multirun_20260316_143944
 ```
+
+
+### Visualize a design-DB skills run
+
+For `--design-db-skills` runs, one self-contained HTML report per run (inline SVG, hover
+tooltips, no dependencies):
+
+```bash
+python measure_db_compositions.py runs/<bench>/<model>/<ts>   # optional: full-circuit splice combos
+python visualize_db_run.py runs/<bench>/<model>/<ts>          # -> <run_dir>/visualization.html
+```
+
+Panels: per-slot Pareto fronts (area × AIG depth) colored by subagent source tag, the main
+agent's selections, admission timelines with running best, the measured full-circuit composition
+space (with the agent's actual evals), full-circuit evals over time, and agent activity lanes
+(exact child session spans when the run's session exports exist). Details in the
+[skill-based flow](#skill-based-flow---agent-backend-opencode---design-db-skills) section.
 
 ## Output format
 

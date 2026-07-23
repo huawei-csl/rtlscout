@@ -20,12 +20,13 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import shutil
 import sys
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 if TYPE_CHECKING:
     from core.agent import AgentResult
@@ -76,6 +77,28 @@ NUDGE_PROMPT = (
 )
 
 
+_SESSION_ID_RE = re.compile(r"ses_[a-zA-Z0-9]+")
+
+
+def _extract_child_session_ids(transcript_text: str, parent_id: Optional[str]) -> List[str]:
+    """Every session ID referenced in the transcript except the parent — with the task tool,
+    these are the subagent child sessions."""
+    return sorted(set(_SESSION_ID_RE.findall(transcript_text)) - {parent_id})
+
+
+def _preserve_session_store(oc_home: Path, workdir: Path) -> bool:
+    """Copy opencode's SQLite session store (small) out of _ochome before the ~100 MB HOME is
+    deleted — the raw store is the last-resort session record (`sqlite3` / future exports)."""
+    store = oc_home / ".local" / "share" / "opencode" / "opencode.db"
+    if not store.exists():
+        return False
+    for suffix in ("", "-wal", "-shm"):                # WAL contents merge on next open
+        src = Path(str(store) + suffix)
+        if src.exists():
+            shutil.copyfile(src, workdir / ("opencode_store.db" + suffix))
+    return True
+
+
 def _extract_session_id(stdout: str) -> Optional[str]:
     """Pull the opencode session id out of a `--format json` stream (events carry sessionID)."""
     for line in (stdout or "").splitlines():
@@ -105,9 +128,13 @@ def _metric_name(req: "BackendRequest") -> str:
 def render_agents_md(req: "BackendRequest") -> str:
     """Render AGENTS.md for an OpenCode run via the unified lean renderer
     (``core.agents_md``) — a shell-capable agent gets task + workflow + reference pointers,
-    not the react loop's inlined tool mechanics."""
+    not the react loop's inlined tool mechanics. With ``req.design_db_skills`` the design-DB block
+    (skills + subagents) rides along in the execution section."""
     metric_name = _metric_name(req)
     execution_section = _opencode_execution_section(req, metric_name)
+    if req.design_db_skills:
+        from core.design_db_skills import render_design_db_agents_section
+        execution_section += "\n\n" + render_design_db_agents_section()
     from core.agents_md import render_opencode_agents_md
     return render_opencode_agents_md(req, execution_section=execution_section,
                                      metric_name=metric_name, seed_text=req.system_prompt_extra)
@@ -157,8 +184,11 @@ low on ideas, try more variations rather than stopping — you have the full bud
 as a candidate, and after the session the harness independently re-scores all candidates and
 keeps the best one — so you do **not** need to restore your best design into `{design_file}`,
 run a "final" evaluation, or write a summary. Just make sure every version you want considered
-has been scored at least once (a design you edit but never evaluate is not a candidate). A short
-summary is requested from you separately after you're stopped.
+has been scored at least once (a design you edit but never evaluate is not a candidate). After
+your time is up, the harness also scores `{design_file}` one final time; if your final design
+lives in a **different** file, write that filename into `.final_eval_file` (a plain filename in
+this directory) so the closing score targets the right file. A short summary is requested from
+you separately after you're stopped.
 """
 
 
@@ -185,23 +215,29 @@ def _permissions(yolo: bool) -> Dict[str, str]:
 def render_opencode_config(req: "BackendRequest", yolo: bool = False) -> Dict:
     """Render opencode.json. The custom 'rtl' agent gets full local tool permissions so
     non-interactive runs apply edits AND can read the Spire package source to explore
-    architectures (handover §4.8). The provider key is supplied via env, never here (O4)."""
+    architectures (handover §4.8). The provider key is supplied via env, never here (O4).
+    With ``req.design_db_skills`` the design-DB subagents (rtl-subcircuit / rtl-dv-prep, task tool
+    denied) are merged in — reachable only via the primary agent's task tool."""
     model_arg = f"{req.provider}/{req.model}"
     perms = _permissions(yolo)
+    agents: Dict = {
+        "rtl": {
+            "description": "Autonomous RTL design-optimization agent (non-interactive).",
+            "mode": "primary",
+            "model": model_arg,
+            "permission": perms,
+            "tools": {"write": True, "edit": True, "bash": True, "read": True},
+        },
+    }
+    if req.design_db_skills:
+        from core.design_db_skills import design_db_subagent_entries
+        agents.update(design_db_subagent_entries(model_arg, perms))
     return {
         "$schema": "https://opencode.ai/config.json",
         "model": model_arg,
         "instructions": ["AGENTS.md"],
         "permission": perms,
-        "agent": {
-            "rtl": {
-                "description": "Autonomous RTL design-optimization agent (non-interactive).",
-                "mode": "primary",
-                "model": model_arg,
-                "permission": perms,
-                "tools": {"write": True, "edit": True, "bash": True, "read": True},
-            },
-        },
+        "agent": agents,
     }
 
 
@@ -363,6 +399,9 @@ class OpenCodeBackend:
         write_eval_config(req)
         write_eval_wrapper(req)
         write_remaining_time_wrapper(req)
+        if req.design_db_skills:
+            from core.design_db_skills import provision_design_db_skills
+            provision_design_db_skills(workspace)   # .opencode/skills/** — opencode discovers them
 
         # Provider key via env (never in opencode.json).
         env: Dict[str, str] = {}
@@ -371,6 +410,19 @@ class OpenCodeBackend:
             val = req.api_key or os.environ.get(keyvar)
             if val:
                 env[keyvar] = val
+
+        # Design-DB handover (only with the skills layer on): resolve the DB root — explicit
+        # request path (e.g. multirun's campaign DB) → $SPIREHDL_DB_PATH → none (spire's
+        # workspace-local ./design_db default) — and forward it. The backend's env dict is
+        # fresh, so without this a ContainerSandbox agent could not see it (LocalSandbox merges
+        # os.environ anyway). mkdir before the container mount: docker would otherwise create a
+        # missing host dir root-owned.
+        db_path = None
+        if req.design_db_skills:
+            db_path = str(req.design_db_path) if req.design_db_path else os.environ.get("SPIREHDL_DB_PATH")
+        if db_path:
+            Path(db_path).mkdir(parents=True, exist_ok=True)
+            env["SPIREHDL_DB_PATH"] = db_path
 
         # Give opencode a guaranteed-writable HOME under the run dir, so its config/cache
         # never depend on the container's HOME ownership (robust across uid remapping /
@@ -405,7 +457,8 @@ class OpenCodeBackend:
         argv = ["bash", "-c", inner, "opencode-rtl", kickoff]
 
         sandbox = req.agent_sandbox or LocalSandbox()
-        spec = SandboxSpec(workdir=workspace, network="provider", limits=req.limits, env=env)
+        spec = SandboxSpec(workdir=workspace, network="provider", limits=req.limits, env=env,
+                           mounts_rw=(Path(db_path),) if db_path else ())
 
         # Stamp the wall-clock deadline as close to launch as possible so the agent's
         # ./remaining_time reflects the real budget (0 = no limit).
@@ -444,6 +497,30 @@ class OpenCodeBackend:
             if not cmd_result.timed_out and _n_evals() == before:
                 break  # nudge produced no new evaluation → agent is done/stuck; stop nudging
 
+        # Final framework eval (react parity): the harness — not the agent — guarantees the
+        # LAST workspace state is scored, so a parent killed mid-wrap-up loses nothing
+        # measurable. Runs the same advisory eval shim the agent uses (same snapshot tree); for
+        # spire designs the recompile fires @from_design_db, i.e. this measures the final
+        # spliced selection state. NOT counted against the optimization budget.
+        final_eval = None
+        final_name = _DESIGN_FILE_BY_LANG.get(req.language, "design.sv")
+        final_eval_note = None
+        override_p = workspace / ".final_eval_file"
+        if override_p.exists():
+            cand = override_p.read_text().strip()
+            # agent-controlled, harness-validated: one plain filename in the workspace
+            if cand and "/" not in cand and ".." not in cand and (workspace / cand).is_file():
+                final_name = cand
+            else:
+                final_eval_note = f"ignored invalid .final_eval_file {cand!r}"
+        if (workspace / final_name).is_file():
+            final_eval = sandbox.run_command(
+                ["bash", "-c", f"exec ./evaluate_design {shlex.quote(final_name)}",
+                 "opencode-final-eval"],
+                SandboxSpec(workdir=workspace, network="none",
+                            limits=RunLimits(wall_clock_s=600), env=env))
+            transcript.append("=== FINAL FRAMEWORK EVAL ===\n" + (final_eval.stdout or ""))
+
         # Summarizer turn (react parity, handover §5.2): CONTINUE the same session and ask the
         # agent to write summary.txt with full memory. Its own short timeout, NOT counted against
         # the optimization budget. Falls back to _harvest's _synth_summary if it can't continue.
@@ -457,25 +534,58 @@ class OpenCodeBackend:
         # kickoff, nudges, summary) alongside the assistant/tool events — one self-contained
         # {info, messages} document for the whole run (all rounds share one session). Best-effort:
         # a failed export just leaves the stdout transcript log below as the record.
-        session_json_saved = False
-        if session_id:
-            try:
-                exp = sandbox.run_command(
-                    ["bash", "-c", f"exec opencode export {shlex.quote(session_id)}", "opencode-export"],
-                    SandboxSpec(workdir=workspace, network="none",
-                                limits=RunLimits(wall_clock_s=60), env=env))
-                out = (exp.stdout or "").strip()
-                if exp.returncode == 0 and out:
-                    json.loads(out)  # validate it's real JSON before trusting it
-                    (req.workdir / "opencode_session.json").write_text(out)
-                    session_json_saved = True
-            except (json.JSONDecodeError, ValueError, OSError):
-                pass  # keep going — the stdout transcript log is the fallback
+        export_errors: Dict[str, str] = {}
 
-        # opencode leaves ~100 MB of cache / node_modules / session snapshots under HOME
-        # (_ochome). The session was only needed for the nudge + summary turns + the export above,
-        # so drop it now to keep the run dir small. (_ochome is a sibling of workspace, so it never
-        # entered eval snapshots — but it still bloats the run dir if left behind.)
+        def _export_session(sid: str, dest: Path) -> bool:
+            # The export is redirected to a FILE inside the sandbox, never captured through a
+            # pipe: opencode (Node) writes stdout asynchronously and exits — a pipe truncates
+            # at ~8 KB on fast exit (K8 finding: all in-run exports died at char ~8190 while
+            # file-redirected exports of the same sessions were complete). File writes are
+            # synchronous, so the redirect sidesteps the truncation class entirely.
+            # Two attempts: opencode spawns an internal server per invocation and can also fail
+            # transiently right after the previous invocation (the summary turn) exits.
+            last = ""
+            tmp = workspace / f"_export_{sid}.json"
+            for attempt in (1, 2):
+                try:
+                    exp = sandbox.run_command(
+                        ["bash", "-c", f"exec opencode export {shlex.quote(sid)} > {shlex.quote(tmp.name)}",
+                         "opencode-export"],
+                        SandboxSpec(workdir=workspace, network="none",
+                                    limits=RunLimits(wall_clock_s=60), env=env))
+                    out = tmp.read_text().strip() if tmp.exists() else ""
+                    brace = out.find("{")           # tolerate any non-JSON preamble
+                    if exp.returncode == 0 and brace != -1:
+                        payload = out[brace:]
+                        json.loads(payload)         # validate it's real JSON before trusting it
+                        dest.write_text(payload)
+                        tmp.unlink(missing_ok=True)
+                        return True
+                    last = (f"rc={exp.returncode} file[:120]={out[:120]!r} "
+                            f"stderr[:120]={(exp.stderr or '')[:120]!r}")
+                except (json.JSONDecodeError, ValueError, OSError) as exc:
+                    last = f"{type(exc).__name__}: {exc}"
+                if attempt == 1:
+                    time.sleep(2)
+            tmp.unlink(missing_ok=True)
+            export_errors[sid] = last               # surfaced in provenance, not swallowed
+            return False
+
+        session_json_saved = bool(session_id) and _export_session(
+            session_id, req.workdir / "opencode_session.json")
+
+        # Subagent (task tool) child sessions: their turn-by-turn transcripts live only in the
+        # session store — export each one alongside the parent (best-effort; the children's
+        # *products* are durable in the workspace/DB regardless).
+        child_ids = _extract_child_session_ids("\n".join(transcript), session_id)
+        children_exported = [sid for sid in child_ids
+                             if _export_session(sid, req.workdir / f"opencode_child_{sid}.json")]
+
+        # Keep the (small) raw session store as the last-resort record, then drop the ~100 MB
+        # HOME (_ochome: cache / node_modules / snapshots). The session was only needed for the
+        # nudge + summary turns + the exports above. (_ochome is a sibling of workspace, so it
+        # never entered eval snapshots — but it still bloats the run dir if left behind.)
+        store_saved = _preserve_session_store(oc_home, req.workdir)
         shutil.rmtree(oc_home, ignore_errors=True)
 
         # opencode_session.json (above) is the complete record — prompts + responses — whenever
@@ -494,6 +604,13 @@ class OpenCodeBackend:
             "timed_out": cmd_result.timed_out,
             "nudge_rounds": nudges,
             "session_json_saved": session_json_saved,
+            "child_sessions": {"found": child_ids, "exported": children_exported},
+            "session_export_errors": export_errors,
+            "session_store_saved": store_saved,
+            "final_framework_eval": {"ran": final_eval is not None,
+                                     "returncode": getattr(final_eval, "returncode", None),
+                                     "design_file": final_name if final_eval is not None else None,
+                                     **({"note": final_eval_note} if final_eval_note else {})},
             "summary_turn": {
                 "session_id": session_id,
                 "ran": summary_result is not None,

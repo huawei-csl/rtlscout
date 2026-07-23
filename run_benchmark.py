@@ -5,7 +5,8 @@ import argparse
 import sys
 from pathlib import Path
 
-from core.benchmarks import load_benchmark, load_benchmarks
+from core.agent_backend import BackendConfig
+from core.benchmarks import load_benchmarks
 from core.cost import COST_METRICS, make_cost_metric
 from core.runner import default_benchmarks_roots, parse_model_spec, run_agent_on_benchmark
 
@@ -62,6 +63,10 @@ def main():
     parser.add_argument("--wall-clock-min", type=float, default=10.0,
                         help="Hard wall-clock budget in MINUTES for the opencode backend "
                              "(default 10; 0 = no limit). The react backend ignores this.")
+    parser.add_argument("--design-db-skills", action="store_true",
+                        help="Include the design-DB skills layer in the opencode run: skill pack, rtl-subcircuit/rtl-dv-prep subagents, AGENTS.md section, and the DB handover. The DB itself is spire's (auto-creates on use); this flag adds the guidance.")
+    parser.add_argument("--design-db-path", default=None,
+                        help="Explicit design-DB root for the run (default: workspace-local ./design_db). Implies nothing without --design-db-skills.")
     args = parser.parse_args()
 
     model_provider, model = parse_model_spec(args.model)
@@ -92,8 +97,10 @@ def main():
         fsm_optimize=args.fsm_optimize,
         dont_touch_main_arith=args.dont_touch_main_arith,
         run_cec=not args.skip_cec,
-        agent_backend=args.agent_backend,
-        wall_clock_s=int(args.wall_clock_min * 60),
+        backend_cfg=BackendConfig(
+            name=args.agent_backend, wall_clock_s=int(args.wall_clock_min * 60),
+            design_db_skills=args.design_db_skills,
+            design_db_path=Path(args.design_db_path) if args.design_db_path else None),
     )
 
     if result.passed:

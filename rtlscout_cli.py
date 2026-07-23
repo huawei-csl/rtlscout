@@ -32,7 +32,63 @@ def main(argv=None) -> int:
 
     sub.add_parser("list", help="list this framework's managed containers")
 
+    f = sub.add_parser("fill-db", help="fill a design-DB slot via an RTLScout campaign "
+                                       "(seeds the original as baseline, admits via Spire's gate)")
+    f.add_argument("--slot", required=True, help="spec_key (or unique prefix) of the slot")
+    f.add_argument("--model", required=True, help="provider:model, e.g. openrouter:z-ai/glm-5.2")
+    f.add_argument("--db", default=None, help="design-DB root (default: resolve)")
+    f.add_argument("--objective", default="area")
+    f.add_argument("--cost-metric", default=None, help="override the campaign cost metric")
+    f.add_argument("--runs", type=int, default=1)
+    f.add_argument("--max-steps", type=int, default=12)
+    f.add_argument("--language", default="verilog")
+    f.add_argument("--module-name", default=None)
+    f.add_argument("--keep-runs", action="store_true", help="keep the campaign artifacts")
+
+    s = sub.add_parser("db-score", help="measure per-technology PPA on stored designs and "
+                                        "annotate the DB (or --dry-run to just print numbers)")
+    s.add_argument("--db", default=None)
+    s.add_argument("--slot", action="append", default=None, help="limit to slot(s); default all")
+    s.add_argument("--design", action="append", default=None,
+                   help="limit to design_id(s) or unique prefixes within the selected slot(s)")
+    s.add_argument("--technology", default="asap7")
+    s.add_argument("--target-delay", type=float, default=500.0)
+    s.add_argument("--netlist-sim", action="store_true", help="re-simulate the synthesized netlist")
+    s.add_argument("--force", action="store_true", help="re-score even if already stamped")
+    s.add_argument("--max-designs", type=int, default=None)
+    s.add_argument("--dry-run", action="store_true",
+                   help="measure only: print the values, write nothing to the DB")
+
     args = parser.parse_args(argv)
+
+    if args.cmd == "fill-db":
+        from spire.design_db import DesignDB, DesignDBError
+        from core.design_db_fill import fill_slot
+        try:
+            d = DesignDB.open(args.db, create=False)
+            hits = [p.name for p in d.v1.iterdir()
+                    if p.is_dir() and p.name.startswith(args.slot)] if d.v1.is_dir() else []
+            key = args.slot if (d.v1 / args.slot).is_dir() else (hits[0] if len(hits) == 1 else None)
+            if key is None:
+                raise DesignDBError(f"unknown or ambiguous slot {args.slot!r}")
+            report = fill_slot(key, model=args.model, db=args.db, objective=args.objective,
+                               cost_metric=args.cost_metric, module_name=args.module_name,
+                               total_runs=args.runs, max_steps=args.max_steps,
+                               language=args.language, keep_runs=args.keep_runs)
+        except DesignDBError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        print(json.dumps(report.to_dict(), indent=2))
+        return 0 if (report.admitted or report.deduped or report.seeded) else 1
+
+    if args.cmd == "db-score":
+        from core.design_db_score import score_designs
+        report = score_designs(args.slot, db=args.db, technology=args.technology,
+                               target_delay=args.target_delay, run_netlist_sim=args.netlist_sim,
+                               force=args.force, max_designs=args.max_designs,
+                               designs=args.design, dry_run=args.dry_run)
+        print(json.dumps(report, indent=2))
+        return 0 if not report["failed"] else 1
 
     if args.cmd == "cleanup":
         report = cleanup(session=args.session, kill=args.kill)

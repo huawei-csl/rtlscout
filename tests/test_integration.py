@@ -1,5 +1,6 @@
 """Integration tests for run_benchmark, run_multirun, and run_eval."""
 
+import json
 import shutil
 from pathlib import Path
 
@@ -100,6 +101,29 @@ def test_run_eval_simple_adder(tmp_path):
     assert result.correctness.passed_checks == 3
 
 
+@requires_yosys
+def test_run_eval_skip_sim_cec_only(tmp_path):
+    """run_rtl_sim=False (run_eval.py --skip-rtl-sim / db-score): no testbench needed,
+    correctness is skipped, pass comes from the CEC verdict alone — and pass_rate is
+    None (not measured), not a misleading 0.0 on a formally proven pass."""
+    from core.evaluation import evaluate
+
+    workdir = tmp_path / "workspace"
+    workdir.mkdir()
+    (workdir / "design.sv").write_text(SIMPLE_ADDER_VERILOG)
+    golden = tmp_path / "golden.v"
+    golden.write_text(SIMPLE_ADDER_VERILOG)
+
+    result = evaluate(workdir=workdir, design_top_module="adder", design_file="design.sv",
+                      run_rtl_sim=False, cec_reference=golden)
+
+    assert result.correctness is None
+    assert result.passed                      # CEC-proven equivalent to the golden
+    assert result.pass_rate is None
+    d = result.to_dict()
+    assert d["pass_rate"] is None and d["correctness"] is None
+
+
 @requires_verilator
 @requires_yosys
 def test_run_benchmark_simple_adder(tmp_path):
@@ -152,6 +176,7 @@ def test_run_benchmark_simple_adder_spirehdl(tmp_path):
 @requires_yosys
 def test_run_multirun_simple_adder(tmp_path):
     """Run multirun on simple_adder with a fake Verilog provider."""
+    from core.agent_backend import BackendConfig
     from core.multirun import run_multirun
 
     summary = run_multirun(
@@ -163,6 +188,7 @@ def test_run_multirun_simple_adder(tmp_path):
         elite_size=2,
         cost_metric="transistors",
         runs_root=tmp_path / "ms_runs",
+        backend_cfg=BackendConfig(design_db_skills=True),
     )
 
     assert summary["global_best_cost"] is not None
@@ -170,6 +196,13 @@ def test_run_multirun_simple_adder(tmp_path):
     assert (tmp_path / "ms_runs" / "multirun_summary.json").exists()
     passing = [r for r in summary["runs"] if r.get("passed")]
     assert len(passing) >= 1
+
+    # design_db_skills=True defaults to a campaign DB shared by all runs, pre-created and
+    # recorded in the campaign config (react runs ignore the layer — resolution is backendless).
+    assert (tmp_path / "ms_runs" / "design_db").is_dir()
+    config = json.loads((tmp_path / "ms_runs" / "config.json").read_text())
+    assert config["design_db_skills"] is True
+    assert config["design_db_path"] == str(tmp_path / "ms_runs" / "design_db")
 
 
 @requires_verilator

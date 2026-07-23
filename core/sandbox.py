@@ -39,6 +39,8 @@ class SandboxSpec:
     network: str = "none"                           # "none" | provider-allowlist | ...
     limits: Optional["RunLimits"] = None
     env: Optional[dict] = None                       # extra env (e.g. provider key) for command runs
+    mounts_rw: Sequence[Path] = field(default_factory=tuple)  # extra writable identity mounts
+    #   (container mode only; e.g. a shared $SPIREHDL_DB_PATH design DB — LocalSandbox ignores)
 
 
 @dataclass
@@ -76,27 +78,46 @@ class LocalSandbox:
     def run_callable(self, fn: Callable[[], Any], spec: SandboxSpec) -> Any:
         return fn()
 
+    #: grace between SIGTERM and SIGKILL on wall-clock expiry — long enough for opencode to
+    #: flush its session store, short enough not to distort budgets.
+    TERM_GRACE_S = 10
+
     def run_command(self, argv: List[str], spec: SandboxSpec) -> CommandResult:
         timeout = None
         if spec.limits is not None and spec.limits.wall_clock_s:
             timeout = spec.limits.wall_clock_s
         env = None
         if spec.env is not None:
-            import os
             env = {**os.environ, **spec.env}
+        # start_new_session: the child leads its own process GROUP, so the deadline kill below
+        # reaches the whole tree (opencode → bash → eval shim → yosys …). Signaling only the
+        # direct child orphans in-flight grandchildren, which then outlive the deadline (K8:
+        # an evaluate_design kept running and wrote an eval snapshot 9 s after the kill).
+        proc = subprocess.Popen(argv, cwd=str(spec.workdir), env=env,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                start_new_session=True)
+
+        def _signal_group(sig: int) -> None:
+            try:
+                os.killpg(proc.pid, sig)         # pid == pgid under start_new_session
+            except ProcessLookupError:
+                pass                             # group already gone
+
         try:
-            proc = subprocess.run(
-                argv, cwd=str(spec.workdir), env=env,
-                capture_output=True, text=True, timeout=timeout,
-            )
-            return CommandResult(proc.returncode, proc.stdout, proc.stderr, timed_out=False)
-        except subprocess.TimeoutExpired as e:
-            return CommandResult(
-                returncode=124,
-                stdout=e.stdout.decode() if isinstance(e.stdout, bytes) else (e.stdout or ""),
-                stderr=e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or ""),
-                timed_out=True,
-            )
+            out, err = proc.communicate(timeout=timeout)
+            return CommandResult(proc.returncode, out, err, timed_out=False)
+        except subprocess.TimeoutExpired:
+            # Graceful first: SIGTERM to the WHOLE group lets opencode flush its session store
+            # and takes its descendants with it, then SIGKILL whatever lingers. Output produced
+            # up to the end is still collected.
+            _signal_group(signal.SIGTERM)
+            try:
+                out, err = proc.communicate(timeout=self.TERM_GRACE_S)
+            except subprocess.TimeoutExpired:
+                _signal_group(signal.SIGKILL)
+                out, err = proc.communicate()
+            return CommandResult(returncode=124, stdout=out or "", stderr=err or "",
+                                 timed_out=True)
 
 
 # --- Crash-safety registry (handover §5.5 layer 1): stop exactly the containers we
@@ -193,6 +214,9 @@ class ContainerSandbox:
             "-v", f"{self.host_repo}:{self.host_repo}:ro",
             "-w", str(Path(spec.workdir).resolve()),
         ]
+        for extra in spec.mounts_rw:            # e.g. a shared design DB — writable identity mount
+            p = Path(extra).resolve()
+            docker += ["-v", f"{p}:{p}"]
         if self.cpus:
             docker += ["--cpus", str(self.cpus)]
         if self.memory:
@@ -210,6 +234,8 @@ class ContainerSandbox:
             proc = subprocess.run(docker, capture_output=True, text=True, timeout=timeout)
             return CommandResult(proc.returncode, proc.stdout, proc.stderr, timed_out=False)
         except subprocess.TimeoutExpired as e:
+            # graceful stop (SIGTERM + grace) so in-container state flushes, then force-remove
+            subprocess.run(["docker", "stop", "-t", "10", name], capture_output=True, text=True)
             subprocess.run(["docker", "rm", "-f", name], capture_output=True, text=True)
             return CommandResult(
                 returncode=124,
@@ -219,3 +245,33 @@ class ContainerSandbox:
             )
         finally:
             _ACTIVE_CONTAINERS.discard(name)
+
+
+# --- Deployment-mode factories: map --mode to the Sandbox impl for each role ----------------
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_AGENT_IMAGE = "rtlscout-opencode:latest"
+
+
+def make_judge_sandbox(mode: str, *, session_id: str = "", work_root: Optional[Path] = None,
+                       run_index: int = 0) -> Sandbox:
+    """Build the judge-role Sandbox for the deployment mode (handover §3.1)."""
+    if mode == "single-container":
+        return LocalSandbox()
+    if mode == "orchestrated":
+        return ContainerSandbox(role="judge", session_id=session_id, work_root=work_root,
+                                host_repo=_REPO_ROOT, run_index=run_index,
+                                image=_AGENT_IMAGE, network="none", cpus=4, memory="8g")
+    raise ValueError(f"Unknown mode: {mode!r}. Use 'single-container' or 'orchestrated'.")
+
+
+def make_agent_sandbox(mode: str, *, session_id: str, work_root: Path,
+                       run_index: int) -> Optional[Sandbox]:
+    """Build the agent-role Sandbox, or None in single-container mode (the backend then
+    uses an in-process LocalSandbox). Orchestrated agents need egress to the model
+    provider, so they use the default bridge network (judge stays network=none)."""
+    if mode == "orchestrated":
+        return ContainerSandbox(role="agent", session_id=session_id, work_root=work_root,
+                                host_repo=_REPO_ROOT, run_index=run_index,
+                                image=_AGENT_IMAGE, network="bridge", cpus=4, memory="8g")
+    return None

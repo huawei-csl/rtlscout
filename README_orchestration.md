@@ -17,6 +17,8 @@ sandboxed campaigns.
 | `--mode` | `single-container` \| `orchestrated` | `single-container` | *where* work runs (here vs fresh `--rm` containers). **OpenCode only** — `orchestrated` with `--agent-backend react` is rejected |
 | `--reeval` | flag | off | force the authoritative re-score on the **react** path too (always on for opencode) |
 | `--wall-clock-min` | minutes | `10` | hard per-run budget for the **opencode** agent (`0` = no limit) |
+| `--design-db-skills` | flag | off | **opencode** only: add the design-DB skills layer (skills + subagents + DB handover) — [main README](README.md#skill-based-flow---agent-backend-opencode---design-db-skills) |
+| `--design-db-path` | path | auto | design-DB root when the layer is on (multirun defaults to a shared `<runs-root>/design_db` campaign DB; identity-mounted rw into orchestrated agent containers) |
 
 ```bash
 # default: in-process ReAct, single container (unchanged)
@@ -173,9 +175,18 @@ Per-run lifecycle (`core/opencode_backend.py`):
    executable `evaluate_design` wrapper.
 3. **Launch** a **fresh** `opencode run` (no `-c`/`--session`/`--attach` — one run = one
    fresh context). The agent's only way to get a score is `./evaluate_design <file>`, which
-   calls `run_eval_and_store` and emits the standard advisory tree.
-4. **Harvest** `evals.jsonl` / `eval_i/` / `best_design/` / `summary.txt` into an
-   `AgentResult`; snapshot a provenance file + session log.
+   calls `run_eval_and_store` and emits the standard advisory tree. With `--design-db-skills`,
+   step 2 also provisions the design-DB skill pack (`.opencode/skills/`), merges the
+   `rtl-subcircuit`/`rtl-dv-prep` subagents into `opencode.json`, and forwards the resolved DB
+   root (`$SPIREHDL_DB_PATH` + a writable identity mount in orchestrated mode).
+4. **Wrap up (framework-driven, react parity):** on wall-clock expiry the process gets
+   SIGTERM + a 10 s grace (so opencode flushes its session store; `docker stop -t 10` in
+   orchestrated mode), then the harness itself re-scores the final workspace state (the *final
+   framework eval* — off-budget, so a run killed mid-step loses nothing measurable), resumes
+   the session for `summary.txt`, and exports the full session record (parent +
+   task-tool child sessions + the raw store).
+5. **Harvest** `evals.jsonl` / `eval_i/` / `best_design/` / `summary.txt` into an
+   `AgentResult`; snapshot a provenance file, session log, and the session exports.
 
 **Budget (no turn cap):** `--wall-clock-min` is the hard stop (subprocess/container timeout);
 the agent is terminated when it's up and nudged to keep going if it stops early.
@@ -210,6 +221,21 @@ error"* when launched as a bare subprocess in `--agent` mode. Launching it via a
 (`bash -c 'exec opencode run … "$1"' _ <kickoff>`) reliably fixes it (the env is identical
 either way — it's the process/session context the server-spawn needs). The kickoff is passed
 as `$1` to avoid shell-quoting hazards.
+
+### Campaign design DB (`--design-db-skills`)
+
+With the OpenCode backend, `--design-db-skills` equips every run with the design-DB skills layer
+(see the [main README](README.md#skill-based-flow---agent-backend-opencode---design-db-skills))
+and hands all runs **one shared campaign DB** (default `<runs-root>/design_db`): verified
+subcircuits accumulate across runs, so run N starts with everything runs 1..N-1 admitted, and an
+elite seed's `@from_design_db` decorators re-splice against the populated library instead of an
+empty one. This is a second cross-run transfer channel next to the elite pool — the pool carries
+whole designs, the DB carries verified *subcircuits*. Concurrent fills from parallel runs are
+safe (per-slot index derived from atomically-admitted design dirs; manifest writes fcntl-locked).
+Precedence for the DB root: `--design-db-path` > `$SPIREHDL_DB_PATH` (e.g. a persistent
+cross-campaign library) > the campaign default. Note that a shared DB couples the runs — later
+runs see earlier discoveries, which is the point for optimization campaigns but a caveat for
+independent-sample statistics.
 
 ---
 
