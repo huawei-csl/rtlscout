@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 
 from core.agent import AgentResult
-from core.benchmarks import Benchmark, load_benchmarks
+from core.benchmarks import Benchmark, RootsLike, load_benchmarks, normalize_roots
 from core.cost import CostMetric
 from core.llm_client import AnthropicClient, DeepInfraClient, OpenRouterClient, LLMClient
 
@@ -29,6 +29,18 @@ for p in _ENV_PATHS:
 
 
 DEFAULT_BENCHMARKS_ROOT = Path(__file__).parent.parent / "benchmarks"
+# Optional private sibling tree: a gitignored nested checkout (e.g. an internal repo)
+# may provide additional benchmarks under internal/benchmarks/. It is scanned by
+# default when present; public checkouts without it are unaffected.
+INTERNAL_BENCHMARKS_ROOT = Path(__file__).parent.parent / "internal" / "benchmarks"
+
+
+def default_benchmarks_roots() -> List[Path]:
+    """The default discovery roots: public benchmarks/ plus internal/benchmarks/ if present."""
+    roots = [DEFAULT_BENCHMARKS_ROOT]
+    if INTERNAL_BENCHMARKS_ROOT.is_dir():
+        roots.append(INTERNAL_BENCHMARKS_ROOT)
+    return roots
 
 
 def _write_chat_log(result: "AgentResult", path: Path) -> None:
@@ -307,7 +319,7 @@ def run_agent_on_benchmark(
 
 def run_agent_across_benchmarks(
     model: str,
-    benchmarks_root: Path = DEFAULT_BENCHMARKS_ROOT,
+    benchmarks_root: Optional[RootsLike] = None,
     benchmark_names: Optional[List[str]] = None,
     runs_dir: Optional[Path] = None,
     max_steps: int = 20,
@@ -323,6 +335,8 @@ def run_agent_across_benchmarks(
         runs_dir = Path("runs") / datetime.now().strftime("%Y%m%d_%H%M%S")
     runs_dir.mkdir(parents=True, exist_ok=True)
 
+    if benchmarks_root is None:
+        benchmarks_root = default_benchmarks_roots()
     benchmarks = load_benchmarks(benchmarks_root, benchmark_names)
     results: List[Dict[str, Any]] = []
 
@@ -372,7 +386,7 @@ def _run_model_benchmarks(task: dict) -> Dict[str, Any]:
     """Worker function for parallel execution (must be module-level for pickling)."""
     model_provider = task["provider"]
     model = task["model"]
-    benchmarks_root = Path(task["benchmarks_root"])
+    benchmarks_root = normalize_roots(task["benchmarks_root"])   # str or list of str
     benchmark_names = task["benchmark_names"]
     runs_dir = Path(task["runs_dir"])
     max_steps = task["max_steps"]
@@ -416,7 +430,7 @@ def _run_model_benchmarks(task: dict) -> Dict[str, Any]:
 
 def run_agent_across_models_and_benchmarks(
     models: List[str],
-    benchmarks_root: Path = DEFAULT_BENCHMARKS_ROOT,
+    benchmarks_root: Optional[RootsLike] = None,
     benchmark_names: Optional[List[str]] = None,
     runs_dir: Optional[Path] = None,
     max_steps: int = 20,
@@ -438,6 +452,9 @@ def run_agent_across_models_and_benchmarks(
         runs_dir = Path("runs") / datetime.now().strftime("%Y%m%d_%H%M%S")
     runs_dir.mkdir(parents=True, exist_ok=True)
 
+    if benchmarks_root is None:
+        benchmarks_root = default_benchmarks_roots()
+
     # Parse provider:model specs
     parsed = [parse_model_spec(m) for m in models]
 
@@ -458,7 +475,7 @@ def run_agent_across_models_and_benchmarks(
             {
                 "provider": mp,
                 "model": m,
-                "benchmarks_root": str(benchmarks_root),
+                "benchmarks_root": [str(r) for r in normalize_roots(benchmarks_root)],
                 "benchmark_names": benchmark_names,
                 "runs_dir": str(runs_dir),
                 "max_steps": max_steps,

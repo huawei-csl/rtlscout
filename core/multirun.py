@@ -21,9 +21,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.agent_backend import BackendConfig
-from core.benchmarks import Benchmark, load_benchmarks
+from core.benchmarks import Benchmark, RootsLike, load_benchmarks
 from core.cost import COST_METRICS
-from core.runner import DEFAULT_BENCHMARKS_ROOT
+from core.runner import default_benchmarks_roots
 
 
 # ── dataclasses ──────────────────────────────────────────────────────────────
@@ -493,7 +493,7 @@ def run_multirun(
     target_delay: float = 500.0,
     technology: str = "asap7",
     language: str = "verilog",
-    benchmarks_root: Path = DEFAULT_BENCHMARKS_ROOT,
+    benchmarks_root: Optional[RootsLike] = None,
     runs_root: Optional[Path] = None,
     seed_from: Optional[str] = None,
     flowy_optimize: bool = False,
@@ -542,6 +542,8 @@ def run_multirun(
               f"cleanup --session {cfg.session_id}", flush=True)
 
     # Load benchmark
+    if benchmarks_root is None:
+        benchmarks_root = default_benchmarks_roots()
     benchmarks = load_benchmarks(benchmarks_root, [benchmark_name])
     if not benchmarks:
         raise ValueError(f"Benchmark not found: {benchmark_name}")

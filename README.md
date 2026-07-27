@@ -575,6 +575,8 @@ python run_benchmark.py \
 
 Use `run_eval.py` to re-run the evaluation pipeline on an existing design file (e.g. from a previous run). Useful for testing with updated testbenches or different cost metrics.
 
+By default the eval runs in a *throwaway sandbox copy* of the design's folder (deleted afterwards), so pointing it at a benchmark's `context/` never leaves artifacts behind. A pre-existing `.spire_cache` is copied in (warm reads) but never written back. Pass `--in-place` to run directly in the source folder instead — that's how you keep `design.v`/build artifacts for inspection or warm a `.spire_cache` next to the design; `--workdir DIR` (orthogonal) selects a different source folder than the design file's parent.
+
 ```bash
 # Basic: evaluate a Spire design (language auto-detected from .py extension)
 python run_eval.py runs/fpmul_f16/claude-opus-4-6/20260311_140923/best_design/workspace/design.py

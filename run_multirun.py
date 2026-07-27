@@ -19,7 +19,6 @@ from pathlib import Path
 from core.agent_backend import BackendConfig
 from core.cost import COST_METRICS
 from core.multirun import run_multirun
-from core.runner import DEFAULT_BENCHMARKS_ROOT
 
 
 def main():
@@ -55,7 +54,7 @@ def main():
     parser.add_argument("--language", default="verilog",
                         choices=["verilog", "spirehdl", "amaranth"],
                         help="Source language (default: verilog)")
-    parser.add_argument("--benchmarks-root", default=str(DEFAULT_BENCHMARKS_ROOT),
+    parser.add_argument("--benchmarks-root", nargs="+", default=None,
                         help="Benchmarks directory")
     parser.add_argument("--runs-root", default=None,
                         help="Output directory (default: runs/multirun_<timestamp>)")
@@ -127,7 +126,7 @@ def main():
         target_delay=args.target_delay,
         technology=args.technology,
         language=args.language,
-        benchmarks_root=Path(args.benchmarks_root),
+        benchmarks_root=args.benchmarks_root,
         runs_root=runs_root,
         seed_from=args.seed_from,
         flowy_optimize=args.flowy_optimize,

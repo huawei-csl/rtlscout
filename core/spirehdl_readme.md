@@ -17,7 +17,7 @@
 - **Integrated with ABC and mockturtle:** modern synthesis optimization wired directly into the compilation pipeline
 - **Arithmetic library with automated replacement:** swap adders, multipliers, and FP cores driven by an objective
 - **Cycle-accurate Python simulator"** drive inputs, tick clocks, inspect expressions/outputs without leaving Python
-- **Content-addressed optimization cache:** instant re-runs via `@abc_optimized` /`@flowy_optimized` decorators
+- **Content-addressed optimization cache:** instant re-runs via the `@abc_optimized` decorator
 
 ## Optimizations built in 💡
 
@@ -35,9 +35,9 @@ Drops in topology-tuned adders, multipliers, and MAC fusions against an `area` /
 
 MAC patterns (`a*b + c`) are fused into single column-reduction units, eliminating a full adder stage. See [`README_arithmetic_optimization.md`](docs/README_arithmetic_optimization.md).
 
-### 🧩 ABC + mockturtle decorators: `@abc_optimized` / `@flowy_optimized`
+### 🧩 ABC decorator: `@abc_optimized`
 
-One decorator stacks modern AIG synthesis (`resyn2`, `&deepsyn`, mockturtle) onto any `Component` or `Netlist`, with a content-addressed cache for instant re-runs:
+One decorator stacks modern AIG synthesis (`resyn2`, `&deepsyn`) onto any `Component` or `Netlist`, with a content-addressed cache for instant re-runs:
 
 - **−69% AIG gates** on an 8-bit multiplier (`resyn2`)
 - **−83%** on a 16-bit multiplier
@@ -54,6 +54,15 @@ Hopcroft state minimisation and bit-assignment search as two composable context 
 - **−69.5% cells** when both are nested — a ~3× reduction with two `with` blocks, no hand-tuned encoding tables
 
 An 8-opcode CPU decoder sees **−66.7% cells** from a single `optimized_encoding`, because the search discovers an opcode layout where each wide OR collapses to one bit-test. See [`README_fsm_optimization.md`](docs/README_fsm_optimization.md).
+
+### 🔀 Selection & reduction topologies: `selection_topology` / `spire.reduce`
+
+Chained conditionals and reduction loops both lower to linear, O(N)-deep mux cascades. Two features re-emit them in log-depth form at the source:
+
+- **`selection_topology`** re-emits `switch_`/`if_` blocks and hand-built mux chains in a log-depth form. Wrap a scope (region or decorator), pick a mode: `onehot`, `bittree`, `tournament` (priority-preserving), or `auto`. The one-hot modes are validated against provably-disjoint case labels — overlap-safe by construction.
+- **`spire.reduce`** builds balanced trees for reductions: `max_` / `min_` / `argmax_` / `sum_` / `reduce_tree`, plus `prefix_scan` for running results. A 20-input max: **171 → 45 gate levels** at fewer cells.
+
+Rewrites are eager, so Verilog, AIG export, and the simulator all see the same structure. Details: [`README_control_structures.md`](docs/README_control_structures.md) and [`README_reductions.md`](docs/README_reductions.md).
 
 ### 🛠️ Fine-grained architecture selection: `arithmetic_generator`
 
@@ -78,9 +87,10 @@ Deeper guides for specific features:
 - **[Interfaces](docs/README_interfaces.md)** — reusable IO bundles (`Stream`, `Flow`, `MemPort`) with `Flipped` / `connect` / `view_as_flipped` and on-interface behaviour
 - **[State machines](docs/README_state_machines.md)** — declaration with the `State` / `Encoding` API and `switch_` / `case_` bodies
 - **[Control structures](docs/README_control_structures.md)** — `if_` / `elif_` / `else_` and `switch_` / `case_` / `default` context managers
+- **[Reductions](docs/README_reductions.md)** — balanced log-depth trees: `max_` / `argmax_` / `sum_` / `reduce_tree`
 - **[Memories](docs/README_memories.md)** — RAM / ROM / FIFO primitives, port wiring with `<<=`, simulation, and reading state
 - **[Arithmetic optimization](docs/README_arithmetic_optimization.md)** — automatic replacement with optimized versions (adders, multipliers, MAC, etc)
-- **[Optimization decorators](docs/README_optimization_decorators.md)** — `@abc_optimized` / `@flowy_optimized` circuit optimization
+- **[Optimization decorators](docs/README_optimization_decorators.md)** — `@abc_optimized` circuit optimization
 - **[FSM optimization](docs/README_fsm_optimization.md)** — `optimized_fsm` and `optimized_encoding` (state minimisation + encoding search)
 - **[Arithmetic generators](docs/README_arithmetic_generator.md)** — evaluation scripts and extra tooling notes
 - **[Tiled matmul accelerator](docs/README_output_stationary_matmul.md)** — parametrizable signed output-stationary matmul over a `T×T×T` core, with input/output RAMs and a `mode` + RAM-access interface

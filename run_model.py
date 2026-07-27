@@ -5,7 +5,7 @@ import argparse
 import json
 from pathlib import Path
 
-from core.runner import DEFAULT_BENCHMARKS_ROOT, parse_model_spec, run_agent_across_benchmarks
+from core.runner import parse_model_spec, run_agent_across_benchmarks
 
 
 def main():
@@ -14,7 +14,8 @@ def main():
                         help="Model spec as '<provider>:<model>' (provider prefix required: "
                              "deepinfra, anthropic, openrouter, fake)")
     parser.add_argument("--benchmarks", nargs="*", default=None, help="Specific benchmarks (default: all)")
-    parser.add_argument("--benchmarks-root", default=str(DEFAULT_BENCHMARKS_ROOT), help="Benchmarks directory")
+    parser.add_argument("--benchmarks-root", nargs="+", default=None,
+                        help="Benchmark root dir(s); default: benchmarks/ plus internal/benchmarks/ when present")
     parser.add_argument("--runs-dir", default=None, help="Output directory for runs")
     parser.add_argument("--max-steps", type=int, default=20, help="Max agent steps")
     parser.add_argument("--api-key", default=None, help="API key (provider-specific)")
@@ -28,7 +29,7 @@ def main():
     runs_dir = Path(args.runs_dir) if args.runs_dir else None
     summary = run_agent_across_benchmarks(
         model=model,
-        benchmarks_root=Path(args.benchmarks_root),
+        benchmarks_root=args.benchmarks_root,
         benchmark_names=args.benchmarks,
         runs_dir=runs_dir,
         max_steps=args.max_steps,

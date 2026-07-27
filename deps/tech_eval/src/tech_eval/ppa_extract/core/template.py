@@ -151,7 +151,7 @@ verilator_common_flags = [
     "1ns/10ps",
 ]
 
-verilator_directive_flags = ["--build", "--binary", "-j"]
+verilator_directive_flags = ["--build", "--binary", "-j", "16"]
 
 verilator_vcd_flag = ["--trace-vcd", "--trace-underscore", "--no-trace-top"]
 
@@ -252,7 +252,15 @@ design -reset
 # Legacy single-file read command (reference):
 # read -sv <rtl_path>
 {read_verilog_cmds}
-synth -top {top_module_name}
+# -flatten: flatten EARLY (inside synth, before the generic optimization passes),
+# so both yosys's structural optimization and abc's timing-driven mapping see
+# whole cross-module paths. Hierarchical designs otherwise pay a large artificial
+# delay penalty on cross-module register-to-register paths (observed 3.6x on a
+# 6-module design; a late `flatten` after synth recovers only ~12% of it). The
+# stat/CEC/AIG flows already use `synth -flatten`; this keeps the PPA flow
+# consistent. Flattened cells keep hierarchical name prefixes, so the autoname'd
+# worst-path report stays readable.
+synth -flatten -top {top_module_name}
 
 {fa_ha_inference_cmds}
 
