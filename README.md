@@ -218,7 +218,7 @@ and label-based cleanup.
 ## Design DB — an agent-filled library of verified subcircuits
 
 Spire ships a **design DB** (`spire.design_db`, see
-[deps/spire-hdl/docs/README_design_db.md](deps/spire-hdl/docs/README_design_db.md)): a
+[README_design_db.md](https://github.com/huawei-csl/spire-hdl/blob/main/docs/README_design_db.md)): a
 content-addressed store of *slots* (subcircuits with a golden reference), where every stored
 implementation passed the slot's **frozen verification** (CEC or a golden-simulated trace tb) on
 insert, and builds *select* deterministically via `@from_design_db(objective=..., metric=...)`.
@@ -289,7 +289,8 @@ One self-contained HTML report (inline SVG, no dependencies): per-slot Pareto fr
 timelines with running best, agent activity lanes — and, after `measure_db_compositions.py`,
 the **full-circuit composition space**: every splice combination of the per-slot fronts
 recompiled with forced (`pin=`-style) selections and measured for real (`--all-designs` widens
-to all admitted designs).
+to all admitted designs). An example report (sat_mac4_par, GLM-5.2) is checked in at
+[artifacts/db_run_visualizations/sat_mac4_par_glm-5.2_visualization.html](artifacts/db_run_visualizations/sat_mac4_par_glm-5.2_visualization.html).
 
 ### Non-agentic tools (campaign filler & scorer)
 
@@ -680,7 +681,9 @@ Panels: per-slot Pareto fronts (area × AIG depth) colored by subagent source ta
 agent's selections, admission timelines with running best, the measured full-circuit composition
 space (with the agent's actual evals), full-circuit evals over time, and agent activity lanes
 (exact child session spans when the run's session exports exist). Details in the
-[skill-based flow](#skill-based-flow---agent-backend-opencode---design-db-skills) section.
+[skill-based flow](#skill-based-flow---agent-backend-opencode---design-db-skills) section; an
+example report is checked in at
+[artifacts/db_run_visualizations/sat_mac4_par_glm-5.2_visualization.html](artifacts/db_run_visualizations/sat_mac4_par_glm-5.2_visualization.html).
 
 ## Output format
 
