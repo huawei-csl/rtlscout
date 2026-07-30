@@ -607,6 +607,7 @@ def plot_pareto_side_by_side_combined(
     path_a: Path, path_b: Path, output_dir: Path,
     label_a: str = "Area target",
     label_b: str = "Delay target",
+    starting_point: 'Optional[tuple]' = None,
 ) -> Path:
     """Overlay two multirun campaigns on a single area-vs-delay plot.
 
@@ -676,20 +677,24 @@ def plot_pareto_side_by_side_combined(
         xs, ys = _stepify(front)
         ax.plot(xs, ys, color=front_col, linewidth=2.0, zorder=5 + zoff)
 
-    # Starting point: most common first eval across both campaigns
-    from collections import Counter
-    first_evals = []
-    for data in [data_a, data_b]:
-        for run in data.get("runs", []):
-            evals = run.get("all_evals", [])
-            if evals and evals[0].get("passed"):
-                ppa = evals[0].get("metrics") or {}
-                a, d = ppa.get("area"), ppa.get("delay")
-                if a is not None and d is not None:
-                    first_evals.append((float(a), float(d)))
-    if first_evals:
-        (sp_area, sp_delay), _ = Counter(first_evals).most_common(1)[0]
-        ax.scatter([sp_area], [sp_delay], marker="*", s=200, c="#222222",
+    # Explicit --starting-point wins (a seeded campaign's first eval is the seed,
+    # not the baseline); else the most common first eval across both campaigns.
+    sp = starting_point
+    if sp is None:
+        from collections import Counter
+        first_evals = []
+        for data in [data_a, data_b]:
+            for run in data.get("runs", []):
+                evals = run.get("all_evals", [])
+                if evals and evals[0].get("passed"):
+                    ppa = evals[0].get("metrics") or {}
+                    a, d = ppa.get("area"), ppa.get("delay")
+                    if a is not None and d is not None:
+                        first_evals.append((float(a), float(d)))
+        if first_evals:
+            sp, _ = Counter(first_evals).most_common(1)[0]
+    if sp is not None:
+        ax.scatter([sp[0]], [sp[1]], marker="*", s=200, c="#222222",
                    zorder=10, edgecolors="white", linewidths=0.5)
 
     ax.set_xlabel(r"Area ($\mathrm{\mu m^2}$)")
@@ -886,7 +891,9 @@ def main():
         p = plot_pareto_side_by_side(
             args.side_by_side[0], args.side_by_side[1], output_dir,
             label_a=args.label_a or "Area target",
-            label_b=args.label_b or "Delay target")
+            label_b=args.label_b or "Delay target",
+            starting_point=(tuple(args.starting_point)
+                            if args.starting_point else None))
         if p:
             saved.append(p)
 
@@ -897,7 +904,9 @@ def main():
             args.side_by_side_combined[0], args.side_by_side_combined[1],
             output_dir,
             label_a=args.label_a or "Area target",
-            label_b=args.label_b or "Delay target")
+            label_b=args.label_b or "Delay target",
+            starting_point=(tuple(args.starting_point)
+                            if args.starting_point else None))
         if p:
             saved.append(p)
 

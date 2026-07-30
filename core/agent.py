@@ -9,6 +9,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -575,11 +576,13 @@ class RTLAgent:
 
         if self._default_target_delay is not None:
             self.cost_metric.target_delay = target_delay if target_delay is not None else self._default_target_delay
+        _t0 = time.monotonic()
         result = evaluate(self.workspace, self.design_top_module,
                           cost_metric=self.cost_metric, language=self.language,
                           design_file=design_file or None,
                           run_cec=self.run_cec, cec_reference=self.cec_reference)
         eval_dict = result.to_dict()
+        eval_dict["duration_s"] = round(time.monotonic() - _t0, 1)
         eval_dict["eval_index"] = eval_index
         eval_dict["step_index"] = getattr(self, "_current_step", None)
         eval_dict["design_file"] = design_file or None

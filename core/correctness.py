@@ -71,14 +71,64 @@ verilator_common_flags = [
 ]
 
 
+# X/Z is banned in designs (tb.sv exempt): 2-state sim folds X to a constant while
+# synthesis treats it as don't-care, so a design can pass every vector yet synthesize wrong.
+_XZ_LITERAL_RE = re.compile(
+    r"'\s*[sS]?[bodhBODH]\s*[0-9a-fA-F_xXzZ?]*[xXzZ?]|'[xXzZ]\b|\bcase[xz]\b")
+
+
+def _xz_dontcare_hits(source: Path) -> List[str]:
+    """Return 'line N: <text>' for each X/Z don't-care use in a design file
+    (comments and string literals stripped)."""
+    hits = []
+    in_block = False
+    try:
+        text = source.read_text(errors="replace")
+    except OSError:
+        return hits
+    for num, line in enumerate(text.splitlines(), 1):
+        if in_block:
+            end = line.find("*/")
+            if end < 0:
+                continue
+            line = line[end + 2:]
+            in_block = False
+        line = re.sub(r'"(?:[^"\\]|\\.)*"', '""', line)
+        line = re.sub(r"/\*.*?\*/", " ", line)
+        start = line.find("/*")
+        if start >= 0:
+            line = line[:start]
+            in_block = True
+        line = line.split("//")[0]
+        if _XZ_LITERAL_RE.search(line):
+            hits.append(f"line {num}: {line.strip()}")
+    return hits
+
+
 def lint(sources: List[Path], workdir: Path) -> SimResult:
+    xz_report = []
+    for s in sources:
+        if s.name == "tb.sv":
+            continue
+        hits = _xz_dontcare_hits(s)
+        if hits:
+            xz_report.append(f"{s.name}:\n  " + "\n  ".join(hits))
+    if xz_report:
+        return SimResult(
+            False, "",
+            "X/Z don't-care lint failed: designs must not use X/Z literals or "
+            "casex/casez. 2-state simulation folds X to a constant (so vectors "
+            "can still pass) while synthesis treats X as a don't-care and may "
+            "implement different hardware. Fully specify every output and "
+            "state transition.\n" + "\n".join(xz_report), 1)
     if shutil.which("verilator") is None:
         return SimResult(False, "", "verilator not found", 127)
     args = ["verilator", "--lint-only", "--timing", "--sv"] + verilator_common_flags + [str(s.resolve()) for s in sources]
     return _run(args, workdir.resolve())
 
 
-def simulate(sources: List[Path], top_module: str, workdir: Path, build_timeout: int = 180) -> SimResult:
+def simulate(sources: List[Path], top_module: str, workdir: Path, build_timeout: int = 180,
+             sim_timeout: int = 240) -> SimResult:
     if shutil.which("verilator") is None:
         return SimResult(False, "", "verilator not found", 127)
     abs_workdir = workdir.resolve()
@@ -97,7 +147,9 @@ def simulate(sources: List[Path], top_module: str, workdir: Path, build_timeout:
                 stderr=build.stderr,
                 returncode=build.returncode,
             )
-        return _run([str(obj_dir / "simv")], abs_workdir)
+        # Gate-level netlists (e.g. deepsyn AIGs) simulate ~10x slower than
+        # behavioral RTL; the old 30 s default silently killed them.
+        return _run([str(obj_dir / "simv")], abs_workdir, timeout=sim_timeout)
     finally:
         # Pure scratch: all diagnostics are captured in the returned SimResult and nothing downstream reads
         # obj_dir, so remove it here — workspaces stay free of build residue by construction.

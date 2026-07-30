@@ -24,6 +24,9 @@ _FSM_OPTIMIZATION_MD = _fsm_opt_path.read_text()
 _state_machines_path = Path(__file__).parent.parent / "deps" / "spire-hdl" / "docs" / "README_state_machines.md"
 _STATE_MACHINES_MD = _state_machines_path.read_text()
 
+_hints_path = Path(__file__).parent.parent / "deps" / "spire-hdl" / "docs" / "hints.md"
+_SPIRE_HINTS_MD = _hints_path.read_text()
+
 
 def _extract_md_section(md: str, heading: str) -> str:
     """Extract a section from markdown by its ## heading."""
@@ -296,18 +299,70 @@ _FLOWY_OPTIMIZE_STRATEGY = (
 
 _CORE_ARITH_RESTRICTION = (
     "## Core Arithmetic Restriction\n\n"
-    "IMPORTANT: Do NOT change the internal multiplier or adder configurations "
-    "(MultiplierConfig, AdderConfig). Do NOT put the mantissa multiplier (`*`) or "
-    "exponent adder (`+`) inside optimization decorator blocks. "
+    "IMPORTANT: Keep the main mantissa multiplier (`*`) and exponent adder "
+    "(`+`) as plain operators, exactly as in the starting design. Do NOT wrap "
+    "them in arithmetic-config machinery (MultiplierConfig / AdderConfig / "
+    "build_multiplier — not even behind an optional config parameter) and do "
+    "NOT put them inside optimization decorator blocks. "
     "These core arithmetic operations will be optimized at a later stage using "
     "automated architecture sweeps. Focus your optimization on the surrounding "
-    "floating-point logic only (mux trees, normalization, rounding, etc.).\n"
+    "floating-point logic only (mux trees, normalization, rounding, etc.).\n\n"
+    "The later sweep statically rewrites your design's source. For that to "
+    "work, your design must stay structurally simple:\n"
+    "- ONE self-contained .py file; the Component class defined at module top "
+    "level (never nested inside a function, never split into a library module "
+    "plus a driver script, never assembled by patching modules at runtime);\n"
+    "- the main arithmetic written as literal statements, keeping the marker "
+    "comments: `prod = <a> * <b>  # mantissa multiplier` and "
+    "`exp_sum = <a> + <b>  # exponent adder`.\n"
+)
+
+_CORE_ARITH_DECORATOR_BOUNDARY = (
+    "### Decorators and the core arithmetic\n\n"
+    "Optimization-decorator arguments are hard boundaries: the decorated "
+    "function is rebuilt from fresh input signals, so PASSING the multiplier "
+    "product or exponent sum into a decorated function (e.g. "
+    "`post(prod, exp_sum, flags)`) is allowed — the `*` and `+` remain outside "
+    "the optimized region. What is forbidden is COMPUTING the main mantissa "
+    "multiply or exponent add inside a decorated function's body (directly or "
+    "via a helper it calls) — that would pull the core arithmetic into the "
+    "gate-level optimization and violate the restriction above.\n"
 )
 
 
 def _flowy_agent_tips() -> str:
     """Build flowy agent tips."""
     return _FLOWY_OPTIMIZE_AGENT_TIPS_BASE + _FLOWY_OPTIMIZE_STRATEGY
+
+
+# Measured on a hand-optimized fp16-multiplier datapath with this exact flow
+# (area metric, relaxed-timing target; 2026-07-30).
+_ABC_MEASURED_IMPACT = """
+### Measured impact — the decorator pays even on good designs
+
+An already hand-optimized fp16-multiplier datapath, decorator applied to the
+non-arithmetic post-processing, evaluated with this exact flow:
+
+| variant                                            | area (um^2) | delay (ps) |
+|----------------------------------------------------|-------------|------------|
+| no decorator                                       | 90.8        | 1855       |
+| @abc_optimized  (bare -> balanced)                 | 91.4        | 1776       |
+| @abc_optimized(abc_script=ABC_RECIPES["area"])     | 87.1        | 1864       |
+| stacked: &deepsyn -T 30 pass, then the area recipe | 88.2        | 1879       |
+
+Insights:
+- The area recipe cut 4% area at unchanged delay; the balanced recipe cut 4%
+  delay at unchanged area — free improvement on a design that was already
+  good. Weaker starting designs typically gain more.
+- Match the recipe to your cost metric (area recipe when minimizing area,
+  balanced when minimizing delay), and try the stacked two-pass example too —
+  results vary by design, so evaluate rather than guess.
+- Decorated results are cached: re-evaluating an unchanged decorated function
+  costs nothing.
+
+IMPORTANT: Make sure to use @abc_optimized on your best designs to improve them
+further. Applying the decorator is a 2-3 line change.
+"""
 
 
 def _build_optimization_guidance(abc_optimize: bool, flowy_optimize: bool,
@@ -333,6 +388,7 @@ def _build_optimization_guidance(abc_optimize: bool, flowy_optimize: bool,
 
         if abc_optimize:
             parts.append(_extract_md_section(_OPTIMIZATION_DECORATORS_MD, "@abc_optimized"))
+            parts.append(_ABC_MEASURED_IMPACT)
 
         if flowy_optimize:
             parts.append(_extract_md_section(_OPTIMIZATION_DECORATORS_MD, "@flowy_optimized"))
@@ -393,6 +449,8 @@ def _build_optimization_guidance(abc_optimize: bool, flowy_optimize: bool,
     # --- Core arithmetic restriction ---
     if dont_touch_main_arith:
         parts.append(_CORE_ARITH_RESTRICTION)
+        if abc_optimize or flowy_optimize:
+            parts.append(_CORE_ARITH_DECORATOR_BOUNDARY)
 
     return "\n".join(parts)
 
@@ -491,6 +549,13 @@ def build_spirehdl_system_prompt(description: str, cost_metric_name: str, extra:
     strategy_steps = _STRATEGY_STEPS_3_TO_7.format(cost_metric_name=cost_metric_name)
     creativity_block = _CREATIVITY_AND_EVAL_BLOCK.format(cost_metric_name=cost_metric_name)
     important_common = _IMPORTANT_COMMON.format(max_steps=max_steps)
+    # Curated synthesis-quality hints from spire's hints.md (added 2026-07-29;
+    # previously only the opencode backend inlined hints.md — the ReAct prompt
+    # never carried them). Only this section: the API/pattern parts of
+    # hints.md duplicate the overview above.
+    synthesis_quality_notes = _extract_md_section(
+        _SPIRE_HINTS_MD, "Synthesis-quality notes").replace(
+        "## Synthesis-quality notes", "### Synthesis-quality notes", 1)
 
     return f"""You are an RTL design agent using Spire, a Python EDSL for hardware description. Your task is to create a design that satisfies the given specification, is functionally correct, and has minimal cost ({cost_metric_name}).{cost_note_block}
 
@@ -537,6 +602,8 @@ Mult8().to_verilog_file("{SPIREHDL_VERILOG_OUTPUT}", name="mult8")
 - `signal[i]` — Bit select; `signal[lo:hi]` — Bit slice (Python-style, exclusive upper bound). **Do NOT use Verilog's `+:` part-select syntax** — write `signal[lo : lo+N]`, not `signal[lo +: N]`.
 - `Component().to_verilog_file("{SPIREHDL_VERILOG_OUTPUT}", name="<module_name>")` — Write Verilog directly to a file. Pass `simplify=True` to run a peephole simplification pass before emission (constant folding, boolean identities, trivial-mux collapse, mux-tree guard substitution). It often shrinks the output and can improve synthesis quality, but it adds significant compile time and may time out on larger or more complex circuits. Default is off.
 - Mostly no need to declare wires for intermediate expressions; just create them inline: `t = b + c`, versus `t = Wire(UInt(8)); t <<= b + c`.
+
+{synthesis_quality_notes}
 
 ### Sequential Designs (clock / reset)
 Use `Register` for state and drive it with `<<=`. Pass `with_clock=True` (and `with_reset=True` when registers have a reset value) to `to_verilog_file`:

@@ -13,6 +13,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -1126,6 +1127,12 @@ def _tb_output_parser(output: str) -> None:
 def _ppa_worker(rtl_paths, target_delay, worker_path, top_module, result_queue,
                 tb_path=None, data_files=None, technology="asap7"):
     """Run get_ppa() in a subprocess; put ('ok', ppa) or ('error', msg) in result_queue."""
+    # Become a process-group leader so a timeout can kill the whole tool tree;
+    # terminating just this worker orphans yosys/abc/OpenROAD children for hours.
+    try:
+        os.setpgid(0, 0)
+    except OSError:
+        pass
     try:
         from tech_eval.ppa_extract.core.ppa_extraction import get_ppa
         ppa = get_ppa(
@@ -1210,22 +1217,42 @@ class PPACost(CostMetric):
                         "technology": self.technology},
             )
             proc.start()
-            proc.join(timeout=self.ppa_timeout)
-            if proc.is_alive():
-                proc.terminate()
+            # Drain the queue WHILE waiting: a result bigger than the pipe buffer
+            # blocks the child's feeder, and a join-first parent falsely times out.
+            status = data = None
+            deadline = time.monotonic() + self.ppa_timeout
+            while True:
+                try:
+                    status, data = result_queue.get(timeout=1.0)
+                    break
+                except _queue.Empty:
+                    if time.monotonic() >= deadline:
+                        # Kill the whole process group so tool children die too.
+                        import signal
+                        try:
+                            os.killpg(proc.pid, signal.SIGKILL)
+                        except (OSError, ProcessLookupError):
+                            proc.terminate()
+                        proc.join()
+                        return CostResult(
+                            ok=False, value=None, stats={},
+                            error=f"PPA extraction timed out after {self.ppa_timeout}s",
+                        )
+                    if not proc.is_alive():
+                        # child died without producing a result (crash/OOM)
+                        proc.join()
+                        return CostResult(
+                            ok=False, value=None, stats={},
+                            error="PPA extraction process ended without result",
+                        )
+            proc.join(timeout=60)
+            if proc.is_alive():   # defensive: child wedged after delivering
+                import signal
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except (OSError, ProcessLookupError):
+                    proc.terminate()
                 proc.join()
-                return CostResult(
-                    ok=False, value=None, stats={},
-                    error=f"PPA extraction timed out after {self.ppa_timeout}s",
-                )
-
-            try:
-                status, data = result_queue.get_nowait()
-            except _queue.Empty:
-                return CostResult(
-                    ok=False, value=None, stats={},
-                    error="PPA extraction process ended without result",
-                )
 
             if status == "error":
                 return CostResult(

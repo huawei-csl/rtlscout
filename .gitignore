@@ -59,4 +59,9 @@ inputs/
 input/
 .cache/
 
-
+*.log
+obj/
+*.pdf
+data/
+artifacts/fpmul_run/state
+*.png
