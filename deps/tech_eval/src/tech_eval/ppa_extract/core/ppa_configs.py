@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Callable, ClassVar, Dict, Generic, List, Type, TypeVar
-from spirehdl.spirehdl_module import Component
-from spirehdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding
+from spire import Component
+from spire.arithmetic.int_multipliers.eval.testvector_generation import Encoding
 
 
 class Config():

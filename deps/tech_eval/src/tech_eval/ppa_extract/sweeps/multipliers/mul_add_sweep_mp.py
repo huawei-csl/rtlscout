@@ -13,9 +13,9 @@ from dataclasses import dataclass
 from itertools import product
 from typing import ClassVar, Dict, List, Optional
 
-from spirehdl.spirehdl import reset_shared_cache
+from spire.expr import reset_shared_cache
 
-from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
+from spire.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
     FSAOption,
     PPAOption,
     PPGOption,
@@ -25,12 +25,12 @@ from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib 
     encoding_for_multiplier,
     get_list_from_enum,
 )
-from spirehdl.arithmetic.int_multipliers.eval.testvector_generation import (
+from spire.arithmetic.int_multipliers.eval.testvector_generation import (
     AdderTestVectors,
     Encoding,
     MultiplierTestVectors,
 )
-from spirehdl.arithmetic.prefix_adders.adders import StageBasedPrefixAdder
+from spire.arithmetic.prefix_adders.adders import StageBasedPrefixAdder
 
 from tech_eval.ppa_extract.core.ppa_extraction import PPA_REPORT_TIME_UNIT
 from tech_eval.ppa_extract.sweeps.plotting2 import plot_delay_vs_area, plot_power_vs_area, plot_power_vs_delay, plot_switch_count_vs_area, plot_switch_count_vs_delay, plot_transistor_count_vs_area, regroup_by_fsa, regroup_by_ppa, regroup_by_target_delay

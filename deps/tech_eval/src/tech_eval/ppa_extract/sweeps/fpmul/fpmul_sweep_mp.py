@@ -13,22 +13,22 @@ from itertools import product
 from pathlib import Path
 from typing import ClassVar, Dict, List, Optional, Tuple
 
-from spirehdl.spirehdl import reset_shared_cache
+from spire.expr import reset_shared_cache
 
-from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
+from spire.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
     FSAOption,
     PPAOption,
     PPGOption,
     MultiplierOption,
     TwoInputAritEncodings,
 )
-from spirehdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding
-from spirehdl.arithmetic.int_arithmetic_config import MultiplierConfig
-from spirehdl.arithmetic.floating_point.spire_hdl_float_mult_sn import FpMulSN
-from spirehdl.arithmetic.int_arithmetic_config import AdderConfig
+from spire.arithmetic.int_multipliers.eval.testvector_generation import Encoding
+from spire.arithmetic.int_arithmetic_config import MultiplierConfig
+from spire.arithmetic.floating_point.float_mult_sn import FpMulSN
+from spire.arithmetic.int_arithmetic_config import AdderConfig
 from tech_eval.ppa_extract.sweeps.fpmul.fp_mul_opt import FpMulOpt
 from tech_eval.ppa_extract.sweeps.fpmul.script_to_component import load_component_cls
-from spirehdl.arithmetic.floating_point.fp_mul_testvectors import FpMulTestVectors
+from spire.arithmetic.floating_point.fp_mul_testvectors import FpMulTestVectors
 
 from tech_eval.ppa_extract.core.ppa_configs import InstanceConfig, JsonExportConfig
 from tech_eval.ppa_extract.core.ppa_extraction import PPA_REPORT_TIME_UNIT
@@ -164,7 +164,8 @@ def _run_all_plotters(results_payload, case_results, out_dir, design_prefix, tit
 # -- Sweep
 # ---------------------------------------------------------------------------
 
-def run_ppa_fpmul_sweep(references_dir: str = None):
+def run_ppa_fpmul_sweep(references_dir: str = None, single_point: bool = None,
+                        target_delays: list = None):
     technology = "asap7"
     lib_time_unit = get_tech_config(technology).lib_time_unit
 
@@ -180,11 +181,13 @@ def run_ppa_fpmul_sweep(references_dir: str = None):
 
     W = 1 + EW + FW
 
-    single_point = False
+    if single_point is None:
+        single_point = False
 
-    target_delays = [900, 1200, 1700]
-    if single_point:
-        target_delays = [200]
+    if target_delays is None:       # explicit list (e.g. the campaign's eval
+        target_delays = [900, 1200, 1700]   # targets) wins over these defaults
+        if single_point:
+            target_delays = [200]
 
     n_processes = 80
     keep_files = True
@@ -344,5 +347,13 @@ if __name__ == "__main__":
     parser.add_argument("--references-dir", type=str, default=None,
                         help="Directory containing pareto_* design folders "
                              "(default: references/ next to this script)")
+    parser.add_argument("--single-point", action="store_true", default=None,
+                        help="Reduced sweep: 1 config x 1 target delay per design")
+    parser.add_argument("--target-delays", nargs="+", type=float, default=None,
+                        help="Synthesis target delays in ps (default: 900 1200 "
+                             "1700, or 200 with --single-point). Pass the "
+                             "campaign's eval targets for one consistent set.")
     args = parser.parse_args()
-    run_ppa_fpmul_sweep(references_dir=args.references_dir)
+    run_ppa_fpmul_sweep(references_dir=args.references_dir,
+                        single_point=args.single_point,
+                        target_delays=args.target_delays)

@@ -19,13 +19,13 @@ from itertools import product
 from pathlib import Path
 from typing import ClassVar, Dict, List, Optional, Tuple
 
-from spirehdl.spirehdl import reset_shared_cache
+from spire.expr import reset_shared_cache
 
-from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
+from spire.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
     FSAOption,
 )
-from spirehdl.arithmetic.int_arithmetic_config import AdderConfig
-from spirehdl.arithmetic.floating_point.fp_add_testvectors import FpAddTestVectors
+from spire.arithmetic.int_arithmetic_config import AdderConfig
+from spire.arithmetic.floating_point.fp_add_testvectors import FpAddTestVectors
 
 from tech_eval.ppa_extract.core.ppa_configs import InstanceConfig, JsonExportConfig
 from tech_eval.ppa_extract.core.ppa_extraction import PPA_REPORT_TIME_UNIT

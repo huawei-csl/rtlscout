@@ -147,8 +147,8 @@ def plot_fpmul_pareto(
         return [(a, d) for a, d in pts if a <= max_area and d <= max_delay]
 
     _SRC_INIT = ["pareto_front_init"]
-    _SRC_NO_FLOWY = ["pareto_fpmul_no_flowy"]
-    _SRC_ALL = ["pareto_fpmul_no_flowy", "pareto_fpmul"]
+    _SRC_NO_FLOWY = ["pareto_fpmul_no_abc"]
+    _SRC_ALL = ["pareto_fpmul_no_abc", "pareto_fpmul_abc"]
 
     # Build groups — _op groups filter use_operator=True; others include all
     groups = []
@@ -165,7 +165,7 @@ def plot_fpmul_pareto(
     ))
 
     groups.append((
-        "no_flowy", "Phases 1,3 (no Flowy agent)",
+        "no_flowy", "Phases 1,3 (no ABC agent)",
         _clip(_collect_points(case_results, _SRC_NO_FLOWY)),
     ))
 
@@ -249,7 +249,7 @@ def plot_fpmul_pareto(
         if _MARKERS[key] not in ("+", "x"):
             mkw["markeredgecolor"] = "none"
         handles.append(Line2D([], [], **mkw))
-    ax.legend(handles=handles, loc="upper right", framealpha=0.9)
+    ax.legend(handles=handles, loc="lower left", framealpha=0.9)
 
     fig.tight_layout()
     suffix = "_with_op" if show_operator else ""

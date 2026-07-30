@@ -8,9 +8,9 @@ The multiplier and adder are made configurable via mult_cfg / adder_cfg.
 from dataclasses import dataclass
 from typing import Optional
 
-from spirehdl.spirehdl_module import Component
-from spirehdl.spirehdl import *
-from spirehdl.arithmetic.int_arithmetic_config import (
+from spire import Component
+from spire.expr import *
+from spire.arithmetic.int_arithmetic_config import (
     AdderConfig,
     MultiplierConfig,
     build_adder,

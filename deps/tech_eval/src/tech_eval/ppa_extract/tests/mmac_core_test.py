@@ -7,15 +7,15 @@ import numpy as np
 
 from tech_eval.int_tb_sim import run_component_with_vectors
 from tech_eval.ppa_extract.core.ppa_extraction import get_ppa, remove_worker_path
-from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
+from spire.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
     FSAOption,
     MultiplierOption,
     PPAOption,
     PPGOption,
     TwoInputAritEncodings,
 )
-from spirehdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, EncodingModel, is_signed
-from spirehdl.cores.matmul_accumulate.matmul_accumulate_core import (
+from spire.arithmetic.int_multipliers.eval.testvector_generation import Encoding, EncodingModel, is_signed
+from spire.cores.matmul_accumulate.matmul_accumulate_core import (
     AdderConfig,
     MMAcCfg,
     MMAcDims,
@@ -25,9 +25,9 @@ from spirehdl.cores.matmul_accumulate.matmul_accumulate_core import (
     max_y_width_unsigned,
     MatmulAccumulateCore
 )
-from spirehdl.helpers import run_vectors_on_simulator
-from spirehdl.spirehdl_simulator import Simulator
-from spirehdl.spirehdl_verilog_testbench import TestbenchGenSimulator
+from spire.helpers import run_vectors_on_simulator
+from spire.simulator import Simulator
+from spire.verilog_testbench import TestbenchGenSimulator
 
 
 def _shape2d(arr) -> tuple[int, int]:
