@@ -1,0 +1,27 @@
+diff --git a/src/V3Udp.cpp b/src/V3Udp.cpp
+index bc325fc..42ada7d 100644
+--- a/src/V3Udp.cpp
++++ b/src/V3Udp.cpp
+@@ -165,10 +165,18 @@ class UdpVisitor final : public VNVisitor {
+         }
+ 
+         fl->warnOff(V3ErrorCode::LATCH, true);
+-        AstIf* const ifp
+-            = new AstIf{fl, logandp,
+-                        new AstAssign{fl, new AstVarRef{fl, m_oFieldVarp, VAccess::WRITE},
+-                                      new AstConst{fl, getOutputNum(nodep, oValName)}}};
++        // Sequential UDP outputs must update with non-blocking semantics:
++        // a netlist of UDP flops otherwise races within the same clock edge
++        // (later-ordered primitives capture already-updated fanin values).
++        AstNodeStmt* assignp;
++        if (nodep->udpIsCombo()) {
++            assignp = new AstAssign{fl, new AstVarRef{fl, m_oFieldVarp, VAccess::WRITE},
++                                    new AstConst{fl, getOutputNum(nodep, oValName)}};
++        } else {
++            assignp = new AstAssignDly{fl, new AstVarRef{fl, m_oFieldVarp, VAccess::WRITE},
++                                       new AstConst{fl, getOutputNum(nodep, oValName)}};
++        }
++        AstIf* const ifp = new AstIf{fl, logandp, assignp};
+         if (nodep->udpIsCombo()) {
+             if (!isCombOutputSig(oValName)) {
+                 oNodep->v3error("Illegal value for combinational UDP line output");
