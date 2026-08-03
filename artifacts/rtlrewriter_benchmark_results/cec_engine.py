@@ -41,7 +41,13 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+import os
+
+# Default: the bundle's own layout (this package next to its benchmarks copy).
+# CEC_REPO_ROOT overrides for use against the live repo's benchmarks/ tree
+# (added 2026-07-29 for the RTLRewriter rerun; default behavior unchanged).
+REPO_ROOT = Path(os.environ.get("CEC_REPO_ROOT",
+                                Path(__file__).resolve().parent.parent))
 
 METRIC_BASELINE = {
     "cells": "baseline_cells",
@@ -69,10 +75,20 @@ def _phase_min(rec: Dict[str, Any], phase: str, metric: str) -> Optional[float]:
 
 
 def _phase_design(rec: Dict[str, Any], phase: str) -> Tuple[Optional[str], Optional[str]]:
-    """(global_best_workdir, design_file) for a phase, or (None, None)."""
+    """(global_best_workdir, design_file) for a phase, or (None, None).
+
+    The design_file must come from the SAME run that global_best_workdir
+    points at — with n>=2 runs, runs[0] is not necessarily the global best
+    (n=1 hid this; found 2026-07-29 by the n=2 rerun when a cross-run tie
+    paired run_001's workdir with run_000's filename)."""
     p = rec.get(phase) or {}
     wd = p.get("global_best_workdir")
     runs = p.get("runs") or [{}]
+    for r in runs:
+        if wd and r.get("workdir") == wd:
+            df = (r.get("best_eval") or {}).get("design_file")
+            if df:
+                return wd, df
     design_file = (runs[0].get("best_eval") or {}).get("design_file")
     return wd, design_file
 
