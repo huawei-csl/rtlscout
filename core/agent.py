@@ -24,7 +24,7 @@ from tech_eval.ppa_extract.core.template import target_delay_time_unit
 # type alike (a whole-file default would let e.g. a 300 KB vectors.dat flood the context).
 READ_FILE_DEFAULT_MAX_CHARS = 5_000
 
-def _build_tools(target_delay_is_settable: bool) -> list:
+def _build_tools(target_delay_is_settable: bool, allow_done: bool = False) -> list:
     """Build the tool definitions list for the agent.
 
     When target_delay_is_settable is True the run_evaluation tool exposes an
@@ -43,7 +43,7 @@ def _build_tools(target_delay_is_settable: bool) -> list:
             "description": f"Optional target delay in {target_delay_time_unit} to override the default for this evaluation.",
         }
 
-    return [
+    tools = [
         {
             "type": "function",
             "function": {
@@ -152,7 +152,14 @@ def _build_tools(target_delay_is_settable: bool) -> list:
                 },
             },
         },
-        {
+    ]
+    # The done tool is DISABLED by default (2026-08-03 user decision): agents
+    # repeatedly quit early against explicit prompt instructions (observed on
+    # GLM p1_area run5 at step 4/30). Best-design tracking is monotone, so
+    # running to max_steps is QoR-safe; the summary phase runs either way.
+    # RTLSCOUT_ALLOW_DONE=1 restores the old escape hatch.
+    if allow_done:
+        tools.append({
             "type": "function",
             "function": {
                 "name": "done",
@@ -165,8 +172,8 @@ def _build_tools(target_delay_is_settable: bool) -> list:
                     "required": [],
                 },
             },
-        },
-    ]
+        })
+    return tools
 
 
 @dataclass
@@ -243,7 +250,8 @@ class RTLAgent:
         self.run_cec = run_cec
         self.cec_reference = cec_reference
         self.target_delay_is_settable = hasattr(self.cost_metric, "target_delay")
-        self._tools = _build_tools(self.target_delay_is_settable)
+        self.allow_done = os.environ.get("RTLSCOUT_ALLOW_DONE") == "1"
+        self._tools = _build_tools(self.target_delay_is_settable, allow_done=self.allow_done)
 
         if workdir is None:
             self.workdir = Path(tempfile.mkdtemp(prefix="rtl_agent_"))
@@ -300,6 +308,10 @@ class RTLAgent:
                 return self._run_evaluation(arguments.get("filename", ""),
                                             target_delay=arguments.get("target_delay"))
             elif tool_name == "done":
+                if not self.allow_done:
+                    return ("The done tool is not available — keep iterating "
+                            "until you run out of steps; your best passing "
+                            "design is kept automatically.")
                 return self._done(arguments.get("message", ""))
             else:
                 return f"Unknown tool: {tool_name}"
@@ -743,7 +755,7 @@ class RTLAgent:
                 if not self.is_done:
                     self.messages.append({
                         "role": "user",
-                        "content": f"[Step {step}/{self.max_steps}] Please use a tool. If you are done, call the done tool.",
+                        "content": f"[Step {step}/{self.max_steps}] Please use a tool. The run ends automatically at the step limit.",
                     })
                 continue
 

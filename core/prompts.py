@@ -216,7 +216,7 @@ _STRATEGY_STEPS_3_TO_7 = (
     "4. ONLY after achieving 100% correctness, try to optimize the design to reduce the {cost_metric_name}.\n"
     "5. After each optimization, run evaluation to verify correctness is maintained and check the new cost.\n"
     "6. If an optimization breaks correctness, revert and try a different approach.\n"
-    "7. Keep iterating until you run out of steps — use every step to try improvements. Only call done if you are truly stuck with no more ideas."
+    "7. Keep iterating until you run out of steps — use every step to try improvements. The run ends automatically at the step limit; your best passing design is kept."
 )
 
 # Creativity, evaluation reminder, and thinking note shared by both prompts.
@@ -335,30 +335,34 @@ def _flowy_agent_tips() -> str:
     return _FLOWY_OPTIMIZE_AGENT_TIPS_BASE + _FLOWY_OPTIMIZE_STRATEGY
 
 
-# Measured on a hand-optimized fp16-multiplier datapath with this exact flow
-# (area metric, relaxed-timing target; 2026-07-30).
+# Measured on an agent-optimized fp16-multiplier datapath with this exact
+# flow (area metric, relaxed-timing target; 2026-07-30). The delay-side
+# caveat is measured too: on a delay-tight agent design every recipe made
+# delay worse (critical path = the out-of-bounds main multiplier).
 _ABC_MEASURED_IMPACT = """
-### Measured impact — the decorator pays even on good designs
+### Measured impact — for AREA the decorator reliably pays
 
-An already hand-optimized fp16-multiplier datapath, decorator applied to the
-non-arithmetic post-processing, evaluated with this exact flow:
+An agent-optimized fp16-multiplier datapath, decorator applied to the
+non-arithmetic post-processing, evaluated with this exact flow (area metric):
 
 | variant                                            | area (um^2) | delay (ps) |
 |----------------------------------------------------|-------------|------------|
-| no decorator                                       | 90.8        | 1855       |
-| @abc_optimized  (bare -> balanced)                 | 91.4        | 1776       |
-| @abc_optimized(abc_script=ABC_RECIPES["area"])     | 87.1        | 1864       |
-| stacked: &deepsyn -T 30 pass, then the area recipe | 88.2        | 1879       |
+| no decorator                                       | 108.1       | 1701       |
+| @abc_optimized  (bare -> balanced)                 | 112.3       | 1529       |
+| @abc_optimized(abc_script=ABC_RECIPES["area"])     |  98.2       | 1622       |
+| stacked: &deepsyn -T 30 pass, then the area recipe | 100.2       | 1654       |
 
 Insights:
-- The area recipe cut 4% area at unchanged delay; the balanced recipe cut 4%
-  delay at unchanged area — free improvement on a design that was already
-  good. Weaker starting designs typically gain more.
-- Match the recipe to your cost metric (area recipe when minimizing area,
-  balanced when minimizing delay), and try the stacked two-pass example too —
-  results vary by design, so evaluate rather than guess.
-- Decorated results are cached: re-evaluating an unchanged decorated function
-  costs nothing.
+- On AREA campaigns the area recipe is a reliable win: -9% area here (and
+  -4% even on a much better hand-tuned design), with delay improving too.
+  Weaker starting designs gain more.
+- On DELAY campaigns the decorator often MAY NOT beat an already delay-tight
+  design (measured: every recipe made it slower) — the critical path runs
+  through the main multiplier, which stays outside the decorated region.
+  Try it once, keep it only if the measured delay improves.
+- Match the recipe to your cost metric, and evaluate rather than guess —
+  results vary by design. Decorated results are cached: re-evaluating an
+  unchanged decorated function costs nothing.
 
 IMPORTANT: Make sure to use @abc_optimized on your best designs to improve them
 further. Applying the decorator is a 2-3 line change.
@@ -496,7 +500,6 @@ def build_system_prompt(description: str, cost_metric_name: str, extra: str = ""
 ## Tools
 {_TOOLS_FILE_OPS}
 {run_eval_line}
-- done: Signal completion (only use when truly stuck with no more ideas)
 
 ## Strategy
 1. Lay out an action plan. Try to cover a diverse set of approaches in your plan to increase the chances of finding a good solution within the step limit. Also once you find a new best solution, explore close solutions. Trade off exploration with exploitation.
@@ -671,7 +674,6 @@ Tip: If necessary, check the generated Verilog wire widths to verify element siz
 ## Tools
 {_TOOLS_FILE_OPS}
 {run_eval_line}
-- done: Signal completion (only use when truly stuck with no more ideas, but better have the 'I can do it attitude' and keep on trying)
 
 ## Strategy
 1. Lay out an action plan. Try to cover a diverse set of approaches in your plan to increase the chances of finding a good solution within the step limit. Also once you find a new best solution, explore close solution. Trade off exploration with exploitation.
@@ -886,7 +888,6 @@ with open("{AMARANTH_VERILOG_OUTPUT}", "w") as f:
 ## Tools
 {_TOOLS_FILE_OPS}
 {run_eval_line}
-- done: Signal completion (only use when truly stuck with no more ideas)
 
 ## Strategy
 1. Lay out an action plan covering diverse approaches.
