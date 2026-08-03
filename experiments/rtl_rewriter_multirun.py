@@ -103,9 +103,8 @@ def _phase_flags(language: str, phase: int,
     else:
         # Phase 2 = polish via decorators. The agent seeds from phase 1's
         # elite pool (already structurally good) and can now apply
-        # `@arithmetic_optimized` / `@abc_optimized` / `@flowy_optimized` to
-        # squeeze out the final 1-2% on top.
-        flags = {"arith_autoconfig": True, "flowy_optimize": True, "abc_optimize": True}
+        # `@arithmetic_optimized` / `@abc_optimized`.
+        flags = {"arith_autoconfig": True, "abc_optimize": True}
     if fsm_optimize:
         flags["fsm_optimize"] = True
     return flags
