@@ -283,10 +283,15 @@ def get_ppa(
  
     verilator_vcd_path = os.path.join(worker_path, f"{tb_name.lower()}_sim_netlist.vcd") if use_vcd_for_power else None
     
-    tb_scope_name = tb_name
-    
+    # VCD scope of the DUT inside the testbench: benchmark TBs instantiate
+    # the DUT as an instance named `dut`. A mismatch is caught loudly by the
+    # annotation counts below (0 pins annotated -> warning), not silently.
+    tb_scope_name = f"{tb_name}/dut"
+
     if use_vcd_for_power:
-        power_activity_cmd = f"read_vcd  -scope {tb_scope_name} {{{verilator_vcd_path}}}"
+        power_activity_cmd = (
+            f"read_vcd  -scope {tb_scope_name} {{{verilator_vcd_path}}}\n"
+            "report_activity_annotation")
     else:
         power_activity_cmd = "set_power_activity -input -activity 0.5" # generic input activity of 0.5
 
@@ -420,6 +425,22 @@ def get_ppa(
     if target_delay_time_unit != PPA_REPORT_TIME_UNIT:
         raise ValueError(f"target_delay_time_unit ({target_delay_time_unit}) does not match PPA_REPORT_TIME_UNIT ({PPA_REPORT_TIME_UNIT})")
     
+    annotated = unannotated = None
+    if use_vcd_for_power:
+        for ln in lines:
+            m = re.search(r"Annotated (\d+) pin activities", ln)
+            if m:
+                annotated = int(m.group(1))
+            m = re.search(r"unannotated\s+(\d+)", ln)
+            if m:
+                unannotated = int(m.group(1))
+        if not annotated or unannotated:
+            raise RuntimeError(
+                f"VCD power annotation incomplete: annotated={annotated}, "
+                f"unannotated={unannotated}. A wrong VCD scope or a missing "
+                f"testbench dump hook makes report_power fall back to default "
+                f"activities (silently wrong numbers); see {sta_out_path}.")
+
     return {
         "delay": lib_time_to_ps(delay, cfg),
         "area": area,
