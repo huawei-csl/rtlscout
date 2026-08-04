@@ -18,6 +18,7 @@ from tech_eval.ppa_extract.core.template import (
     lib_time_to_ps,
     ps_to_lib_time,
     sta_script_template,
+    NETLIST_FUNCTIONAL_SIM_CELL_MODELS,
     verilator_common_flags,
     verilator_directive_flags,
     verilator_netlist_flags,
@@ -359,9 +360,14 @@ def get_ppa(
         verilator_build_dir = os.path.abspath(os.path.join(worker_path, "out"))
         verilator_log_path = os.path.join(worker_path, "verilator_netlist_out.log")
 
-        flags = list(verilator_directive_flags) + list(verilator_common_flags) + list(
-            _verilator_netlist_flags
-        )
+        # cell models for the gate-level sim: generated functional models when selected
+        # and available for this technology, else the vendor simulation models
+        if NETLIST_FUNCTIONAL_SIM_CELL_MODELS and cfg.functional_models:
+            netlist_cell_files = [cfg.functional_models]
+        else:
+            netlist_cell_files = list(_verilator_netlist_flags)
+        flags = (list(verilator_directive_flags) + list(verilator_common_flags)
+                 + netlist_cell_files)
         if save_vcd:
             flags += make_vcd_flags(verilator_vcd_path)
         

@@ -1,5 +1,7 @@
 # inspired from https://github.com/dakfjalka/Arith-DAS/blob/master/utils/template.py
 
+import os
+
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import List, Optional
@@ -12,6 +14,17 @@ class Technology(str, Enum):
     FREEPDK45 = "freepdk45"
 
 
+# Cell models for gate-level netlist sims. True: use one generated Verilog
+# module per cell, derived from the liberty function attributes (2-state,
+# zero-delay -- same fidelity as the vendor models without SDF, ~5x faster
+# builds / ~25x faster sims, immune to the Verilator sequential-UDP
+# mis-lowering;
+# False: use the original vendor library sim models
+NETLIST_FUNCTIONAL_SIM_CELL_MODELS = True
+
+_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+
+
 @dataclass
 class TechConfig:
     """All technology-dependent paths and settings."""
@@ -21,6 +34,7 @@ class TechConfig:
     abc_constr: str
     verilator_netlist_flags: List[str]
     adder_map_file: Optional[str] = None
+    functional_models: Optional[str] = None  # generated functional cell models
 
 
 _TECH_CONFIGS = {
@@ -70,6 +84,7 @@ _TECH_CONFIGS = {
             "/app/asap7sc7p5t_28/Verilog/asap7sc7p5t_OA_RVT_TT_201020.v",
         ],
         adder_map_file="/prog/OpenROAD-flow-scripts/flow/platforms/asap7/yoSys/cells_adders_R.v",
+        functional_models=os.path.join(_DATA_DIR, "asap7_functional_cells.v"),
     ),
     Technology.FREEPDK45: TechConfig(
         # from https://github.com/mflowgen/mflowgen/tree/main/adks/freepdk-45nm/pkgs/base
