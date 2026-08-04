@@ -17,3 +17,19 @@ if [ -d deps/flowy ]; then
 else
     echo "INFO: flowy not included in this release — flowy-based optimization is unavailable."
 fi
+
+# --- Verilator sequential-UDP patch check -------------------------------------
+# The base image must ship the patched Verilator (v5.040 + seq-UDP NBA fix,
+# applied by deps/tech_eval/.devcontainer/Dockerfile; version string carries
+# "(mod)"). Without it, gate-level sims of netlists with vendor UDP flop
+# models can be SILENTLY corrupted
+if verilator --version 2>/dev/null | grep -q "(mod)"; then
+    echo "OK: patched Verilator detected: $(verilator --version)"
+else
+    echo "##############################################################" >&2
+    echo "WARNING: UNPATCHED Verilator detected: $(verilator --version)" >&2
+    echo "Sequential-UDP netlist sims (vendor cell models) may be" >&2
+    echo "silently wrong. Rebuild the base image to pick up the patch:" >&2
+    echo "  NO_CACHE=1 bash .devcontainer/build_image.sh" >&2
+    echo "##############################################################" >&2
+fi
