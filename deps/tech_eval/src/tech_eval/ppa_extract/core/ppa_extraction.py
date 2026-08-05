@@ -210,7 +210,9 @@ def _run_verilator_generic(
         log_f.write(run_output)
 
     if run_proc.returncode != 0:
-        raise RuntimeError(f"Verilator simulation failed; see {log_path}")
+        raise RuntimeError(f"Verilator simulation failed (rc="
+                           f"{run_proc.returncode}); tail:\n"
+                           f"{run_output[-1500:]}; see {log_path}")
 
     combined_output = compile_output + run_output
     if output_parser is not None:
