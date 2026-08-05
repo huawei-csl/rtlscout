@@ -603,8 +603,26 @@ def plot_pareto_side_by_side(path_a: Path, path_b: Path, output_dir: Path,
 
 # ── Plot 5b: Combined side-by-side (single axes) ─────────────────────────────
 
+def _load_multirun_merged(paths):
+    """Merge one or more multirun roots into a single {'runs': [...]} dict.
+
+    Run indices of later roots are offset so colormap progression runs
+    across the concatenation (e.g. P1 runs then P2 runs)."""
+    if isinstance(paths, (str, Path)):
+        paths = [paths]
+    merged = {"runs": []}
+    for pth in paths:
+        d = load_multirun(Path(pth))
+        off = len(merged["runs"])
+        for r in sorted(d.get("runs", []), key=lambda r: r.get("run_index", 0)):
+            r = dict(r)
+            r["run_index"] = r.get("run_index", 0) + off
+            merged["runs"].append(r)
+    return merged
+
+
 def plot_pareto_side_by_side_combined(
-    path_a: Path, path_b: Path, output_dir: Path,
+    path_a, path_b, output_dir: Path,
     label_a: str = "Area target",
     label_b: str = "Delay target",
     starting_point: 'Optional[tuple]' = None,
@@ -617,8 +635,8 @@ def plot_pareto_side_by_side_combined(
     """
     _apply_style()
 
-    data_a = load_multirun(path_a)
-    data_b = load_multirun(path_b)
+    data_a = _load_multirun_merged(path_a)
+    data_b = _load_multirun_merged(path_b)
 
     fig = plt.figure(figsize=(5.5, 4))
     gs = fig.add_gridspec(1, 2, width_ratios=[1, 0.03], wspace=0.03)
@@ -845,6 +863,12 @@ def main():
         metavar=("RUN_A", "RUN_B"),
         help="Combined single-plot overlay of two multirun campaigns")
     parser.add_argument(
+        "--roots-a", nargs="+", type=Path, default=None,
+        help="Multi-root combined mode: campaign roots merged into side A")
+    parser.add_argument(
+        "--roots-b", nargs="+", type=Path, default=None,
+        help="Multi-root combined mode: campaign roots merged into side B")
+    parser.add_argument(
         "-o", "--output", type=Path, default=None,
         help="Output directory (default: <input>/plots)")
     parser.add_argument(
@@ -868,6 +892,15 @@ def main():
         "--dim-y", default="delay",
         help="Y-axis metric for the multirun Pareto overview (default: delay).")
     args = parser.parse_args()
+
+    if args.roots_a and args.roots_b:
+        (args.output or Path("plots")).mkdir(parents=True, exist_ok=True)
+        plot_pareto_side_by_side_combined(
+            args.roots_a, args.roots_b, args.output or Path("plots"),
+            label_a=args.label_a or "Area target",
+            label_b=args.label_b or "Delay target",
+            starting_point=tuple(args.starting_point) if args.starting_point else None)
+        return
 
     if not args.input and not args.compare and not args.side_by_side and not args.side_by_side_combined:
         parser.error("Provide a multirun run directory, --compare, --side-by-side, or --side-by-side-combined")

@@ -544,9 +544,10 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
                   for c in results for l in ("verilog", "spirehdl")
                   for p in ("phase1", "phase2")), default=0)
     if n_runs >= 2:
-        cap += (r" Agent cells additionally show mean$\pm$std of the per-run "
-                r"bests across $n{=}" + str(n_runs) + r"$ runs; the leading "
-                r"number is the best run, all $\Delta$ columns compare per-run means.")
+        cap += (r" Agent cells additionally show mean$\pm$std of the "
+                r"per-repetition bests across $n{=}" + str(n_runs) +
+                r"$ repetitions; the leading number is the best repetition, "
+                r"all $\Delta$ columns compare per-repetition means.")
     out.append(r"\caption{" + cap + r"}")
     out.append(r"\label{tab:best-" + metric + "}")
     out.append(r"\resizebox{\textwidth}{!}{%")
