@@ -157,6 +157,7 @@ class OpenRouterClient(LLMClient):
                                                   else {"effort": effort})}
         # Retry transient failures (OpenRouter throttles routinely) — without it
         # a single 429/5xx blip aborts a whole multi-step agent run.
+        import json as _json
         import openai as _openai
         last_err = None
         for _attempt in range(5):
@@ -164,9 +165,20 @@ class OpenRouterClient(LLMClient):
                 response = self._client.chat.completions.create(**kwargs)
                 break
             except (_openai.APIConnectionError, _openai.APITimeoutError,
-                    _openai.RateLimitError, _openai.InternalServerError) as e:
+                    _openai.RateLimitError, _openai.InternalServerError,
+                    _openai.APIResponseValidationError, _json.JSONDecodeError) as e:
                 last_err = e
                 time.sleep(15 * (_attempt + 1))
+            except Exception as e:
+                # A truncated/malformed response body surfaces as a bare JSON
+                # parse error ("Expecting value: line N column 1") — transient.
+                if any(s in str(e) for s in ("Expecting value", "Unterminated string",
+                                             "Invalid control character",
+                                             "Expecting ',' delimiter")):
+                    last_err = e
+                    time.sleep(5 * (_attempt + 1))
+                else:
+                    raise
         else:
             raise last_err
         msg = response.choices[0].message

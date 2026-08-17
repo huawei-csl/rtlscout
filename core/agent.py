@@ -706,23 +706,11 @@ class RTLAgent:
                     tool_choice="auto",
                 )
             except Exception as e:
-                error_msg = f"API error on step {step}: {e}"
-                print(f"\n  ERROR: {error_msg}")
-                passed = self.best_eval is not None and self.best_eval.get("passed", False)
-                return AgentResult(
-                    benchmark_name=benchmark_name,
-                    model=self.model,
-                    passed=passed,
-                    best_cost=self.best_cost,
-                    cost_metric_name=self.cost_metric.metric_name,
-                    best_eval=self.best_eval,
-                    all_evals=self.all_evals,
-                    num_steps=step,
-                    messages=self.messages,
-                    token_usage=total_usage,
-                    error=error_msg,
-                    best_metrics=self.best_metrics,
-                )
+                # A transient API failure (truncated response body, provider
+                # blip) costs this step but must not end the run — the same
+                # request is re-issued on the next one.
+                print(f"\n  WARNING: API error on step {step}, continuing: {e}")
+                continue
 
             total_usage = total_usage + response.usage
             self._last_step_usage = response.usage

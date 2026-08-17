@@ -1,5 +1,6 @@
 """Correctness evaluation via Verilator simulation."""
 
+import os
 import re
 import shutil
 import subprocess
@@ -127,17 +128,38 @@ def lint(sources: List[Path], workdir: Path) -> SimResult:
     return _run(args, workdir.resolve())
 
 
+# Gate-level netlists simulate ~10x slower than RTL, so large directed
+# testbenches need a generous default. Override per run with RTLSCOUT_SIM_TIMEOUT.
+SIM_TIMEOUT = int(os.environ.get("RTLSCOUT_SIM_TIMEOUT", "900"))
+
+
 def simulate(sources: List[Path], top_module: str, workdir: Path, build_timeout: int = 180,
-             sim_timeout: int = 240) -> SimResult:
+             sim_timeout: int = None) -> SimResult:
+    if sim_timeout is None:
+        sim_timeout = SIM_TIMEOUT
     if shutil.which("verilator") is None:
         return SimResult(False, "", "verilator not found", 127)
     abs_workdir = workdir.resolve()
     obj_dir = abs_workdir / "obj_dir"
     obj_dir.mkdir(exist_ok=True)
+    # -O0 only for sequential ABC-derived netlists (keyed on ABC's "written by
+    # ABC" header): Verilator's expression inlining blows up their compile,
+    # while -O0 badly slows simulation of everything else, so normal RTL keeps
+    # the optimizer. No -j: the caller already parallelizes evals.
+    is_abc_netlist = False
+    for s in sources:
+        try:
+            txt = s.read_text(errors="ignore")
+        except OSError:
+            continue
+        if "written by ABC" in txt and "always @" in txt:
+            is_abc_netlist = True
+            break
     build_args = [
         "verilator", "--binary", "--sv", "--top-module", top_module,
         "-o", "simv",
-    ] + verilator_common_flags + [str(s.resolve()) for s in sources]
+    ] + (["-O0"] if is_abc_netlist else []) + verilator_common_flags \
+        + [str(s.resolve()) for s in sources]
     try:
         build = _run(build_args, abs_workdir, timeout=build_timeout)
         if not build.ok:
