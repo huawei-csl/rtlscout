@@ -13,6 +13,7 @@ Usage::
 
 import ast
 import hashlib
+import shutil
 import importlib.util
 import sys
 import tempfile
@@ -488,7 +489,32 @@ def _component_cache_path(src: Path, source: str) -> Path:
     key = hashlib.sha256(source.encode()).hexdigest()[:16]
     d = Path(tempfile.gettempdir()) / "tech_eval_components"
     d.mkdir(parents=True, exist_ok=True)
+    _copy_sibling_modules(src, d)
+    # spec_from_file_location does NOT make the file's own directory
+    # importable, so the copied siblings still need this dir on sys.path. It is
+    # one fixed path added idempotently, unlike per-design source dirs.
+    if str(d) not in sys.path:
+        sys.path.insert(0, str(d))
     return d / f"{src.stem}_{key}_component.py"
+
+
+def _copy_sibling_modules(src: Path, dst_dir: Path) -> None:
+    """Copy the design's sibling .py files next to the generated component.
+
+    Agents may split a design across files (``from fp_def import *``); the
+    component is imported from a temp dir, where those siblings would be
+    missing. Copying beats putting the source dir on sys.path: this runs under
+    multiprocessing.Pool, and sys.path is shared mutable state.
+    """
+    try:
+        for sib in src.parent.glob("*.py"):
+            if sib.name == src.name:
+                continue
+            target = dst_dir / sib.name
+            if not target.exists() or target.stat().st_mtime < sib.stat().st_mtime:
+                shutil.copy2(sib, target)
+    except OSError:
+        pass
 
 
 def load_component_cls(script_path: str):

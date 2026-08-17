@@ -99,9 +99,27 @@ def _discover_pareto_designs(
         if not pf_dir.is_dir():
             continue
         gen_source = pf_dir.name
+        # pareto_front.json names the design file per folder. Needed because a
+        # design may ship helper modules alongside it (agents split designs,
+        # e.g. `from fp_def import *`), and picking an arbitrary *.py swept the
+        # helper. Fall back to a SORTED glob so the guess is at least stable.
+        named: Dict[str, str] = {}
+        pf_json = pf_dir / "pareto_front.json"
+        if pf_json.exists():
+            try:
+                for e in json.loads(pf_json.read_text()):
+                    ex = e.get("extracted_file") or ""
+                    if "/" in ex:
+                        named[Path(ex).parent.name] = Path(ex).name
+            except (json.JSONDecodeError, OSError):
+                pass
         for design_dir in sorted(pf_dir.glob("design_*")):
-            scripts = [s for s in design_dir.glob("*.py")
-                       if not s.name.endswith("_component.py")]
+            pick = named.get(design_dir.name)
+            if pick and (design_dir / pick).exists():
+                scripts = [design_dir / pick]
+            else:
+                scripts = [s for s in sorted(design_dir.glob("*.py"))
+                           if not s.name.endswith("_component.py")]
             if not scripts:
                 continue
             entries.append((str(scripts[0]), gen_source, design_dir.name))
