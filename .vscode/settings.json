@@ -1,3 +1,10 @@
 {
-    "python.terminal.activateEnvironment": false
+    "python.terminal.activateEnvironment": false,
+    "python.analysis.exclude": [
+        "**/build*/**",
+        "**/__pycache__",
+        "**/.*",
+        "artifacts/*/data/**",
+        "artifacts/*/verify_work/**"
+    ]
 }
