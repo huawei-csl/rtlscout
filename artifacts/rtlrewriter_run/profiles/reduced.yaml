@@ -1,0 +1,28 @@
+# Reduced rehearsal: the two cases that motivated the rerun (7 = truncated
+# ALU reference, 9 = truncated FSM reference — also exercises the sequential
+# tempinduct CEC path), 1 run, 12 steps (8 proved too few for Opus 4.8 to get
+# past transcription in the fpmul rehearsal). Purpose: validate plumbing,
+# vector augmentation, both stages, tables, and post-hoc CEC end to end.
+tag: rr48r
+model: anthropic:claude-opus-4-8
+
+cases: [7, 9]
+repetitions: 2                # exercises the rep-merge path (see full.yaml)
+total_runs: 1
+phases: 2
+workers: 4
+max_concurrent: 2
+elite_size: 5
+
+campaigns:                     # enabled: false skips a campaign (default true)
+  cells:       {cost_metric: yosys_cells,       max_steps: 12, enabled: true}
+  transistors: {cost_metric: yosys_transistors, max_steps: 12, fsm_optimize: true, enabled: true}
+
+vectors:
+  target_total: 10000
+  seed: 20260729
+
+cec:
+  sim_cases: [2, 12]          # not in scope here, harmless
+  sim_vectors: 1000000
+  workers: 16

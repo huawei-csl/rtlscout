@@ -1,0 +1,39 @@
+# Full run on OpenRouter GLM 5.2 — identical shape to full.yaml (which see
+# for every knob rationale); only tag + model differ.
+# Select with: run_all.py --profile full_glm
+
+tag: glm52                      # namespaces every output: runs/fpmul_<tag>_*,
+                              # pareto_fronts/fpmul_<tag>/, state/<tag>/, ...
+model: openrouter:z-ai/glm-5.2
+
+agent:
+  max_steps: 30
+  elite_size: 2
+  target_delay: 500.0
+
+campaigns_p1:
+  - {name: p1_area,  metric: area,  runs: 6, concurrent: 2, fresh_first: 3}
+  - {name: p1_delay, metric: delay, runs: 6, concurrent: 2, fresh_first: 3}
+  - {name: p1_adp,   metric: area_delay_product, runs: 6, concurrent: 2, fresh_first: 3}
+campaigns_p2:                 # seeded + @abc_optimized; fresh 0/0 (user decision
+                              # 2026-07-28): P2 ONLY improves existing designs
+  - {name: p2_area,  metric: area,  runs: 6, concurrent: 2, fresh_first: 0, fresh_base: 0.0, fresh_min: 0.0, seed_from: p1_area}
+  - {name: p2_delay, metric: delay, runs: 6, concurrent: 2, fresh_first: 0, fresh_base: 0.0, fresh_min: 0.0, seed_from: p1_delay}
+  - {name: p2_adp,   metric: area_delay_product, runs: 6, concurrent: 2, fresh_first: 0, fresh_base: 0.0, fresh_min: 0.0, seed_from: p1_adp}
+
+sweep:
+  single_point: false         # full 61-config grid per design
+  target_delays: null         # null = eval.target_delays below — one consistent
+                              # set of operating points across the whole paper
+
+deepsyn:
+  time_budget: 1200           # seconds per &deepsyn job (paper: 20 min)
+  refine_runs: 50             # per post-sweep design (paper budget)
+  equal_compute_runs: null    # null = MATCHED compute: N front designs x refine_runs
+                              # (resolved at stage 4; explicit int overrides)
+  workers: 50                # cores for deepsyn; leaves headroom to run a second suite concurrently
+  double_effort: false   # optional 2x-time from-scratch baseline arm
+
+eval:
+  target_delays: [800.0, 1200.0, 1800.0]  # log-uniform (1200 = sqrt(800*1800)); 800 may pull delays <900, <800 not expected; also the sweep grid via sweep.target_delays: null
+  workers: 50

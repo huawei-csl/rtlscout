@@ -1,0 +1,78 @@
+# 16-LANE PDPU (pdpu_dot16_spire), spire only. Same flow as reduced.yaml;
+# the design is 3.1x the area of the 4-lane core, so this isolates SIZE.
+# Original header follows.
+# Reduced PDPU experiment: GLM 5.2, both languages. Phases 1-2 each run an
+# area AND a delay agent campaign (RTLRewriter recipe: P1 is decorator-free
+# structural exploration, P2 polishes the P1 elite with arith+abc; verilog
+# carries no flags). Every phase is stored as a Pareto front under fronts/
+# (fpmul layout) and evaluated at eval.target_delays, so the table's
+# area/delay/ADP columns all come from the same operating points. Phase 4
+# refines every front point and compares against deepsyn-from-scratch at
+# matched compute and at 2x effort.
+tag: pdpu16-glm
+model: openrouter:z-ai/glm-5.2
+
+benchmarks:                 # UNBLOCKED 2026-08-15: the tech_eval netlist-sim bug
+  verilog: pdpu_dot16         # (_shorten_netlist_names mangling >80-char sized
+  spirehdl: pdpu_dot16_spire  # literals) is fixed; verified 749.7um2/3605.6ps,
+                              # 2M/2M checks. Re-add the verilog line and resume
+                              # WITHOUT --new-run to fill its columns in place.
+
+top_module: pdpu_top
+ports:                      # widths only; PI/PO order comes from write_aiger -map
+  inputs: "acc:16,operands_a:128,operands_b:128"   # N=16 -> 128-bit operands
+  outputs: "result_o:16"
+
+agent:
+  max_steps: 30
+  elite_size: 2
+  target_delay: 2000.0      # the agent's own synthesis constraint
+
+# Campaign shape matches the fpmul pipeline. fresh_first pins the first N runs
+# to start from scratch (independent exploration before the elite pool takes
+# over); fresh_base/fresh_min are the decaying probability of a fresh start
+# thereafter. Phase 2 is seeded and fresh 0/0 — it ONLY improves existing
+# designs. Unset fresh_base/fresh_min inherit run_multirun's 0.5/0.1.
+campaigns_p1:
+  - {name: area,  metric: area,  runs: 6, concurrent: 2, fresh_first: 3}
+  - {name: delay, metric: delay, runs: 6, concurrent: 2, fresh_first: 3}
+  - {name: adp,   metric: area_delay_product, runs: 6, concurrent: 2, fresh_first: 3}
+campaigns_p2:
+  - {name: area,  metric: area,  runs: 6, concurrent: 2, fresh_first: 0,
+     fresh_base: 0.0, fresh_min: 0.0, seed_from: area}
+  - {name: delay, metric: delay, runs: 6, concurrent: 2, fresh_first: 0,
+     fresh_base: 0.0, fresh_min: 0.0, seed_from: delay}
+  - {name: adp,   metric: area_delay_product, runs: 6, concurrent: 2, fresh_first: 0,
+     fresh_base: 0.0, fresh_min: 0.0, seed_from: adp}
+
+front:
+  n_points: 5               # size of the phase-4 seed set (null = the Pareto
+                            # front as-is). Below the front size it truncates
+                            # but pins the min-area and min-delay extremes;
+                            # above it, it pads with the best-scoring
+                            # non-Pareto designs. Capped by available evals,
+                            # and applied before dedup. Reporting fronts
+                            # (fronts/p1_*, p2_*) are never resized.
+
+deepsyn:
+  time_budget: 1200         # s per &deepsyn trajectory (paper: 20 min)
+  refine_runs: 50           # trajectories per front point (fpmul uses 50);
+                            # the from-scratch arms match at
+                            # n_points x refine_runs, and each seed takes a
+                            # DISJOINT config slice so the two arms search
+                            # exactly the same configs
+  workers: 50               # cores per arm; the two languages run concurrently
+  double_effort: true       # 2x-budget from-scratch baseline: measured
+                            # ~0.9% on fpmul and ~0% here across three
+                            # runs, for 50% of phase-4 compute. Run it
+                            # as a one-off when the baseline is needed.
+
+eval:
+  target_delays: [2000.0, 3500.0, 5000.0]   # reporting operating points:
+                            # 2000 = the agent's own target (tight anchor,
+                            # currently infeasible for every design); 5000 is
+                            # past saturation, i.e. minimum area with timing
+                            # effectively unconstrained; 3500 is the band where
+                            # today's designs just close.
+  workers: 25               # PPA evals per language; the two languages run
+                            # concurrently, so the peak is 2x this

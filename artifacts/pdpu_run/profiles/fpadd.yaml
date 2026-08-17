@@ -1,0 +1,59 @@
+# fpadd_f16 through the PDPU pipeline shape, so its row in the generalization
+# table has the same phase structure as the PDPU columns (P1/P2 agent, per-phase
+# Pareto fronts, P4 deepsyn refine vs. from-scratch at matched compute). The
+# earlier fpadd study used P1/P2/P3 with no P4 and is not directly comparable.
+#
+# Spire-only: benchmarks/fpadd_f16 ships a Spire context/starting_point.py and a
+# reference fp_add_e5f10.v used as the correctness oracle, not as an agent
+# starting point.
+tag: fpadd-glm
+model: openrouter:z-ai/glm-5.2
+
+benchmarks:
+  spirehdl: fpadd_f16
+
+top_module: fp_add_e5f10
+ports:                      # widths only; PI/PO order comes from write_aiger -map
+  inputs: "a:16,b:16"
+  outputs: "y:16"
+
+agent:
+  max_steps: 30
+  elite_size: 2
+  target_delay: 1400.0      # just above the measured ~1337 ps floor, so the
+                            # agent gets a constraint it can actually close
+
+# Three objectives, as for the pipelined PDPU: area and delay bound the front,
+# adp is the objective that cannot be gamed by trading one for the other.
+campaigns_p1:
+  - {name: area,  metric: area,  runs: 6, concurrent: 2, fresh_first: 3}
+  - {name: delay, metric: delay, runs: 6, concurrent: 2, fresh_first: 3}
+  - {name: adp,   metric: area_delay_product, runs: 6, concurrent: 2, fresh_first: 3}
+campaigns_p2:
+  - {name: area,  metric: area,  runs: 6, concurrent: 2, fresh_first: 0,
+     fresh_base: 0.0, fresh_min: 0.0, seed_from: area}
+  - {name: delay, metric: delay, runs: 6, concurrent: 2, fresh_first: 0,
+     fresh_base: 0.0, fresh_min: 0.0, seed_from: delay}
+  - {name: adp,   metric: area_delay_product, runs: 6, concurrent: 2, fresh_first: 0,
+     fresh_base: 0.0, fresh_min: 0.0, seed_from: adp}
+
+front:
+  n_points: 5
+
+deepsyn:
+  time_budget: 1200
+  refine_runs: 50
+  workers: 50
+  double_effort: false
+
+eval:
+  target_delays: [800.0, 1200.0, 2200.0]
+                            # measured starting-point PPA (asap7, spire):
+                            #   td 700  -> 59.2 um^2 / 1337.5 ps
+                            #   td 1200 -> 59.2 um^2 / 1337.5 ps  (same: floor)
+                            #   td 2000 -> 57.4 um^2 / 1633.7 ps
+                            # so ~1337 ps is the achievable floor. 800 is the
+                            # max-effort anchor (below the floor, reports the
+                            # min-delay corner), 1400 sits just above it, 2200
+                            # is past saturation i.e. minimum area.
+  workers: 50

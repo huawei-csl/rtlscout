@@ -1,0 +1,65 @@
+# fpadd_f32 through the PDPU pipeline shape, same structure as profiles/fpadd.yaml
+# so its column in the generalization table is directly comparable to fpadd-16.
+#
+# WHY THIS BENCHMARK: fpadd_f16 (57 um^2) showed refine and from-scratch
+# statistically indistinguishable, while fpmul_f16 (~120 um^2) and PDPU-16
+# (708 um^2) both showed a clear pipeline win. fpadd_f32 (~148 um^2) repeats the
+# fpadd operator at ~2.6x the size, so it separates SIZE from OPERATOR -- which
+# fpmul cannot do.
+#
+# VERIFICATION CAVEAT: weaker than every other benchmark in the table. At f32 the
+# subnormal space is 2^24 per operand, so fpadd_f16's exhaustive subnormal
+# enumeration is unreachable and post-hoc exhaustive proof is 2^64 (vs fpmul's
+# 2^32). tb.sv samples subnormals instead; see its header for exact coverage.
+tag: fpadd32-smoke
+model: openrouter:z-ai/glm-5.2
+
+benchmarks:
+  spirehdl: fpadd_f32
+
+top_module: fp_add_e8f23
+ports:                      # widths only; PI/PO order comes from write_aiger -map
+  inputs: "a:32,b:32"
+  outputs: "y:32"
+
+agent:
+  max_steps: 10
+  elite_size: 2
+  target_delay: 2100.0      # just above the measured ~1980 ps floor, so the
+                            # agent gets a constraint it can actually close
+
+campaigns_p1:
+  - {name: area,  metric: area,  runs: 2, concurrent: 2, fresh_first: 1}
+  - {name: delay, metric: delay, runs: 2, concurrent: 2, fresh_first: 1}
+  - {name: adp,   metric: area_delay_product, runs: 2, concurrent: 2, fresh_first: 1}
+campaigns_p2:
+  - {name: area,  metric: area,  runs: 2, concurrent: 2, fresh_first: 0,
+     fresh_base: 0.0, fresh_min: 0.0, seed_from: area}
+  - {name: delay, metric: delay, runs: 2, concurrent: 2, fresh_first: 0,
+     fresh_base: 0.0, fresh_min: 0.0, seed_from: delay}
+  - {name: adp,   metric: area_delay_product, runs: 2, concurrent: 2, fresh_first: 0,
+     fresh_base: 0.0, fresh_min: 0.0, seed_from: adp}
+
+front:
+  n_points: 2
+
+deepsyn:
+  time_budget: 20
+  refine_runs: 2
+  workers: 8
+  double_effort: false
+
+eval:
+  target_delays: [2000.0]
+                            # measured starting-point PPA (asap7, spire):
+                            #   td 800  -> 148.6 um^2 / 1980.3 ps
+                            #   td 1400 -> 148.6 um^2 / 1980.3 ps  (same: floor)
+                            #   td 2000 -> 148.5 um^2 / 1994.3 ps
+                            #   td 2800 -> 145.0 um^2 / 2208.0 ps
+                            #   td 3200 -> 145.0 um^2 / 2208.0 ps  (same: min area)
+                            # so ~1980 ps is the delay floor and 145.0 um^2 the
+                            # area floor. 1200 is the max-effort anchor (below the
+                            # floor, reports the min-delay corner), 2000 sits just
+                            # above it, 2800 is past saturation i.e. minimum area.
+                            # One eval = 64 s (16.78M-vector tb).
+  workers: 50

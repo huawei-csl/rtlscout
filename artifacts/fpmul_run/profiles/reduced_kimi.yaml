@@ -1,0 +1,35 @@
+# Reduced rehearsal on OpenRouter Kimi K3 — identical shape to reduced.yaml
+# (which see for the rationale of every knob); only tag + model differ.
+# Purpose: evaluate a non-Anthropic model through the full pipeline.
+# Select with: run_all.py --profile reduced_kimi
+
+tag: kk3r
+model: openrouter:moonshotai/kimi-k3
+
+agent:
+  max_steps: 8
+  elite_size: 2
+  target_delay: 500.0
+
+campaigns_p1:
+  - {name: p1_area,  metric: area,  runs: 2, concurrent: 2, fresh_first: 1}
+  - {name: p1_delay, metric: delay, runs: 2, concurrent: 2, fresh_first: 1}
+campaigns_p2:                 # seeded + @abc_optimized; fresh 0/0 (user decision
+                              # 2026-07-28): P2 ONLY improves existing designs
+  - {name: p2_area,  metric: area,  runs: 2, concurrent: 2, fresh_first: 0, fresh_base: 0.0, fresh_min: 0.0, seed_from: p1_area}
+  - {name: p2_delay, metric: delay, runs: 2, concurrent: 2, fresh_first: 0, fresh_base: 0.0, fresh_min: 0.0, seed_from: p1_delay}
+
+sweep:
+  single_point: true          # 1 config pair per design
+  target_delays: null         # null = eval.target_delays below
+
+deepsyn:
+  time_budget: 120            # 2 min per &deepsyn job
+  refine_runs: 4
+  equal_compute_runs: null    # matched: N front designs x refine_runs
+  workers: 50
+  double_effort: false   # optional 2x-time from-scratch baseline arm
+
+eval:
+  target_delays: [800.0, 1200.0, 1800.0]  # log-uniform (1200 = sqrt(800*1800)); 800 may pull delays <900, <800 not expected; also the sweep grid via sweep.target_delays: null
+  workers: 20
