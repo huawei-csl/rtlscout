@@ -366,6 +366,25 @@ Insights:
 
 IMPORTANT: Make sure to use @abc_optimized on your best designs to improve them
 further. Applying the decorator is a 2-3 line change.
+
+IMPORTANT: the decorator optimizes ONLY the logic inside the callable it
+decorates, and it engages only on a function whose arguments are Exprs —
+decorating a `Component` subclass does nothing at all (it is returned
+unchanged, with no error). How much logic you put inside decides the result:
+
+- A small leaf helper (a few operations) gains nothing and can make area
+  WORSE: a shared helper is replaced by an AIG-derived copy at every call
+  site, so the sharing is lost.
+- The gains come from giving ABC one large block of logic that optimizes well
+  together — typically most of the combinational datapath in a single
+  function. Splitting that same logic across several decorated functions
+  forfeits the cross-block optimization and usually does worse.
+
+So you will usually need to REFACTOR first: pull the datapath out of
+`elaborate()` into a module-level function taking the input Exprs and
+returning the output Exprs, decorate that function, and call it from
+`elaborate()`. Then evaluate — keep the refactor only if the measured cost
+improves.
 """
 
 
