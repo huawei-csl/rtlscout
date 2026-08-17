@@ -17,6 +17,8 @@ from tech_eval.ppa_extract.core.template import (
     make_vcd_flags,
     lib_time_to_ps,
     ps_to_lib_time,
+    power_section_probabilistic,
+    power_section_template,
     sta_script_template,
     NETLIST_FUNCTIONAL_SIM_CELL_MODELS,
     verilator_common_flags,
@@ -30,10 +32,11 @@ PPA_REPORT_TIME_UNIT = "ps"
 
 
 def _parse_sta_out(sta_out_path: str):
-    """Parse delay / area / power / worst_slack / worst_timing_path from an
-    OpenROAD STA log. Returns those five plus the raw ``lines`` (for diagnostics).
-    Any value that didn't appear comes back as ``None``."""
-    delay = area = power = worst_slack = None
+    """Parse delay / area / power-split / worst_slack / worst_timing_path from
+    an OpenROAD STA log. ``power_split`` is (internal, switching, leakage,
+    total) in W from report_power's Total row, or ``None`` when no power was
+    reported. Returns those five plus the raw ``lines`` (for diagnostics)."""
+    delay = area = power_split = worst_slack = None
     worst_timing_path = None
     with open(sta_out_path, "r") as f:
         lines = f.readlines()
@@ -64,11 +67,98 @@ def _parse_sta_out(sta_out_path: str):
             elif words[0] == "Design" and area is None:
                 # Fallback: integer-rounded `Design area <N> um^2 ...`.
                 area = float(words[2])
-            if words[0] == "Total":
-                power = float(words[-2])
+            if words[0] == "Total" and len(words) >= 5 and power_split is None:
+                try:
+                    power_split = tuple(float(w) for w in words[1:5])
+                except ValueError:
+                    pass
     if report_checks_lines:
         worst_timing_path = "".join(report_checks_lines).strip()
-    return delay, area, power, worst_slack, worst_timing_path, lines
+    return delay, area, power_split, worst_slack, worst_timing_path, lines
+
+
+def _vcd_clock_period_ps(vcd_path: str, clk_name: str = "clk") -> float:
+    """Clock period (ps) from the first two '1' events of the testbench clock
+    in the VCD header/stream -- the time base the power report must use. The
+    first `$var` named ``clk_name`` is the testbench's (its scope opens first)."""
+    scale = {"fs": 1e-3, "ps": 1.0, "ns": 1e3, "us": 1e6, "ms": 1e9, "s": 1e12}
+    ident = None
+    unit_ps = None
+    now = None
+    in_timescale = False
+    rises = []
+    with open(vcd_path) as f:
+        for line in f:
+            line = line.strip()
+            if unit_ps is None and (in_timescale or line.startswith("$timescale")):
+                in_timescale = "$end" not in line
+                m = re.search(r"(\d+)\s*(fs|ps|ns|us|ms|s)\b", line)
+                if m:
+                    unit_ps = int(m.group(1)) * scale[m.group(2)]
+                continue
+            if ident is None and line.startswith("$var"):
+                w = line.split()
+                if len(w) >= 5 and w[4] == clk_name:
+                    ident = w[3]
+            elif line.startswith("#"):
+                now = int(line[1:])
+            elif ident is not None and line == "1" + ident and now is not None:
+                rises.append(now)
+                if len(rises) == 2:
+                    break
+    if unit_ps is None or len(rises) < 2:
+        raise RuntimeError(
+            f"Could not measure the clock period from {vcd_path} "
+            f"(timescale={unit_ps}, rising edges found={len(rises)}); the "
+            f"testbench must dump a toggling '{clk_name}' via the VCD hook.")
+    return (rises[1] - rises[0]) * unit_ps
+
+def _shorten_netlist_names(netlist_path: str, max_len: int = 80) -> int:
+    """Rename identifiers longer than max_len in the mapped netlist, in place.
+    Verilator 5.040 hash-renames over-long names and can ICE in the reverse
+    lookup (V3String.cpp "String not in reverse hash map"); shortening before
+    ANY consumer keeps the sim netlist, VCD names and STA power view agreed.
+
+    Tokenises into number literals / escaped identifiers / plain identifiers and
+    renames only the last two, matched IN FULL. Number literals MUST be matched
+    first and left alone: an identifier regex otherwise matches the body of a
+    sized literal (the `b0101...` of `114'b0101...`), and any literal wider than
+    max_len then gets "renamed" to `114'vh_<hash>` -- invalid Verilog. That bit
+    only shows up on designs with wide constants (observed on a 16-lane PDPU:
+    a 114-bit index_lut -> "syntax error, unexpected IDENTIFIER").
+    """
+    import hashlib
+    import re
+
+    with open(netlist_path) as f:
+        text = f.read()
+
+    token = re.compile(
+        r"(?P<num>[0-9]*\s*'\s*[sS]?[bBoOdDhH][0-9a-fA-FxXzZ?_]+)"
+        r"|(?P<esc>\\[^\s]+)"
+        r"|(?P<idt>[A-Za-z_][A-Za-z0-9_$]*)"
+    )
+    mapping: dict = {}
+
+    def _repl(m):
+        if m.lastgroup == "num":
+            return m.group(0)
+        name = m.group(0)
+        if len(name) <= max_len:
+            return name
+        short = mapping.get(name)
+        if short is None:
+            short = "vh_" + hashlib.md5(name.encode()).hexdigest()[:12]
+            mapping[name] = short
+        return short
+
+    text = token.sub(_repl, text)
+    if not mapping:
+        return 0
+    with open(netlist_path, "w") as f:
+        f.write(text)
+    return len(mapping)
+
 
 def parse_verilator_output(output: str, test_name: Optional[str] = None) -> None:
     if "Testbench completed successfully" not in output:
@@ -291,13 +381,6 @@ def get_ppa(
     # annotation counts below (0 pins annotated -> warning), not silently.
     tb_scope_name = f"{tb_name}/dut"
 
-    if use_vcd_for_power:
-        power_activity_cmd = (
-            f"read_vcd  -scope {tb_scope_name} {{{verilator_vcd_path}}}\n"
-            "report_activity_annotation")
-    else:
-        power_activity_cmd = "set_power_activity -input -activity 0.5" # generic input activity of 0.5
-
     liberty_args = " ".join(f"-liberty {p}" for p in _lib_paths)
     fa_ha_inference_cmds = get_fa_ha_inference_cmds(use_fa_ha_inference, cfg)
 
@@ -316,16 +399,6 @@ def get_ppa(
     )
     with open(yosys_script_path, "w") as f:
         f.write(yosys_script)
-    sta_script = sta_script_template.format(
-        lef_paths_subst=_lef_paths_subst,
-        lib_paths_subst=_lib_paths_subst,
-        verilog_path=netlist_path,
-        top_module_name=top_module_name,
-        power_activity_cmd=power_activity_cmd,
-        sta_target_delay=ps_to_lib_time(target_delay, cfg),
-    )
-    with open(sta_script_path, "w") as f:
-        f.write(sta_script)
     with open(constr_path, "w") as f:
         f.write(_abc_constr)
 
@@ -359,6 +432,12 @@ def get_ppa(
         )
 
     if run_verilator:
+        # shorten pathological flattened names ahead of the netlist sim so
+        # Verilator never hash-renames (5.040 ICE) and VCD/STA names agree
+        n_short = _shorten_netlist_names(netlist_path)
+        if n_short:
+            print(f"[get_ppa] shortened {n_short} over-long netlist identifiers")
+
         verilator_build_dir = os.path.abspath(os.path.join(worker_path, "out"))
         verilator_log_path = os.path.join(worker_path, "verilator_netlist_out.log")
 
@@ -411,11 +490,37 @@ def get_ppa(
                 run_cwd=worker_path if run_in_worker_path else None,
             )
 
+    # The power section needs the simulated clock period, measured from the
+    # VCD the netlist sim just produced -- so the STA script is written here,
+    # after the (optional) Verilator run.
+    vcd_period_ps = None
+    if use_vcd_for_power:
+        vcd_period_ps = _vcd_clock_period_ps(verilator_vcd_path)
+        power_section = power_section_template.format(
+            vcd_clock_period=ps_to_lib_time(vcd_period_ps, cfg),
+            tb_scope_name=tb_scope_name,
+            vcd_path=verilator_vcd_path,
+        )
+    else:
+        power_section = power_section_probabilistic
+    sta_script = sta_script_template.format(
+        lef_paths_subst=_lef_paths_subst,
+        lib_paths_subst=_lib_paths_subst,
+        verilog_path=netlist_path,
+        top_module_name=top_module_name,
+        power_section=power_section,
+        sta_target_delay=ps_to_lib_time(target_delay, cfg),
+    )
+    with open(sta_script_path, "w") as f:
+        f.write(sta_script)
+
     os.system(f"openroad -exit {sta_script_path} > {sta_out_path}")
 
-    delay, area, power, worst_slack, worst_timing_path, lines = _parse_sta_out(sta_out_path)
+    delay, area, power_split, worst_slack, worst_timing_path, lines = _parse_sta_out(sta_out_path)
 
-    missing = [name for name, val in [("delay", delay), ("area", area), ("power", power), ("worst_slack", worst_slack)] if val is None]
+    required = [("delay", delay), ("area", area), ("worst_slack", worst_slack),
+                ("power", power_split)]
+    missing = [name for name, val in required if val is None]
 
     if missing:
         try:
@@ -449,21 +554,38 @@ def get_ppa(
                 f"testbench dump hook makes report_power fall back to default "
                 f"activities (silently wrong numbers); see {sta_out_path}.")
 
-    return {
+    result = {
         "delay": lib_time_to_ps(delay, cfg),
         "area": area,
-        "power": power,
         "worst_slack": worst_slack,
         "target_delay": target_delay,
         "worker_path": worker_path,
         "delay_time_unit": PPA_REPORT_TIME_UNIT,
         "worst_timing_path": worst_timing_path,
     }
+    if use_vcd_for_power:
+        # All power fields at the achieved design point: dynamic terms are
+        # rebased from the simulated clock to fmax = 1/achieved-delay (valid
+        # because NLDM power is per-transition energy x rate); leakage is
+        # rate-independent and passes through.
+        internal, switching, leakage, _reported_total = power_split
+        scale = vcd_period_ps / result["delay"]
+        result["power_internal"] = internal * scale
+        result["power_switching"] = switching * scale
+        result["power_leakage"] = leakage
+        result["power_total"] = (internal + switching) * scale + leakage
+    else:
+        # relative-only estimate (0.5 default activity at the script clock)
+        result["power_probabilistic_fixed_clock"] = power_split[3]
+    return result
     
 def remove_worker_path(worker_path: str) -> None:
     """Remove the worker path directory and its contents."""
     if os.path.isdir(worker_path):
-        shutil.rmtree(worker_path)
+        if os.environ.get("TECH_EVAL_KEEP_WORKDIR"):
+            print(f"[get_ppa] keeping workdir {worker_path}")
+        else:
+            shutil.rmtree(worker_path)
 
 def _get_ppa_mp(args):
     return get_ppa(*args)

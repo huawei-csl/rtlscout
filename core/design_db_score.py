@@ -80,7 +80,7 @@ def score_designs(spec_keys: Optional[Sequence[str]] = None, *, db: Optional[Any
             values = {"area": stats.get("area"),
                       "delay": stats.get("delay", stats.get("runtime")),
                       "adp": stats.get("adp", stats.get("area_delay_product")),
-                      "edap": stats.get("edap")}
+                      "edap": stats.get("access_area_runtime_product", stats.get("edap"))}
             if values["adp"] is None and values["area"] is not None and values["delay"] is not None:
                 values["adp"] = values["area"] * values["delay"]
             values = {k: v for k, v in values.items() if v is not None}

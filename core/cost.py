@@ -2,7 +2,7 @@
 
 Implementations:
 - YosysTransistorCost: estimated transistor count via Yosys + ABC (fast, no PDK)
-- PPADelayCost / PPAAreaCost / PPAPowerCost: PPA via Yosys + OpenROAD STA (requires tech_eval)
+- PPADelayCost / PPAAreaCost / PPAEnergyCost: PPA via Yosys + OpenROAD STA (requires tech_eval)
 """
 
 import json
@@ -1125,7 +1125,8 @@ def _tb_output_parser(output: str) -> None:
 
 
 def _ppa_worker(rtl_paths, target_delay, worker_path, top_module, result_queue,
-                tb_path=None, data_files=None, technology="asap7"):
+                tb_path=None, data_files=None, technology="asap7",
+                use_vcd_for_power=False):
     """Run get_ppa() in a subprocess; put ('ok', ppa) or ('error', msg) in result_queue."""
     # Become a process-group leader so a timeout can kill the whole tool tree;
     # terminating just this worker orphans yosys/abc/OpenROAD children for hours.
@@ -1147,6 +1148,8 @@ def _ppa_worker(rtl_paths, target_delay, worker_path, top_module, result_queue,
             data_files=data_files,
             run_in_worker_path=True if data_files is not None else False,
             technology=technology,
+            save_vcd=use_vcd_for_power,
+            use_vcd_for_power=use_vcd_for_power,
         )
         result_queue.put(("ok", ppa))
     except Exception as e:
@@ -1157,14 +1160,15 @@ class PPACost(CostMetric):
     """Base class for PPA cost metrics using tech_eval's get_ppa().
 
     Subclasses set ``_ppa_key`` and ``_name`` to select which PPA dimension
-    (delay, area, power) is used as the cost value.
+    (delay, area, ...) is used as the cost value.
     """
 
     _ppa_key: str  # key in get_ppa() result dict
     _name: str     # metric_name returned to callers
 
     def __init__(self, target_delay: float = 500.0, ppa_timeout: Optional[int] = None,
-                 technology: str = "asap7", run_netlist_sim: bool = True):
+                 technology: str = "asap7", run_netlist_sim: bool = True,
+                 use_vcd_for_power: bool = False):
         self.target_delay = target_delay
         # defaults suits small/medium designs; override via RTLSCOUT_PPA_TIMEOUT for heavy ones.
         if ppa_timeout is None:
@@ -1177,6 +1181,12 @@ class PPACost(CostMetric):
         # netlist). Set False to skip it when RTL correctness already covers the
         # design (e.g. the matmul benchmark) — synthesis + STA then run in seconds.
         self.run_netlist_sim = run_netlist_sim
+        # When True, the netlist sim dumps a per-net VCD and the power report
+        # annotates real activities from it (required by the power/energy
+        # metrics); needs run_netlist_sim and a tb with the VCD dump hook.
+        if use_vcd_for_power and not run_netlist_sim:
+            raise ValueError("use_vcd_for_power requires run_netlist_sim=True")
+        self.use_vcd_for_power = use_vcd_for_power
 
     @property
     def metric_name(self) -> str:
@@ -1199,6 +1209,12 @@ class PPACost(CostMetric):
 
         tb_file = workdir / "tb.sv"
         tb_path = str(tb_file) if (tb_file.exists() and self.run_netlist_sim) else None
+        if self.use_vcd_for_power and tb_path is None:
+            return CostResult(
+                ok=False, value=None, stats={},
+                error="use_vcd_for_power requires a tb.sv testbench "
+                      "(with the `ifdef VCD_FILE_PATH dump hook)",
+            )
 
         # Collect auxiliary data files (e.g. vectors.dat) for data-driven testbenches
         data_files = [str(f) for f in workdir.glob("*.dat")]
@@ -1214,7 +1230,8 @@ class PPACost(CostMetric):
                 args=(rtl_paths, self.target_delay, worker_path,
                       top_module or "top", result_queue),
                 kwargs={"tb_path": tb_path, "data_files": data_files or None,
-                        "technology": self.technology},
+                        "technology": self.technology,
+                        "use_vcd_for_power": self.use_vcd_for_power},
             )
             proc.start()
             # Drain the queue WHILE waiting: a result bigger than the pipe buffer
@@ -1289,12 +1306,56 @@ class PPAAreaCost(PPACost):
     tiebreaker_key = "delay"
 
 
-class PPAPowerCost(PPACost):
-    """Cost metric: total power via Yosys + OpenROAD STA."""
-    _ppa_key = "power"
-    _name = "power"
-    primary_key = "power"
-    tiebreaker_key = "delay"
+class PPAEnergyCost(PPACost):
+    """Cost metric: measured circuit energy (fJ) of the workload.
+
+    energy = power_total at fmax × runtime, from VCD-annotated gate-level
+    activities (dynamic rebased to the achieved clock, leakage unscaled).
+    Unlike power-at-fmax — which an optimizer could game by simply slowing the
+    design down — energy is a property of the computation. Requires sim_stats
+    cycles plus a tb.sv with the VCD dump hook.
+    """
+    _ppa_key = "area"  # base extracts area; we override to fold in power + runtime
+    _name = "energy"
+    primary_key = "energy"
+    tiebreaker_key = "area"
+    cost_description = ("energy = measured circuit energy of the workload (fJ): total power at "
+                        "fmax (VCD-annotated gate-level activities; internal + switching rebased "
+                        "to the achieved clock, plus leakage) × runtime. Lower = less switched "
+                        "capacitance and leakage for the same job. "
+                        "power_internal/power_switching/power_leakage/power_total (W at fmax) "
+                        "are reported alongside.")
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("use_vcd_for_power", True)
+        super().__init__(*args, **kwargs)
+
+    def evaluate(self, workdir: Path, top_module: Optional[str] = None,
+                 design_file: Optional[Path] = None,
+                 sim_stats: Optional[Dict] = None) -> CostResult:
+        cycles = (sim_stats or {}).get("cycles")
+        if cycles is None:
+            return CostResult(
+                ok=False, value=None, stats={},
+                error="No cycle count available; the testbench must print "
+                      "'TB_CYCLES total=<C>' for the energy metric",
+            )
+        result = super().evaluate(workdir, top_module, design_file)
+        if not result.ok:
+            return result
+        delay = result.stats.get("delay")
+        power_total = result.stats.get("power_total")
+        if delay is None or power_total is None:
+            return CostResult(ok=False, value=None, stats=result.stats,
+                              error="PPA extraction missing delay/power_total for energy")
+        cycles = float(cycles)
+        runtime = cycles * float(delay)
+        energy_fj = float(power_total) * runtime * 1e3  # W × ps = 1e-12 J = 1000 fJ
+        result.value = energy_fj
+        result.stats["cycles"] = cycles
+        result.stats["runtime"] = runtime
+        result.stats["energy"] = energy_fj  # first-class stats key for primary_key lookups
+        return result
 
 
 class PPAAreaDelayProductCost(PPACost):
@@ -1454,79 +1515,81 @@ class AreaRuntimeProductCost(PPACost):
 
 
 # ---------------------------------------------------------------------------
-# Data-movement (energy) cost metrics. Read/write accesses are the dominant
+# Data-movement (access) cost metrics. Read/write accesses are the dominant
 # energy cost in real accelerators (a fetch costs far more than the MAC that
 # consumes it), so penalizing them rewards on-chip operand reuse / buffering.
 # Consume sim_stats['reads'] and ['writes'] from a testbench that prints
 # `TB_READS total=<R>` / `TB_WRITES total=<W>`.
 # ---------------------------------------------------------------------------
 
-def _energy_from_sim(sim_stats):
-    """Return (reads, writes, energy) floats, or (None, None, None) if missing."""
+def _accesses_from_sim(sim_stats):
+    """Return (reads, writes, accesses) floats, or (None, None, None) if missing."""
     s = sim_stats or {}
     reads, writes = s.get("reads"), s.get("writes")
     if reads is None or writes is None:
         return None, None, None
     reads, writes = float(reads), float(writes)
-    return reads, writes, reads + writes  # equal weight: energy = total memory accesses
+    return reads, writes, reads + writes  # equal weight: accesses = total memory accesses
 
 
-_ENERGY_MISSING = ("No read/write counts available; the testbench must print "
-                   "'TB_READS total=<R>' and 'TB_WRITES total=<W>' for the energy/edap metrics")
+_ACCESS_MISSING = ("No read/write counts available; the testbench must print "
+                   "'TB_READS total=<R>' and 'TB_WRITES total=<W>' for the access metrics")
 
 
-class EnergyCost(CostMetric):
-    """Cost metric: data-movement energy = read + write memory accesses (sim only).
+class AccessCost(CostMetric):
+    """Cost metric: data movement = read + write memory accesses (sim only).
 
     Lower = more on-chip reuse (fewer re-fetches). Runs no synthesis. Note: used
     ALONE this drives toward maximal buffering (minimize fetches at any area);
-    use `edap` to balance reuse against buffer area (where tiling is optimal).
+    use `access_area_runtime_product` to balance reuse against buffer area (where tiling is optimal).
     """
 
-    primary_key = "energy"
+    primary_key = "accesses"
     tiebreaker_key = "reads"
-    cost_description = ("energy = read + write memory accesses (data movement). In real "
-                        "accelerators a fetch costs far more than a MAC, so lower energy = "
+    cost_description = ("accesses = read + write memory accesses (data movement). In real "
+                        "accelerators a fetch costs far more than a MAC, so fewer accesses = "
                         "more operand reuse / buffering. No synthesis is run.")
 
     @property
     def metric_name(self) -> str:
-        return "energy"
+        return "accesses"
 
     def evaluate(self, workdir: Path, top_module: Optional[str] = None,
                  design_file: Optional[Path] = None,
                  sim_stats: Optional[Dict] = None) -> CostResult:
-        reads, writes, energy = _energy_from_sim(sim_stats)
-        if energy is None:
-            return CostResult(ok=False, value=None, stats={}, error=_ENERGY_MISSING)
-        return CostResult(ok=True, value=energy,
-                          stats={"energy": energy, "reads": reads, "writes": writes})
+        reads, writes, accesses = _accesses_from_sim(sim_stats)
+        if accesses is None:
+            return CostResult(ok=False, value=None, stats={}, error=_ACCESS_MISSING)
+        return CostResult(ok=True, value=accesses,
+                          stats={"accesses": accesses, "reads": reads, "writes": writes})
 
 
-class EdapCost(PPACost):
-    """Cost metric: edap = energy**k × runtime × area (energy-weighted EDAP).
+class AccessAreaRuntimeProductCost(PPACost):
+    """Cost metric: access_area_runtime_product = accesses**k × runtime × area.
 
-    runtime = cycles × achieved delay, so edap = energy**k × cycles × delay × area
-    — i.e. (area_runtime_product × energy) at k=1, the faithful energy-delay-area product. It
-    penalizes re-fetching (energy) AND big reuse buffers (area) at once, so the
-    optimum reuses operands without over-buffering (rewards tiling).
+    runtime = cycles × achieved delay; accesses = testbench-counted memory
+    reads + writes, a data-movement proxy for the energy the external memories
+    spend. It penalizes re-fetching (accesses) AND big reuse buffers (area) at
+    once, so the optimum reuses operands without over-buffering (rewards tiling).
 
     ``energy_exp`` (k) tunes how hard reuse is rewarded relative to area/latency:
-    k=1 is the balanced EDAP; k>1 pushes toward more reuse/tiling; k=0 reduces to
-    plain adp (energy ignored). It must be an EXPONENT, not a linear weight —
-    scaling one factor of a product doesn't change which design is optimal.
-    Requires sim_stats reads/writes/cycles plus synthesis area+delay.
+    k=1 is balanced; k>1 pushes toward more reuse/tiling; k=0 reduces to plain
+    area_runtime_product (accesses ignored). It must be an EXPONENT, not a linear
+    weight — scaling one factor of a product doesn't change which design is
+    optimal. Requires sim_stats reads/writes/cycles plus synthesis area+delay.
+    For MEASURED circuit energy use `energy_area_runtime_product` instead.
     """
 
-    _ppa_key = "area"  # base extracts area; we override to fold in energy + runtime
-    _name = "edap"
-    primary_key = "edap"
+    _ppa_key = "area"  # base extracts area; we override to fold in accesses + runtime
+    _name = "access_area_runtime_product"
+    primary_key = "access_area_runtime_product"
     tiebreaker_key = "area"
-    cost_description = ("edap = energy**k × runtime × area (energy-weighted energy-delay-area "
-                        "product), energy = read+write accesses, runtime = cycles × delay. "
-                        "It penalizes re-fetching AND large reuse buffers at once, so the sweet "
-                        "spot tiles/reuses operands rather than re-reading or over-buffering. "
-                        "k (energy_exp) tunes how hard reuse is weighted.")
+    cost_description = ("access_area_runtime_product = accesses**k × runtime × area, "
+                        "accesses = read+write memory accesses (data-movement proxy), "
+                        "runtime = cycles × delay. It penalizes re-fetching AND large reuse "
+                        "buffers at once, so the sweet spot tiles/reuses operands rather than "
+                        "re-reading or over-buffering. k (energy_exp) tunes how hard reuse is "
+                        "weighted.")
 
     def __init__(self, *args, energy_exp: float = 1.0, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1536,11 +1599,11 @@ class EdapCost(PPACost):
                  design_file: Optional[Path] = None,
                  sim_stats: Optional[Dict] = None) -> CostResult:
         s = sim_stats or {}
-        reads, writes, energy = _energy_from_sim(sim_stats)
+        reads, writes, accesses = _accesses_from_sim(sim_stats)
         cycles = s.get("cycles")
-        if energy is None or cycles is None:
+        if accesses is None or cycles is None:
             return CostResult(ok=False, value=None, stats={},
-                              error=_ENERGY_MISSING + " (plus 'TB_CYCLES total=<C>')")
+                              error=_ACCESS_MISSING + " (plus 'TB_CYCLES total=<C>')")
         result = super().evaluate(workdir, top_module, design_file)
         if not result.ok:
             return result
@@ -1548,17 +1611,83 @@ class EdapCost(PPACost):
         delay = result.stats.get("delay")
         if area is None or delay is None:
             return CostResult(ok=False, value=None, stats=result.stats,
-                              error="PPA extraction missing area or delay for edap")
+                              error="PPA extraction missing area or delay for access_area_runtime_product")
         cycles = float(cycles)
         runtime = cycles * float(delay)
-        edap = (energy ** self.energy_exp) * runtime * float(area)
-        result.value = edap
+        aarp = (accesses ** self.energy_exp) * runtime * float(area)
+        result.value = aarp
         result.stats["reads"] = reads
         result.stats["writes"] = writes
-        result.stats["energy"] = energy
+        result.stats["accesses"] = accesses
         result.stats["cycles"] = cycles
         result.stats["runtime"] = runtime
-        result.stats["edap"] = edap  # first-class stats key for primary_key lookups
+        result.stats["access_area_runtime_product"] = aarp  # first-class stats key for primary_key lookups
+        return result
+
+
+class EnergyAreaRuntimeProductCost(PPACost):
+    """Cost metric: energy_area_runtime_product = energy × area × runtime.
+
+    energy is the MEASURED circuit energy of the workload (fJ): total power at
+    fmax (VCD-annotated gate-level activities, dynamic rebased to the achieved
+    clock, leakage unscaled) × runtime. The measured energy-delay-area product.
+    Requires sim_stats cycles plus a tb.sv with the VCD dump hook.
+    """
+
+    _ppa_key = "area"  # base extracts area; we override to fold in energy + runtime
+    _name = "energy_area_runtime_product"
+    primary_key = "energy_area_runtime_product"
+    tiebreaker_key = "area"
+    cost_description = ("energy_area_runtime_product = energy × area × runtime (measured "
+                        "energy-delay-area product). energy (fJ) = measured circuit energy of "
+                        "the workload: power_total at fmax × runtime, from VCD-annotated "
+                        "gate-level activities. runtime = cycles × delay. All power fields are "
+                        "reported at the achieved design point (W at fmax).")
+
+    def __init__(self, *args, energy_exp: float = 1.0, **kwargs):
+        kwargs.setdefault("use_vcd_for_power", True)
+        super().__init__(*args, **kwargs)
+        self.energy_exp = energy_exp
+        if energy_exp != 1.0:
+            # agent-visible: the objective text must state the actual exponent
+            self.cost_description = (
+                f"energy_area_runtime_product = energy**{energy_exp:g} × area × runtime "
+                f"(measured energy weighted with exponent k={energy_exp:g}). energy (fJ) = "
+                "measured circuit energy of the workload: power_total at fmax × runtime, "
+                "from VCD-annotated gate-level activities. runtime = cycles × delay. "
+                "The exponent weights energy more strongly than area and runtime: "
+                "reducing energy pays off superlinearly, buying cycle cuts with "
+                "replicated clocked hardware is penalized accordingly.")
+
+    def evaluate(self, workdir: Path, top_module: Optional[str] = None,
+                 design_file: Optional[Path] = None,
+                 sim_stats: Optional[Dict] = None) -> CostResult:
+        cycles = (sim_stats or {}).get("cycles")
+        if cycles is None:
+            return CostResult(
+                ok=False, value=None, stats={},
+                error="No cycle count available; the testbench must print "
+                      "'TB_CYCLES total=<C>' for the energy_area_runtime_product metric",
+            )
+        result = super().evaluate(workdir, top_module, design_file)
+        if not result.ok:
+            return result
+        area = result.stats.get("area")
+        delay = result.stats.get("delay")
+        power_total = result.stats.get("power_total")
+        if area is None or delay is None or power_total is None:
+            return CostResult(ok=False, value=None, stats=result.stats,
+                              error="PPA extraction missing area/delay/power_total "
+                                    "for energy_area_runtime_product")
+        cycles = float(cycles)
+        runtime = cycles * float(delay)
+        energy_fj = float(power_total) * runtime * 1e3  # W × ps = 1e-12 J = 1000 fJ
+        earp = (energy_fj ** self.energy_exp) * float(area) * runtime
+        result.value = earp
+        result.stats["cycles"] = cycles
+        result.stats["runtime"] = runtime
+        result.stats["energy"] = energy_fj
+        result.stats["energy_area_runtime_product"] = earp  # first-class stats key for primary_key lookups
         return result
 
 
@@ -1570,7 +1699,6 @@ COST_METRICS = {
     "transistors": YosysTransistorCost,
     "delay": PPADelayCost,
     "area": PPAAreaCost,
-    "power": PPAPowerCost,
     "area_delay_product": PPAAreaDelayProductCost,
     "sky130_adp": Sky130ADPCost,
     "area_delay_product_fast": Asap7FastADPCost,
@@ -1588,8 +1716,10 @@ COST_METRICS = {
     "cycles": CyclesCost,
     "runtime": RuntimeCost,
     "area_runtime_product": AreaRuntimeProductCost,
-    "energy": EnergyCost,
-    "edap": EdapCost,
+    "accesses": AccessCost,
+    "energy": PPAEnergyCost,
+    "access_area_runtime_product": AccessAreaRuntimeProductCost,
+    "energy_area_runtime_product": EnergyAreaRuntimeProductCost,
 }
 
 
@@ -1600,15 +1730,16 @@ def make_cost_metric(name: str, target_delay: float = 500.0,
     """Create a CostMetric by name.
 
     Args:
-        name: One of 'transistors', 'delay', 'area', 'power', 'area_delay_product'.
+        name: One of 'transistors', 'delay', 'area', 'energy', 'area_delay_product'.
         target_delay: Target delay in {target_delay_time_unit} for PPA metrics (ignored for transistors).
         technology: Process technology for PPA metrics (ignored for transistors/sky130).
-        run_netlist_sim: For PPA metrics (delay/area/power/area_delay_product/runtime/area_runtime_product/edap),
+        run_netlist_sim: For PPA metrics (delay/area/energy/area_delay_product/runtime/area_runtime_product/access_area_runtime_product/energy_area_runtime_product),
             whether to re-simulate the synthesized gate-level netlist as a correctness
             cross-check. False skips it (much faster for large designs); ignored by
             non-PPA metrics.
-        energy_exp: For the 'edap' metric only — the exponent k in
-            edap = energy**k × runtime × area. k=1 is the balanced EDAP, k>1 weights
+        energy_exp: For the 'access_area_runtime_product' and
+            'energy_area_runtime_product' metrics — the exponent k in
+            accesses**k × runtime × area. k=1 is balanced, k>1 weights
             data-movement (reuse) harder, k=0 reduces to plain area_runtime_product. Ignored by other metrics.
     """
     if name == "transistors":
@@ -1641,11 +1772,17 @@ def make_cost_metric(name: str, target_delay: float = 500.0,
         return AigDepthResyn2Cost()
     if name == "cycles":
         return CyclesCost()  # sim-only; no synthesis, no target_delay
+    if name == "accesses":
+        return AccessCost()  # sim-only; no synthesis, no target_delay
     if name == "energy":
-        return EnergyCost()  # sim-only; no synthesis, no target_delay
-    if name == "edap":
-        return EdapCost(target_delay=target_delay, technology=technology,
-                        run_netlist_sim=run_netlist_sim, energy_exp=energy_exp)
+        return PPAEnergyCost(target_delay=target_delay, technology=technology,
+                             run_netlist_sim=run_netlist_sim)
+    if name == "access_area_runtime_product":
+        return AccessAreaRuntimeProductCost(target_delay=target_delay, technology=technology,
+                                            run_netlist_sim=run_netlist_sim, energy_exp=energy_exp)
+    if name == "energy_area_runtime_product":
+        return EnergyAreaRuntimeProductCost(target_delay=target_delay, technology=technology,
+                                            run_netlist_sim=run_netlist_sim, energy_exp=energy_exp)
     # runtime / area_runtime_product subclass PPACost and fall through to the PPA constructor
     # below so they receive target_delay / technology.
     cls = COST_METRICS.get(name)

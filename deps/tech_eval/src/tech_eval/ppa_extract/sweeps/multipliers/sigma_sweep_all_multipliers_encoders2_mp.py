@@ -194,7 +194,7 @@ def _run_case(
         raise ValueError(f"Unknown case type: {case.case_type}")
     
     # optional    
-    #comp = refactor_module_to_aig(comp.to_module(), optimize=True).to_component()
+    #comp = refactor_module_to_aig(comp.to_netlist(), optimize=True).to_component()
 
     ppa_results = []
     powers = []
@@ -221,7 +221,7 @@ def _run_case(
         remove_worker_path(worker_path)
         ppa["sigma"] = sigma
         ppa_results.append(ppa)
-        powers.append(ppa["power"])
+        powers.append(ppa["power_probabilistic_fixed_clock"])
 
     encoding_names = (encodings.a.name, encodings.b.name, encodings.y.name)
     return {
