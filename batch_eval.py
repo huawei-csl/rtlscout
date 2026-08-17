@@ -169,8 +169,9 @@ def main():
             if per_design_metrics.exists():
                 entry = json.loads(per_design_metrics.read_text())
 
-        # Find design files (single .v or multiple run_*.v)
-        v_files = sorted(design_dir.glob("*.v"))
+        # Find design files (single .v/.sv or multiple run_*.v). Verilog agents
+        # often write SystemVerilog, which the eval flow handles either way.
+        v_files = sorted(design_dir.glob("*.v")) + sorted(design_dir.glob("*.sv"))
         # Exclude testbench
         v_files = [f for f in v_files if f.name not in ("tb.sv", "tb.v")]
         if not v_files:

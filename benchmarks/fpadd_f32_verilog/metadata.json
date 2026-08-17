@@ -1,0 +1,12 @@
+{
+  "name": "fpadd_f32_verilog",
+  "module_name": "fp_add_e8f23",
+  "tb_module": "tb",
+  "language": "verilog",
+  "starting_point": "context/starting_point.v",
+  "testbench_note": "tb.sv is byte-identical to benchmarks/fpadd_f32 (the Spire variant): a directed golden-referenced tb, 16.78M vectors, embedded fp_add_e8f23_ref. Both language arms are scored on exactly the same stimuli.",
+  "source": {
+    "design": "Verilog arm of fpadd_f32. context/starting_point.v is the SAME starting design as the Spire arm, rendered to Verilog by Spire (FpAdd EW=8 FW=23 subnormals=True), so neither language starts from an advantage.",
+    "oracle": "tb.sv embeds fp_add_e8f23_ref, the benchmark's reference Verilog; subnormals are sampled, not enumerated (2^24 per operand makes exhaustive enumeration unreachable at f32)."
+  }
+}
