@@ -91,7 +91,7 @@ def test1():
     with_clock = False
 
     if use_simple_generation:
-        module = mult.to_module(module_name, with_clock=with_clock)
+        module = mult.to_netlist(module_name, with_clock=with_clock)
         rtl_path = "int_multiplier.v"
         module.to_verilog_file(rtl_path)
         top_module_name = module.name

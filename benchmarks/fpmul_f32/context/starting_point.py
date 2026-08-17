@@ -10,5 +10,5 @@ component = FpMulSN(
     FW=23,
     subnormals=True,
 )
-m = component.to_module("fp_mul_e8f23", with_clock=False, with_reset=False)
+m = component.to_netlist("fp_mul_e8f23", with_clock=False, with_reset=False)
 m.to_verilog_file("design.v")

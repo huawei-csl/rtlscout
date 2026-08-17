@@ -10,5 +10,5 @@ component = FpAdd(
     FW=10,
     subnormals=True,
 )
-m = component.to_module("fp_add_e5f10", with_clock=False, with_reset=False)
+m = component.to_netlist("fp_add_e5f10", with_clock=False, with_reset=False)
 m.to_verilog_file("design.v")

@@ -28,7 +28,7 @@ def run_ppa_mp():
         fsa_cls=FSAOption.PREFIX_SKLANSKY.value,
     )
 
-    module = mult.to_module(f"Mul{n_bits}", with_clock=True)
+    module = mult.to_netlist(f"Mul{n_bits}", with_clock=True)
 
     rtl_path = "int_multiplier.v"
     module.to_verilog_file(rtl_path)

@@ -147,7 +147,7 @@ def test_mmac_core_sign_magnitude_vector_simulation() -> None:
 
 
     comp = MatmulAccumulateComponent(core_cfg, signed_io_type=False)
-    module = comp.to_module()
+    module = comp.to_netlist()
 
     vectors = _build_vectors_encoding(comp, encoding=encoding, num_vectors=50, sigma=sigma)
 

@@ -86,7 +86,7 @@ def test1():
     save_vcd = False
 
     if use_simple_generation:
-        module = mult.to_module(module_name, with_clock=True)
+        module = mult.to_netlist(module_name, with_clock=True)
         rtl_path = "int_multiplier.v"
         module.to_verilog_file(rtl_path)
         top_module_name = module.name

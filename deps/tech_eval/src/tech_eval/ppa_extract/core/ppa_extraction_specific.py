@@ -91,7 +91,7 @@ def _run_single(
     
     # generate one instance of the design
     impl : Component = config.gen_instance()
-    module = impl.to_module(f"{design_prefix}", with_clock=True)
+    module = impl.to_netlist(f"{design_prefix}", with_clock=True)
     
     basic = vectors is None
     if basic:

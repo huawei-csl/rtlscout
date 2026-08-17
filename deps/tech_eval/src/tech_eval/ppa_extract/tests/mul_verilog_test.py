@@ -77,7 +77,7 @@ design_prefix = "design"
 
 # generate one instance of the design
 impl : Component = config.gen_instance()
-module = impl.to_module(f"{design_prefix}", with_clock=True)
+module = impl.to_netlist(f"{design_prefix}", with_clock=True)
 
 # print verilog
 module.to_verilog_file(f"{design_prefix}.v")

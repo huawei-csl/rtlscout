@@ -113,7 +113,7 @@ def _build_optimised_module(factory: Callable[[], Component], objective: str, mo
     comp = factory()
     if objective != "none":
         replace_arithmetic_ops(comp, ArithmeticAutoConfig(objective=objective))
-    return comp, comp.to_module(module_name, with_clock=True)
+    return comp, comp.to_netlist(module_name, with_clock=True)
 
 
 def _prepare_design(

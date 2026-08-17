@@ -123,7 +123,7 @@ def run_component_with_vectors(
     def _join(name: str) -> str:
         return os.path.join(base_dir, name)
 
-    module: Module = component.to_module(module_name, with_clock=with_clock)
+    module: Module = component.to_netlist(module_name, with_clock=with_clock)
     if not vectors:
         raise ValueError("No vectors generated for the current configuration.")
 

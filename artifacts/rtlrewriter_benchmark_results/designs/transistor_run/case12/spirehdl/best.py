@@ -70,5 +70,5 @@ class Example(Component):
 
 comp = Example()
 replace_arithmetic_ops(comp, ArithmeticAutoConfig(objective="area"))
-module = comp.to_module("example")
+module = comp.to_netlist("example")
 module.to_verilog_file("design.v")
