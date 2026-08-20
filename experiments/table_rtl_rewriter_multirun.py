@@ -443,34 +443,28 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
     # (Δ vs B) instead of against RTLR (Δ vs R), which would be all em-dash.
     vs_base = metric == "transistors"
 
-    # Column order (group-aware):
-    #   1. Case, 2. Module, 3. RTLR (shared paper target),
-    #   4–8.  Verilog group: Base, P1, P2, Δ_{1→2}, Δ_{vs R/B}
-    #   9–13. Spire group: Base, P1, P2, Δ_{1→2}, Δ_{vs R/B}
-    #  14.    Cross: Δ_{S/V} (Spire final best vs Verilog reference baseline)
+    # Column order (group-aware; the Module column lives only in the
+    # markdown twin — the paper table identifies cases by number alone):
+    #   1. Case, 2. RTLR (shared paper target),
+    #   3–7.  Verilog group: Base, P1, P2, Δ_{1→2}, Δ_{vs R/B}
+    #   8–12. Spire group: Base, P1, P2, Δ_{1→2}, Δ_{vs R/B}
+    #  13.    Cross: Δ_{S/V} (Spire final best vs Verilog reference baseline)
     # Phase-2 columns (P2 and Δ_{1→2}) collapse to absent when phases=1.
     per_lang_cols = 5 if has_phase2 else 3   # Base, P1, [P2, Δ12,] ΔR
-    n_cols = 3 + 2 * per_lang_cols + 1       # +1 for cross-language Δ_S/V
-    aligns = ["l", "l"] + ["r"] * (n_cols - 2)
+    n_cols = 2 + 2 * per_lang_cols + 1       # +1 for cross-language Δ_S/V
+    aligns = ["l"] + ["r"] * (n_cols - 1)
 
     # Headers: two rows — a top "group" row and a bottom "field" row.
     # \cmidrule(lr){from-to} draws a horizontal line under each spanned group.
-    blank = ""
-    verilog_span_from = 4
+    verilog_span_from = 3
     verilog_span_to = verilog_span_from + per_lang_cols - 1
     spirehdl_span_from = verilog_span_to + 1
     spirehdl_span_to = spirehdl_span_from + per_lang_cols - 1
 
-    group_row = ([blank, blank, blank,
-                  r"\multicolumn{" + str(per_lang_cols) + r"}{c}{\textbf{Verilog}}",
-                  r"\multicolumn{" + str(per_lang_cols) + r"}{c}{\textbf{Spire}}",
-                  blank])
-    # Compact group row uses one cell per multicol, so flatten:
-    # (we emit per_lang_cols cells but only the first carries content; LaTeX's
-    # \multicolumn consumes the right number of cells in the row separator.)
-    # The row written below has 3 leading blanks + 1 multicol + 1 multicol + 1 trailing blank
-    # = 3 + 1 + 1 + 1 = 6 LaTeX-cell positions, spanning 14 real columns.
-    group_cells = ["", "", "",
+    # Compact group row uses one cell per multicol:
+    # 2 leading blanks + 1 multicol + 1 multicol + 1 trailing blank
+    # = 5 LaTeX-cell positions, spanning the real column count.
+    group_cells = ["", "",
                    r"\multicolumn{" + str(per_lang_cols) + r"}{c}{\textbf{Ours (Verilog)}}",
                    r"\multicolumn{" + str(per_lang_cols) + r"}{c}{\textbf{Ours (Spire)}}",
                    ""]
@@ -484,7 +478,7 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
     field_labels_lang += [r"$\Delta_\text{vs B}$" if vs_base
                           else r"$\Delta_\text{vs R}$"]
 
-    header_row2 = (["Case", "Module", "RTLR"]
+    header_row2 = (["Case", "RTLR"]
                    + field_labels_lang + field_labels_lang
                    + [r"$\Delta_\text{S/V}$"])
 
@@ -517,9 +511,9 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
         cap = (
             r"Best per-phase Yosys transistor count on the 14 RTLRewriter cases. "
             + obj_note + " "
-            + r"\textbf{Base}: shipped baseline; \textbf{P1} uses "
-            r"\texttt{@arithmetic\_optimized}, \textbf{P2} adds "
-            r"\texttt{@abc\_optimized}/\texttt{@mockturtle\_optimized} and seeds from P1. "
+            + r"\textbf{Base}: shipped baseline; \textbf{P1} is decorator-free "
+            r"structural exploration, \textbf{P2} enables "
+            r"\texttt{@arithmetic\_optimized}/\texttt{@abc\_optimized} and seeds from P1. "
             r"$\Delta_{1\!\to\!2}$ within-language P1$\to$P2; "
             r"$\Delta_\text{vs B}$ final best vs.\ that language's own \textbf{Base}; "
             r"$\Delta_\text{S/V}$ Spire P2 vs.\ Verilog P2 (cross-language, same pipeline). "
@@ -533,8 +527,8 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
         cap = (
             r"Best per-phase Yosys " + metric + r" count on the 14 RTLRewriter cases. "
             r"\textbf{Base}: shipped baseline; \textbf{RTLR}: paper target; "
-            r"\textbf{P1} uses \texttt{@arithmetic\_optimized}, \textbf{P2} adds "
-            r"\texttt{@abc\_optimized}/\texttt{@mockturtle\_optimized} and seeds from P1. "
+            r"\textbf{P1} is decorator-free structural exploration, \textbf{P2} enables "
+            r"\texttt{@arithmetic\_optimized}/\texttt{@abc\_optimized} and seeds from P1. "
             r"$\Delta_{1\!\to\!2}$ within-language P1$\to$P2; $\Delta_\text{vs R}$ vs.\ RTLR; "
             r"$\Delta_\text{S/V}$ Spire P2 vs.\ Verilog P2 (cross-language, same pipeline). "
             r"Negative $=$ reduction; \textbf{bold} $=$ strict row minimum, "
@@ -620,7 +614,7 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
 
         # Agent-result cells carry a mean±std annotation of the per-run bests
         # (n>=2 runs); the winner highlight marks the best value alone.
-        row = [_latex_escape(case_id), _ltx_mod(module),
+        row = [_latex_escape(case_id),
                _mark("rtlr", _ltx_int(rtlr)),
                _mark("v_base", _ltx_int(v_base)),
                _mark("p1v", _ltx_int(p1v)) + _ltx_stat_suffix(v, "phase1", metric)]
@@ -699,7 +693,7 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
             return (r"\textbf{" + formatted + r"}") if _n == 1 \
                 else (r"\underline{" + formatted + r"}")
 
-        sum_row = [r"\textbf{sum}", "",
+        sum_row = [r"\textbf{sum}",
                    # `or None` → em-dash when no RTLR target exists (transistors),
                    # rather than a misleading 0.
                    _smark("rtlr", _ltx_int(totals["rtlr_v"] or None)),
@@ -718,8 +712,8 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
         # mean Δ row: only the percentage columns carry a value; numeric columns
         # blank. Δ% columns are never highlighted (same as the data rows), so
         # nothing in this row is bold. Layout matches the data row exactly:
-        #   Case, Module, RTLR, V/Base, V/P1, [V/P2, V/Δ12,] V/ΔR, S/Base, S/P1, [S/P2, S/Δ12,] S/ΔR, Δ_S/V
-        mean_row = [r"\textbf{mean $\Delta$}", "", "", "", ""]
+        #   Case, RTLR, V/Base, V/P1, [V/P2, V/Δ12,] V/ΔR, S/Base, S/P1, [S/P2, S/Δ12,] S/ΔR, Δ_S/V
+        mean_row = [r"\textbf{mean $\Delta$}", "", "", ""]
         if has_phase2:
             mean_row += ["", _ltx_pct(_mean(pct_lists["dv12"]))]
         mean_row += [_ltx_pct(_mean(pct_lists["v_rtlr"])),
