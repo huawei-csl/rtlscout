@@ -41,6 +41,17 @@ def phase12_plots() -> None:
         common.sh(common.py(cfg.REPO / "plot_pareto_paper.py", root,
                             "-o", out / name, *star, "--narrow"),
                   f"stage5_{name}_narrow")
+    # Two-phase cost evolution (paper Fig. 4a): Phase-2 runs continue the
+    # run index and seed arrows cross the phase boundary.
+    pairs = [("p12_area", cfg.RUNS_P1_AREA, cfg.RUNS_P2_AREA),
+             ("p12_delay", cfg.RUNS_P1_DELAY, cfg.RUNS_P2_DELAY)]
+    if cfg.RUNS_P1_ADP and cfg.RUNS_P2_ADP:
+        pairs.append(("p12_adp", cfg.RUNS_P1_ADP, cfg.RUNS_P2_ADP))
+    for name, p1, p2 in pairs:
+        for extra, tag in (([], ""), (["--narrow"], "_narrow")):
+            common.sh(common.py(cfg.REPO / "plot_pareto_paper.py", p1,
+                                "--phase2", p2, "-o", out / name, *extra),
+                      f"stage5_{name}{tag}")
     for name, a, b, c in (("p1", cfg.RUNS_P1_AREA, cfg.RUNS_P1_DELAY, cfg.RUNS_P1_ADP),
                           ("p2", cfg.RUNS_P2_AREA, cfg.RUNS_P2_DELAY, cfg.RUNS_P2_ADP)):
         third = [] if not c else ["--roots-c", c, "--label-c", f"{name} adp-opt"]
@@ -177,7 +188,10 @@ def ablation_table() -> None:
             if not any(key.startswith(p) for p in prefixes):
                 continue
             for e in entries:
-                if op_only and not (e.get("mult_use_operator") and e.get("add_use_operator")):
+                # the sweep stringifies these flags: 'False' is truthy, so
+                # compare against the literal (matches plot_fpmul_pareto.py)
+                if op_only and not (e.get("mult_use_operator") == "True"
+                                    and e.get("add_use_operator") == "True"):
                     continue
                 out.append((e.get("area"), e.get("delay")))
         return out

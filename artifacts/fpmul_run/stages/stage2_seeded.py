@@ -12,16 +12,21 @@ import stagev_verify
 
 def extract_fronts() -> None:
     cfg.FRONTS.mkdir(parents=True, exist_ok=True)
+    # ADP campaigns are optional per profile; when present their designs are
+    # pooled into the fronts too (the glm52 run predates this and pooled
+    # only area/delay — its paper states so explicitly).
+    p1_adp = [cfg.RUNS_P1_ADP] if cfg.RUNS_P1_ADP else []
+    p2_adp = [cfg.RUNS_P2_ADP] if cfg.RUNS_P2_ADP else []
     common.ensure_fresh(cfg.FRONT_ABC)
     common.sh(common.py(cfg.REPO / "extract_pareto.py",
-                        cfg.RUNS_P1_AREA, cfg.RUNS_P1_DELAY,
-                        cfg.RUNS_P2_AREA, cfg.RUNS_P2_DELAY,
+                        cfg.RUNS_P1_AREA, cfg.RUNS_P1_DELAY, *p1_adp,
+                        cfg.RUNS_P2_AREA, cfg.RUNS_P2_DELAY, *p2_adp,
                         "-o", cfg.FRONT_ABC, "--separate-dirs"),
               "stage2_extract_abc")
     common.record("stage2", cfg.FRONT_ABC, "Phase 1+2 Pareto front (with @abc_optimized)")
     common.ensure_fresh(cfg.FRONT_NO_ABC)
     common.sh(common.py(cfg.REPO / "extract_pareto.py",
-                        cfg.RUNS_P1_AREA, cfg.RUNS_P1_DELAY,
+                        cfg.RUNS_P1_AREA, cfg.RUNS_P1_DELAY, *p1_adp,
                         "-o", cfg.FRONT_NO_ABC, "--separate-dirs"),
               "stage2_extract_no_abc")
     common.record("stage2", cfg.FRONT_NO_ABC, "Phase-1-only ablation front (agent only)")

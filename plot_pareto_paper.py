@@ -366,11 +366,19 @@ def plot_multirun_pareto(data: Dict[str, Any], output_dir: Path,
 
 # ── Plot 3: Cost evolution across runs ───────────────────────────────────────
 
-def plot_cost_evolution(data: Dict[str, Any], output_dir: Path) -> Path:
+def plot_cost_evolution(data: Dict[str, Any], output_dir: Path,
+                        data2: Optional[Dict[str, Any]] = None) -> Path:
     """Best cost per run with seed-provenance arrows.
 
     Each seeded run gets a curved arrow from its seed source run,
     showing the lineage of designs through the elite pool.
+
+    With ``data2`` (the matching Phase-2 campaign), both phases share one
+    axis: Phase-2 runs continue the run index after Phase 1, a separator
+    marks the phase boundary, and seed arrows cross it. A Phase-2 run's
+    ``seed_run_index`` alone is ambiguous (its elite pool starts from the
+    Phase-1 front, then fills with Phase-2 runs); the recorded ``seed_cost``
+    identifies which phase the pool entry came from.
     """
     _apply_style()
     from matplotlib.patches import FancyArrowPatch
@@ -378,55 +386,75 @@ def plot_cost_evolution(data: Dict[str, Any], output_dir: Path) -> Path:
     runs = sorted(data.get("runs", []), key=lambda r: r.get("run_index", 0))
     if not runs:
         return None
+    runs2 = (sorted(data2.get("runs", []), key=lambda r: r.get("run_index", 0))
+             if data2 else [])
 
     metric_raw = data.get("cost_metric", "area")
     metric = _metric_label(metric_raw)
     benchmark = data.get("benchmark", "?")
     model = data.get("model", "?").split(":")[-1]
 
-    x_all = [r["run_index"] for r in runs]
-    costs = [r.get("best_cost") for r in runs]
-    is_fresh = [r.get("is_fresh", True) for r in runs]
+    offset = max(r["run_index"] for r in runs) + 1 if runs2 else 0
+    # (x, cost, fresh) across both phases; Phase 2 continues the index
+    recs = [(r["run_index"], r.get("best_cost"), r.get("is_fresh", True))
+            for r in runs]
+    recs += [(offset + r["run_index"], r.get("best_cost"),
+              r.get("is_fresh", True)) for r in runs2]
+    x_all = [x for x, _, _ in recs]
 
-    # Build run_index → best_cost lookup
-    cost_by_run = {r["run_index"]: r.get("best_cost") for r in runs}
+    cost1 = {r["run_index"]: r.get("best_cost") for r in runs}
+    cost2 = {r["run_index"]: r.get("best_cost") for r in runs2}
+
+    # Seed arrows as (src_x, src_cost, dst_x, dst_cost)
+    arrows = []
+    for r in runs:
+        if r.get("is_fresh", True) or r.get("seed_run_index") is None:
+            continue
+        si = r["seed_run_index"]
+        if cost1.get(si) is not None and r.get("best_cost") is not None:
+            arrows.append((si, cost1[si], r["run_index"], r["best_cost"]))
+    for r in runs2:
+        if r.get("is_fresh", True) or r.get("seed_run_index") is None:
+            continue
+        si, sc = r["seed_run_index"], r.get("seed_cost")
+        if cost1.get(si) == sc:          # pool entry carried over from Phase 1
+            src = (si, cost1[si])
+        elif cost2.get(si) == sc:        # entry from an earlier Phase-2 run
+            src = (offset + si, cost2[si])
+        elif cost1.get(si) is not None:  # cost tie / missing: default to P1
+            src = (si, cost1[si])
+        else:
+            continue
+        if r.get("best_cost") is not None:
+            arrows.append((*src, offset + r["run_index"], r["best_cost"]))
 
     fig, ax = plt.subplots(figsize=(2.75, 2.15) if NARROW else
-                           (max(5, len(runs) * 0.55 + 1.5), 3.5))
+                           (max(5, len(recs) * 0.55 + 1.5), 3.5))
 
-    valid_costs = [c for c in costs if c is not None]
+    valid_costs = [c for _, c, _ in recs if c is not None]
     if valid_costs:
         y_min, y_max = min(valid_costs), max(valid_costs)
         y_range = y_max - y_min if y_max != y_min else y_max * 0.1 or 1.0
         ax.set_ylim(y_min - y_range * 0.15, y_max + y_range * 0.15)
 
-    # Scatter: fresh vs seeded
-    for x, c, fresh in zip(x_all, costs, is_fresh):
+    # Scatter: fresh vs seeded (smaller markers in the denser two-phase plot)
+    msize = 32 if runs2 else 65
+    for x, c, fresh in recs:
         if c is None:
             ax.scatter(x, ax.get_ylim()[0], marker="x", c=_FAIL_COLOR,
-                       s=55, linewidths=1.5, zorder=3)
+                       s=28 if runs2 else 55, linewidths=1.5, zorder=3)
         elif fresh:
             ax.scatter(x, c, marker=_MARKER_FRESH, c=_FRESH_COLOR,
-                       s=65, zorder=3, edgecolors="white", linewidths=0.4)
+                       s=msize, zorder=3, edgecolors="white", linewidths=0.4)
         else:
             ax.scatter(x, c, marker=_MARKER_SEEDED, c=_SEEDED_COLOR,
-                       s=65, zorder=3, edgecolors="white", linewidths=0.4)
+                       s=msize, zorder=3, edgecolors="white", linewidths=0.4)
 
     # Seed-provenance arrows: curved arrow from seed source to seeded run
     _ARROW_COLOR = "#AAAAAA"
-    for r in runs:
-        if r.get("is_fresh", True):
-            continue
-        seed_ridx = r.get("seed_run_index")
-        if seed_ridx is None:
-            continue
-        src_cost = cost_by_run.get(seed_ridx)
-        dst_cost = r.get("best_cost")
-        dst_ridx = r["run_index"]
-        if src_cost is None or dst_cost is None:
-            continue
+    for src_x, src_cost, dst_x, dst_cost in arrows:
         arrow = FancyArrowPatch(
-            (seed_ridx, src_cost), (dst_ridx, dst_cost),
+            (src_x, src_cost), (dst_x, dst_cost),
             arrowstyle="-|>",
             mutation_scale=10,
             color=_ARROW_COLOR,
@@ -436,24 +464,41 @@ def plot_cost_evolution(data: Dict[str, Any], output_dir: Path) -> Path:
         )
         ax.add_patch(arrow)
 
+    # Phase boundary + labels
+    if runs2:
+        ax.axvline(offset - 0.5, color="#888888", linewidth=0.8,
+                   linestyle=":", zorder=0)
+        for xc, lbl in (((offset - 1) / 2, "Phase 1"),
+                        (offset + (len(runs2) - 1) / 2, "Phase 2")):
+            ax.text(xc, 0.97, lbl, transform=ax.get_xaxis_transform(),
+                    ha="center", va="top", color="#555555")
+
     ax.set_xlabel("Run index")
     ax.set_ylabel(metric)
     # No title — use figure caption instead
     ax.set_xticks(x_all)
 
     # Legend
+    lms = 5 if runs2 else 7
     handles = [
         Line2D([], [], marker=_MARKER_FRESH, color=_FRESH_COLOR,
-               linestyle="None", markersize=7, label="Fresh"),
+               linestyle="None", markersize=lms, label="Fresh"),
         Line2D([], [], marker=_MARKER_SEEDED, color=_SEEDED_COLOR,
-               linestyle="None", markersize=7, label="Seeded"),
+               linestyle="None", markersize=lms, label="Seeded"),
         FancyArrowPatch((0, 0), (1, 0), arrowstyle="-|>", color=_ARROW_COLOR,
                         mutation_scale=8, linewidth=1.0, label="Seed source"),
     ]
-    if any(c is None for c in costs):
+    if any(c is None for _, c, _ in recs):
         handles.append(Line2D([], [], marker="x", color=_FAIL_COLOR,
-                              linestyle="None", markersize=7, label="Failed"))
-    ax.legend(handles=handles, loc="best", framealpha=0.9)
+                              linestyle="None", markersize=lms, label="Failed"))
+    # two-phase mode: "best" tends to cover the phase labels and points,
+    # and the default-size box overlaps the mid-plot points
+    if runs2:
+        ax.legend(handles=handles, loc="lower left", framealpha=0.9,
+                  fontsize=6 if NARROW else 8, handlelength=1.2,
+                  handletextpad=0.5, borderpad=0.3, labelspacing=0.3)
+    else:
+        ax.legend(handles=handles, loc="best", framealpha=0.9)
 
     fig.tight_layout()
     path = output_dir / f"multirun_cost_evolution{_nsuffix()}.png"
@@ -914,6 +959,11 @@ def main():
         "--label-c", default=None,
         help="Label for the optional third combined campaign")
     parser.add_argument(
+        "--phase2", type=Path, default=None,
+        help="Phase-2 campaign dir: emit only the two-phase cost-evolution "
+             "plot (Phase-2 runs continue the run index, seed arrows cross "
+             "the phase boundary)")
+    parser.add_argument(
         "--run", type=int, default=None,
         help="Plot a specific run index for single-run plot (default: best run)")
     parser.add_argument(
@@ -989,6 +1039,13 @@ def main():
         output_dir.mkdir(parents=True, exist_ok=True)
 
         data = load_multirun(args.input)
+
+        if args.phase2:
+            p = plot_cost_evolution(data, output_dir,
+                                    data2=load_multirun(args.phase2))
+            if p:
+                print(f"Saved: {p}")
+            return
         config_path = (args.input if args.input.is_dir() else args.input.parent) / "config.json"
         config = json.loads(config_path.read_text()) if config_path.exists() else data
 
