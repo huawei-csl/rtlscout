@@ -13,5 +13,9 @@ USER root
 # ELAU reference designs (used by some agent prompts)
 RUN git clone --depth 1 https://github.com/pulp-platform/ELAU /app/ELAU
 
+# nano: the base image ships no editor, so git falls back to `editor` and fails on commit messages
+RUN apt-get update && apt-get install -y --no-install-recommends nano \
+    && rm -rf /var/lib/apt/lists/*
+
 USER vscode
 WORKDIR /app
