@@ -50,8 +50,22 @@ def plot_cost_evolution(data: Dict[str, Any], output_dir: Path, source: str = ""
     metric_raw = data.get("cost_metric", "cost")
     metric_label = _labels.get(metric_raw, metric_raw.capitalize())
 
+    # Position runs by COMPLETION order, not run_index. run_index is a submission
+    # id; with max_concurrent > 1 runs finish out of order, so plotting the elite
+    # progression (which is recorded per completion) against run_index made the
+    # step line jump backwards. Tick labels keep the run index, so nothing is lost.
+    _completion = {p["run_index"]: p["run_completed"]
+                   for p in progression if p.get("run_index") is not None}
+    _fallback = max(_completion.values(), default=0)
+    for r in runs:                       # runs with no progression entry go last
+        if r["run_index"] not in _completion:
+            _fallback += 1
+            _completion[r["run_index"]] = _fallback
+    runs = sorted(runs, key=lambda r: _completion[r["run_index"]])
+
     # Extract run data
-    x_all = [r["run_index"] for r in runs]
+    x_all = [_completion[r["run_index"]] for r in runs]
+    run_labels = [r["run_index"] for r in runs]
     costs = [r.get("best_cost") for r in runs]
     passed = [r.get("passed", False) for r in runs]
     is_fresh = [r.get("is_fresh", True) for r in runs]
@@ -127,15 +141,17 @@ def plot_cost_evolution(data: Dict[str, Any], output_dir: Path, source: str = ""
 
     # Plot step line: elite pool best cost after each completion
     if progression:
-        step_x = [p["run_index"] for p in progression]
-        step_y = [p["best_cost"] for p in progression]
+        _prog = sorted(progression, key=lambda p: p["run_completed"])
+        step_x = [p["run_completed"] for p in _prog]
+        step_y = [p["best_cost"] for p in _prog]
         ax.step(step_x, step_y, where="post", color="black", linewidth=1.5,
                 zorder=2, label="Elite best")
 
     ax.set_ylim(y_bottom, y_top)
-    ax.set_xlabel("Agent Run Index")
+    ax.set_xlabel("Agent run (in completion order; label = run index)")
     ax.set_ylabel(metric_label)
     ax.set_xticks(x_all)
+    ax.set_xticklabels([str(i) for i in run_labels])
 
     # Title with benchmark, model, global best; subtitle with config
     benchmark = data.get("benchmark", "unknown")

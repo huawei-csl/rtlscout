@@ -7,7 +7,14 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+import httpx
 from openai import OpenAI
+
+# A stalled response otherwise blocks an agent run forever: the SDK is constructed
+# without a timeout, and the react backend has no per-run wall clock to fall back on.
+_READ_TIMEOUT = float(os.environ.get("RTLSCOUT_LLM_TIMEOUT", "300"))
+_MAX_RETRIES = int(os.environ.get("RTLSCOUT_LLM_RETRIES", "3"))
+_TIMEOUT = httpx.Timeout(_READ_TIMEOUT, connect=15.0, write=60.0, pool=60.0)
 
 
 @dataclass
@@ -86,7 +93,8 @@ class DeepInfraClient(LLMClient):
         base_url: str = DEEPINFRA_BASE_URL,
     ):
         super().__init__(model)
-        self._client = OpenAI(api_key=api_key, base_url=base_url)
+        self._client = OpenAI(api_key=api_key, base_url=base_url,
+                              timeout=_TIMEOUT, max_retries=_MAX_RETRIES)
 
     def chat_completion(
         self,
@@ -133,6 +141,8 @@ class OpenRouterClient(LLMClient):
         self._client = OpenAI(
             api_key=api_key,
             base_url=base_url,
+            timeout=_TIMEOUT,
+            max_retries=_MAX_RETRIES,
             default_headers={
                 "HTTP-Referer": "https://github.com/huawei-csl/rtlscout",
                 "X-OpenRouter-Title": "core",
@@ -213,7 +223,8 @@ class AnthropicClient(LLMClient):
                 "anthropic package is required for AnthropicClient. "
                 "Install it with: pip install anthropic"
             )
-        self._client = anthropic.Anthropic(api_key=api_key)
+        self._client = anthropic.Anthropic(api_key=api_key, timeout=_TIMEOUT,
+                                           max_retries=_MAX_RETRIES)
 
     def chat_completion(
         self,

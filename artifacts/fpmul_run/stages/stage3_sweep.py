@@ -10,6 +10,7 @@ import datetime
 import json
 import os
 import subprocess
+import shutil
 import sys
 from pathlib import Path
 
@@ -179,6 +180,29 @@ def extract() -> None:
     common.record("stage3", cfg.FRONT_SWEEP_FULL, "post-sweep Pareto (no dedup)")
 
 
+def _drop_sweep_scratch() -> None:
+    """Delete the per-config synthesis scratch (sweep/worker_*).
+
+    Safe only HERE: extract() and the Stage-V gate both read design.v out of
+    those dirs via the results' worker_path, so the sweep cannot clean up at its
+    own source. The 61-config x N-design grid builds a full Verilated model per
+    point -- 248 GB had accumulated across six runs before this was added, while
+    the results it produces (sweep/results/) are a few MB. Set
+    RTLSCOUT_KEEP_SWEEP_SCRATCH=1 to inspect a sweep instead.
+    """
+    if os.environ.get("RTLSCOUT_KEEP_SWEEP_SCRATCH"):
+        common.log("keeping sweep scratch (RTLSCOUT_KEEP_SWEEP_SCRATCH set)")
+        return
+    workers = sorted(cfg.SWEEP_DIR.glob("worker_*"))
+    if not workers:
+        return
+    freed = sum(f.stat().st_size for w in workers for f in w.rglob("*") if f.is_file())
+    for w in workers:
+        shutil.rmtree(w, ignore_errors=True)
+    common.log(f"removed {len(workers)} sweep worker dirs "
+               f"({freed / 2**30:.1f} GiB); sweep/results kept")
+
+
 def run() -> None:
     patchability_gate()
     run_sweep()
@@ -189,6 +213,7 @@ def run() -> None:
             "stage 3: every post-sweep design failed verification — that is a "
             "pipeline defect (or a broken extraction), not a QoR outcome; see "
             f"{cfg.FRONT_SWEEP_DEDUP / 'verification_results.md'}")
+    _drop_sweep_scratch()
     common.mark_done("stage3")
 
 

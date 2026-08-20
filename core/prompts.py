@@ -178,11 +178,58 @@ def _load_references(registry: List[dict]) -> List[dict]:
     return loaded
 
 
-def _build_references_block(registry: List[dict]) -> str:
+# Feature token -> the flag that must be on for the prompt to advertise it. With the
+# flag off the capability is not offered, so naming it only makes the agent guess an
+# import it was never given.
+_GATED_TOKENS = {
+    "abc_optimized": "abc_optimize", "ABC_RECIPES": "abc_optimize",
+    "flowy_optimized": "flowy_optimize",
+    "arithmetic_optimized": "arith_autoconfig",
+    "replace_arithmetic_ops": "arith_autoconfig",
+    "optimized_fsm": "fsm_optimize", "optimized_encoding": "fsm_optimize",
+}
+
+
+def _scrub_gated_features(md: str, **flags: bool) -> str:
+    """Drop markdown headings/bullets advertising features whose flag is off."""
+    off = [t for t, f in _GATED_TOKENS.items() if not flags.get(f)]
+    if not off:
+        return md
+    hit = re.compile("|".join(map(re.escape, off))).search
+    out, skip_to_level, skip_bullet, in_fence = [], None, None, False
+    for line in md.splitlines():
+        stripped = line.lstrip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+        if not in_fence:
+            m = re.match(r"(#{1,6}) ", line)
+            if m:
+                skip_bullet = None
+                lvl = len(m.group(1))
+                if skip_to_level is not None and lvl > skip_to_level:
+                    continue
+                skip_to_level = lvl if hit(line) else None
+                if skip_to_level is not None:
+                    continue
+            elif skip_to_level is None:
+                b = re.match(r"(\s*)[-*+] ", line)
+                if b:
+                    skip_bullet = len(b.group(1)) if hit(line) else None
+                elif skip_bullet is not None and stripped and \
+                        len(line) - len(stripped) <= skip_bullet:
+                    skip_bullet = None
+        if skip_to_level is None and skip_bullet is None:
+            out.append(line)
+    return "\n".join(out)
+
+
+def _build_references_block(registry: List[dict], **flags: bool) -> str:
     """Load references and format them as markdown sections."""
     refs = _load_references(registry)
     sections = []
     for ref in refs:
+        if ref["lang"] == "markdown":
+            ref["content"] = _scrub_gated_features(ref["content"], **flags)
         sections.append(
             f"### {ref['description']} ({ref['name']})\n"
             f"```{ref['lang']}\n{ref['content']}\n```"
@@ -360,6 +407,10 @@ Insights:
   design (measured: every recipe made it slower) — the critical path runs
   through the main multiplier, which stays outside the decorated region.
   Try it once, keep it only if the measured delay improves.
+- On ADP campaigns treat the area recipe with suspicion: ADP is area x delay,
+  so a recipe that buys a few % area for a 20-30% delay regression is a large
+  ADP LOSS. Typically, on a timing-constrained datapath, every recipe applied
+  to the whole datapath loses 20-30% delay for 2-5% area.
 - Match the recipe to your cost metric, and evaluate rather than guess —
   results vary by design. Decorated results are cached: re-evaluating an
   unchanged decorated function costs nothing.
@@ -370,21 +421,38 @@ further. Applying the decorator is a 2-3 line change.
 IMPORTANT: the decorator optimizes ONLY the logic inside the callable it
 decorates, and it engages only on a function whose arguments are Exprs —
 decorating a `Component` subclass does nothing at all (it is returned
-unchanged, with no error). How much logic you put inside decides the result:
+unchanged, with no error). WHICH logic you put inside is the main lever, and
+the right scope depends on your cost metric. Note this is all about the
+TECHNOLOGY-MAPPED numbers you are scored on (ASAP7 area/delay from synthesis +
+STA) — against AIG proxies like node count or AIG depth, scope barely matters
+and the decorator nearly always looks like a win:
 
-- A small leaf helper (a few operations) gains nothing and can make area
-  WORSE: a shared helper is replaced by an AIG-derived copy at every call
-  site, so the sharing is lost.
-- The gains come from giving ABC one large block of logic that optimizes well
-  together — typically most of the combinational datapath in a single
-  function. Splitting that same logic across several decorated functions
-  forfeits the cross-block optimization and usually does worse.
+- ABC has no cell library, no timing model and no target delay: it minimizes
+  the AIG, trading delay for area wherever you apply it. The bigger the
+  decorated block, the more cross-block optimization it can do — but also the
+  more of your CRITICAL PATH it restructures.
+- PURE AREA metric (timing has slack): go big. One large block — most of the
+  combinational datapath in a single function — optimizes best together.
+- DELAY or ADP metric (timing-constrained): keep ABC OFF the critical path.
+  Decorate helpers that sit off it (per-lane decode, output post-processing)
+  and leave the critical datapath undecorated. A typical measured outcome on a
+  timing-constrained datapath: decorating the whole datapath lost 20-30% delay
+  for 2-5% area with EVERY recipe — a large ADP loss — while decorating only
+  the format decode/encode helpers beat the undecorated design on BOTH area
+  and delay.
+- A decorated helper becomes a hard optimization BOUNDARY: its logic is frozen
+  as gates, so synthesis can no longer constant-fold through it or merge it
+  with the surrounding cones. On a small helper that loss can outweigh what
+  ABC gains and make area worse. This depends on the block, not on how often
+  it is called — a helper used once can lose while one instantiated per lane
+  wins.
 
-So you will usually need to REFACTOR first: pull the datapath out of
-`elaborate()` into a module-level function taking the input Exprs and
-returning the output Exprs, decorate that function, and call it from
-`elaborate()`. Then evaluate — keep the refactor only if the measured cost
-improves.
+Which scopes pay is not additive — a helper that loses on its own can win in
+combination with another — so try two or three scopes and keep whichever
+measures better. If you do want to decorate the whole datapath, you must
+REFACTOR first: pull it out of `elaborate()` into a module-level function
+taking the input Exprs and returning the output Exprs, decorate that, and call
+it from `elaborate()`. Keep the refactor only if the measured cost improves.
 """
 
 
@@ -550,7 +618,9 @@ def build_spirehdl_system_prompt(description: str, cost_metric_name: str, extra:
                                   cost_metric_note: str = "") -> str:
     # The react loop inlines the reference sources. (The OpenCode path uses the lean
     # pointer-based renderer in core.agents_md instead.)
-    references_block = _build_references_block(SPIREHDL_REFERENCES)
+    gate = dict(abc_optimize=abc_optimize, flowy_optimize=flowy_optimize,
+                arith_autoconfig=arith_autoconfig, fsm_optimize=fsm_optimize)
+    references_block = _build_references_block(SPIREHDL_REFERENCES, **gate)
     cost_note_block = (f"\n\n**Cost metric `{cost_metric_name}`:** {cost_metric_note}"
                        if cost_metric_note else "")
 
@@ -578,6 +648,7 @@ def build_spirehdl_system_prompt(description: str, cost_metric_name: str, extra:
     synthesis_quality_notes = _extract_md_section(
         _SPIRE_HINTS_MD, "Synthesis-quality notes").replace(
         "## Synthesis-quality notes", "### Synthesis-quality notes", 1)
+    synthesis_quality_notes = _scrub_gated_features(synthesis_quality_notes, **gate)
 
     return f"""You are an RTL design agent using Spire, a Python EDSL for hardware description. Your task is to create a design that satisfies the given specification, is functionally correct, and has minimal cost ({cost_metric_name}).{cost_note_block}
 
@@ -622,7 +693,7 @@ Mult8().to_verilog_file("{SPIREHDL_VERILOG_OUTPUT}", name="mult8")
 - `mux(sel, a, b)` — Ternary: sel ? a : b (import from `spire.expr`).
 - `cat(a, b, ...)` — Concatenation, LSB first: `cat(a, b)` places `a` in lower bits and `b` in higher bits (import from `spire.expr`).
 - `signal[i]` — Bit select; `signal[lo:hi]` — Bit slice (Python-style, exclusive upper bound). **Do NOT use Verilog's `+:` part-select syntax** — write `signal[lo : lo+N]`, not `signal[lo +: N]`.
-- `Component().to_verilog_file("{SPIREHDL_VERILOG_OUTPUT}", name="<module_name>")` — Write Verilog directly to a file. Pass `simplify=True` to run a peephole simplification pass before emission (constant folding, boolean identities, trivial-mux collapse, mux-tree guard substitution). It often shrinks the output and can improve synthesis quality, but it adds significant compile time and may time out on larger or more complex circuits. Default is off.
+- `Component().to_verilog_file("{SPIREHDL_VERILOG_OUTPUT}", name="<module_name>")` — Write Verilog directly to a file. Do **not** pass `simplify=True`: the peephole pass is experimental and its guard-substitution rewrite expands shared logic exponentially, so it times out on datapath-sized designs. Leave it at its default (off).
 - Mostly no need to declare wires for intermediate expressions; just create them inline: `t = b + c`, versus `t = Wire(UInt(8)); t <<= b + c`.
 
 {synthesis_quality_notes}
