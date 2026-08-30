@@ -1,6 +1,8 @@
 """LLM client abstraction: provider-agnostic interface for chat completions."""
 
 import json
+import os
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
@@ -147,7 +149,38 @@ class OpenRouterClient(LLMClient):
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = tool_choice
-        response = self._client.chat.completions.create(**kwargs)
+        # RTLSCOUT_REASONING_EFFORT=low|medium|high|off overrides the model's default
+        # reasoning effort (hybrid-reasoning models, e.g. kimi-k3). Unset = provider default.
+        effort = os.environ.get("RTLSCOUT_REASONING_EFFORT")
+        if effort:
+            kwargs["extra_body"] = {"reasoning": ({"enabled": False} if effort == "off"
+                                                  else {"effort": effort})}
+        # Retry transient failures (OpenRouter throttles routinely) — without it
+        # a single 429/5xx blip aborts a whole multi-step agent run.
+        import json as _json
+        import openai as _openai
+        last_err = None
+        for _attempt in range(5):
+            try:
+                response = self._client.chat.completions.create(**kwargs)
+                break
+            except (_openai.APIConnectionError, _openai.APITimeoutError,
+                    _openai.RateLimitError, _openai.InternalServerError,
+                    _openai.APIResponseValidationError, _json.JSONDecodeError) as e:
+                last_err = e
+                time.sleep(15 * (_attempt + 1))
+            except Exception as e:
+                # A truncated/malformed response body surfaces as a bare JSON
+                # parse error ("Expecting value: line N column 1") — transient.
+                if any(s in str(e) for s in ("Expecting value", "Unterminated string",
+                                             "Invalid control character",
+                                             "Expecting ',' delimiter")):
+                    last_err = e
+                    time.sleep(5 * (_attempt + 1))
+                else:
+                    raise
+        else:
+            raise last_err
         msg = response.choices[0].message
 
         tool_calls = []
@@ -196,7 +229,9 @@ class AnthropicClient(LLMClient):
 
         kwargs = dict(
             model=self.model,
-            max_tokens=16384,
+            # 32k: a 16k cap truncated hard steps to thinking-only responses
+            # (no text, no tool call) and the agent loop spun on empty steps.
+            max_tokens=32768,
             system=system,
             messages=converted_messages,
         )
@@ -205,7 +240,26 @@ class AnthropicClient(LLMClient):
             kwargs["tool_choice"] = (
                 {"type": tool_choice} if tool_choice == "auto" else {"type": "any"}
             )
-        response = self._client.messages.create(**kwargs)
+        # Retry the whole stream: the SDK only auto-retries request setup, and a
+        # mid-stream death or transient 429/529 otherwise aborts a whole agent run.
+        last_err = None
+        for _attempt in range(5):
+            try:
+                with self._client.messages.stream(**kwargs) as _stream:
+                    response = _stream.get_final_message()
+                break
+            except (anthropic.APIConnectionError, anthropic.InternalServerError,
+                    anthropic.OverloadedError, anthropic.RateLimitError) as e:
+                last_err = e
+                time.sleep(15 * (_attempt + 1))
+            except Exception as e:
+                if "incomplete chunked read" in str(e) or "peer closed" in str(e):
+                    last_err = e
+                    time.sleep(5 * (_attempt + 1))
+                else:
+                    raise
+        else:
+            raise last_err
 
         return self._convert_response(response)
 

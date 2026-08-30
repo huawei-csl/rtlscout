@@ -1,13 +1,13 @@
 import os
 
 import matplotlib.pyplot as plt
-from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
+from spire.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
     FSAOption,
     PPAOption,
     PPGOption,
     MultiplierOption
 )
-from spirehdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import (
+from spire.arithmetic.int_multipliers.multipliers.multiplier_stage_core import (
     StageBasedMultiplierBasic,
 )
 
@@ -28,7 +28,7 @@ def run_ppa_mp():
         fsa_cls=FSAOption.PREFIX_SKLANSKY.value,
     )
 
-    module = mult.to_module(f"Mul{n_bits}", with_clock=True)
+    module = mult.to_netlist(f"Mul{n_bits}", with_clock=True)
 
     rtl_path = "int_multiplier.v"
     module.to_verilog_file(rtl_path)

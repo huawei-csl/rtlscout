@@ -19,23 +19,23 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from spirehdl.aggregate.aggregate_record import AggregateRecord
-from spirehdl.arithmetic.int_arithmetic_config import (
+from spire.aggregate.aggregate_record import AggregateRecord
+from spire.arithmetic.int_arithmetic_config import (
     ArithmeticAutoConfig,
     replace_arithmetic_ops,
 )
-from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
+from spire.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
     TwoInputAritEncodings,
 )
-from spirehdl.arithmetic.int_multipliers.eval.testvector_generation import (
+from spire.arithmetic.int_multipliers.eval.testvector_generation import (
     Encoding,
     MultiplierTestVectors,
 )
-from spirehdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import (
+from spire.arithmetic.int_multipliers.multipliers.multiplier_stage_core import (
     StageBasedMultiplierIO,
 )
-from spirehdl.spirehdl import Signal, UInt, reset_shared_cache
-from spirehdl.spirehdl_module import Component
+from spire.expr import Signal, UInt, reset_shared_cache
+from spire import Component
 
 from tech_eval.int_tb_sim import TwInputArit, generate_vectors, run_component_with_vectors
 from tech_eval.ppa_extract.core.ppa_extraction import get_ppa
@@ -113,7 +113,7 @@ def _build_optimised_module(factory: Callable[[], Component], objective: str, mo
     comp = factory()
     if objective != "none":
         replace_arithmetic_ops(comp, ArithmeticAutoConfig(objective=objective))
-    return comp, comp.to_module(module_name, with_clock=True)
+    return comp, comp.to_netlist(module_name, with_clock=True)
 
 
 def _prepare_design(

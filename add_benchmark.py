@@ -527,7 +527,7 @@ def _build_starting_point_script(gen_type: str, module_name: str, cfg: object) -
                 FW={cfg.fraction_width},
                 subnormals={cfg.subnormals},
             )
-            m = component.to_module("{module_name}", with_clock=False, with_reset=False)
+            m = component.to_netlist("{module_name}", with_clock=False, with_reset=False)
             m.to_verilog_file("design.v")
         """)
 
@@ -545,7 +545,7 @@ def _build_starting_point_script(gen_type: str, module_name: str, cfg: object) -
                 FW={cfg.fraction_width},
                 subnormals={cfg.subnormals},
             )
-            m = component.to_module("{module_name}", with_clock=False, with_reset=False)
+            m = component.to_netlist("{module_name}", with_clock=False, with_reset=False)
             m.to_verilog_file("design.v")
         """)
 
@@ -575,7 +575,7 @@ def _build_starting_point_script(gen_type: str, module_name: str, cfg: object) -
                     mult_cfg=None,
                 )
                 component = FpMatmulAccumulateComponent(core_cfg)
-                m = component.to_module("{module_name}", with_clock=False, with_reset=False)
+                m = component.to_netlist("{module_name}", with_clock=False, with_reset=False)
                 m.to_verilog_file("design.v")
             """)
         else:
@@ -623,7 +623,7 @@ def _build_starting_point_script(gen_type: str, module_name: str, cfg: object) -
                     mult_cfg=mult_cfg,
                 )
                 component = FpMatmulAccumulateComponent(core_cfg)
-                m = component.to_module("{module_name}", with_clock=False, with_reset=False)
+                m = component.to_netlist("{module_name}", with_clock=False, with_reset=False)
                 m.to_verilog_file("design.v")
             """)
 
@@ -648,7 +648,7 @@ def _build_starting_point_script(gen_type: str, module_name: str, cfg: object) -
                     add_cfg=AdderConfig(use_operator=True, encoding=Encoding.{enc_name}),
                 )
                 component = MatmulAccumulateComponent(core_cfg, signed_io_type=True)
-                m = component.to_module("{module_name}", with_clock=False, with_reset=False)
+                m = component.to_netlist("{module_name}", with_clock=False, with_reset=False)
                 m.to_verilog_file("design.v")
             """)
         else:
@@ -689,7 +689,7 @@ def _build_starting_point_script(gen_type: str, module_name: str, cfg: object) -
                     add_cfg=adder_cfg,
                 )
                 component = MatmulAccumulateComponent(core_cfg, signed_io_type=False)
-                m = component.to_module("{module_name}", with_clock=False, with_reset=False)
+                m = component.to_netlist("{module_name}", with_clock=False, with_reset=False)
                 m.to_verilog_file("design.v")
             """)
 
@@ -725,7 +725,7 @@ def _build_starting_point_script(gen_type: str, module_name: str, cfg: object) -
                 encoding=Encoding.{enc_name},
             )
             component = MatmulAccumulateFusedComponent(core_cfg)
-            m = component.to_module("{module_name}", with_clock=False, with_reset=False)
+            m = component.to_netlist("{module_name}", with_clock=False, with_reset=False)
             m.to_verilog_file("design.v")
         """)
 

@@ -188,7 +188,8 @@ def _select_top_n(evals: list[dict], front: list[dict], n: int,
 
     Pareto-optimal designs are always included. If n > len(front), the remaining
     slots are filled from non-Pareto evals with the lowest normalized score.
-    Pareto extremes (min dim_x, min dim_y) are pinned.
+    Pinned and never dropped: the two extremes (min dim_x, min dim_y) and
+    the minimum-product point (dim_x * dim_y, i.e. ADP for area/delay).
     """
     if n >= len(evals):
         front_set = {id(e) for e in front}
@@ -200,16 +201,41 @@ def _select_top_n(evals: list[dict], front: list[dict], n: int,
     if n <= len(front):
         if n <= 0:
             return []
+        # Pin both extremes AND the minimum-product point (area x delay = ADP
+        # when the dims are area/delay). The normalized score usually ranks the
+        # product winner highly too, but they diverge when the front is very
+        # asymmetric in scale, so pin it rather than rely on that.
         min_x_idx = min(range(len(front)), key=lambda i: front[i][dim_x])
         min_y_idx = min(range(len(front)), key=lambda i: front[i][dim_y])
-        pinned = {min_x_idx, min_y_idx}
-        scores = _normalized_score(front, dim_x, dim_y)
-        candidates = sorted(
-            ((scores[i], i) for i in range(len(front)) if i not in pinned),
-            key=lambda x: x[0],
-        )
-        remaining = n - len(pinned)
-        chosen = pinned | {i for _, i in candidates[:max(0, remaining)]}
+        min_p_idx = min(range(len(front)),
+                        key=lambda i: front[i][dim_x] * front[i][dim_y])
+        pinned = {min_x_idx, min_y_idx, min_p_idx}
+        # Fill by SPREAD, not by score: greedily take whichever point is
+        # farthest (in mean-normalized space) from everything already chosen.
+        # Scoring by dim_x/mean + dim_y/mean instead collapses onto whichever
+        # region of the front is densest — the dense region drags the mean
+        # toward itself and then scores its own members well — which throws
+        # away the rest of the tradeoff curve.
+        mean_x = sum(e[dim_x] for e in front) / len(front)
+        mean_y = sum(e[dim_y] for e in front) / len(front)
+
+        def _pt(i):
+            return (front[i][dim_x] / mean_x, front[i][dim_y] / mean_y)
+
+        chosen = set(pinned)
+        while len(chosen) < n:
+            far_i, far_d = None, -1.0
+            for i in range(len(front)):
+                if i in chosen:
+                    continue
+                xi, yi = _pt(i)
+                d = min(((xi - xj) ** 2 + (yi - yj) ** 2) ** 0.5
+                        for xj, yj in (_pt(j) for j in chosen))
+                if d > far_d:
+                    far_d, far_i = d, i
+            if far_i is None:
+                break
+            chosen.add(far_i)
         return [front[i] for i in sorted(chosen)]
 
     selected = list(front)

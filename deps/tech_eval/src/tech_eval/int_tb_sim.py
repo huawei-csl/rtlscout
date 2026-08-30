@@ -8,34 +8,34 @@ from tech_eval.ppa_extract.core.template import (
     verilator_common_flags,
     verilator_directive_flags,
 )
-from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
+from spire.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
     FSAOption,
     TwoInputAritEncodings,
     PPAOption,
     PPGOption,
 )
-from spirehdl.arithmetic.int_multipliers.eval.testvector_generation import (
+from spire.arithmetic.int_multipliers.eval.testvector_generation import (
     AdderTestVectors,
     Encoding,
     MultiplierTestVectors,
     TwoInputArithmeticTestVectorsBase,
     TestVectors
 )
-from spirehdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import (
+from spire.arithmetic.int_multipliers.multipliers.multiplier_stage_core import (
     StageBasedMultiplierBasic,
 )
-from spirehdl.arithmetic.int_multipliers.multipliers.multipliers_ext_optimized import (
+from spire.arithmetic.int_multipliers.multipliers.multipliers_ext_optimized import (
     OptimizedMultiplierFrom4BitBlocks,
     OptimizedMultiplierFrom4BitBlocksStrong,
     OptimizedSignMagnitudeMultiplier,
 )
-from spirehdl.arithmetic.prefix_adders.adders import StageBasedPrefixAdder
-from spirehdl.helpers import run_vectors_on_simulator
-from spirehdl.spirehdl_module import Module
-from spirehdl.spirehdl_simulator import Simulator
-from spirehdl.spirehdl_verilog_testbench import TestbenchGenSimulator, write_vector_data_file
-from spirehdl.various.vcd_writer import write_vcd
-from spirehdl.spirehdl_module import Component
+from spire.arithmetic.prefix_adders.adders import StageBasedPrefixAdder
+from spire.helpers import run_vectors_on_simulator
+from spire.component import Netlist as Module
+from spire.simulator import Simulator
+from spire.verilog_testbench import TestbenchGenSimulator, write_vector_data_file
+from spire.various.vcd_writer import write_vcd
+from spire import Component
 
 @dataclass(frozen=True)
 class TwInputArit:
@@ -123,7 +123,7 @@ def run_component_with_vectors(
     def _join(name: str) -> str:
         return os.path.join(base_dir, name)
 
-    module: Module = component.to_module(module_name, with_clock=with_clock)
+    module: Module = component.to_netlist(module_name, with_clock=with_clock)
     if not vectors:
         raise ValueError("No vectors generated for the current configuration.")
 

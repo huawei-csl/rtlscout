@@ -81,12 +81,52 @@ Pin these down **before** creating any files:
   found, spire-vs-verilog metric deltas, and the trace methodology used to find them). Cases:
   `router`, `datapath`, `cpu_pipe`, `pcie`, `i2c`. Skim one or two before porting a tricky design.
 
+## 4. Clock and reset naming — MANDATORY for any sequential design
+
+**The top-level clock port must be named exactly `clk`, and the reset `rst`.** This is not a style
+preference; a different name silently produces wrong PPA numbers.
+
+The PPA flow's STA script resolves the clock with `get_ports -quiet clk` and, on a miss, falls back
+to a **virtual clock** (`create_clock -name VCLK`) attached to no port. A virtual clock leaves every
+flip-flop in no clock domain, so **no register-to-register setup check is created at all**. The only
+constrained paths left are `set_max_delay -from [all_inputs]` — the input into the first pipeline
+stage. You get a plausible-looking delay that silently omits the entire pipeline.
+
+Measured on `pdpu_dot16_pipe` (clock was `clk_i`): reported **745 ps**, true value **956 ps** — a
+25% under-report, and the reported worst path was in stage 1 while the real one was in stage 2.
+Diagnosing this cost hours; the giveaway is `Path Group: path delay` (or `VCLK`) instead of
+`Path Group: clk` in `worst_timing_path`, and a worst path that starts at an input port.
+
+- **Verilog benchmarks**: rename the port in `context/*.v`, `tb.sv` and `description.txt` together.
+  A word-boundary rename is safe (`sed -E 's/\bclk_i\b/clk/g; s/\brst_i\b/rst/g'`); check first that
+  no bare `clk`/`rst` identifier already exists. Submodule-internal clock ports (e.g. a dual-port
+  RAM's `clk0_i`/`clk1_i`) do not matter — only the **top-level** port is bound by STA.
+- **Spire benchmarks**: `to_netlist(..., with_clock=True)` already emits `clk` — just don't rename
+  it. If the design needs a *data* input called `rst` (a manual sync reset with `with_reset=False`),
+  Spire reserves that name, so declare it `rst_i` and rename the emitted port back:
+
+      _net = MyDesign().to_netlist("my_top", with_clock=True, with_reset=False)
+      for _p in _net._ports:
+          if _p.name == "rst_i":
+              _p.name = "rst"
+
+  `benchmarks/jpeg_idct_2d_1r1w_spire` is the reference example.
+- **Verilog/Spire pairs must agree**, since the two share one testbench. Spire emits `clk`, so the
+  Verilog side is the one that adapts — never rename Spire's clock to match a `_i`-suffixed reference.
+- Porting a reference design **verbatim** is not a reason to keep `clk_i`. A port rename changes no
+  logic or structure, and correct measurement outranks byte-fidelity to upstream naming.
+
+Verify after any change: run `run_eval.py --cost-metric delay` and confirm `worst_timing_path`
+reports `Path Group: clk` with a **register** startpoint, not an input port.
+
 ## Checklist
 
 - [ ] Pick `--language` to match the design file: `verilog` (`.v` / `.sv`), `spirehdl` (`.py`), or `amaranth`.
 - [ ] `description.txt` is language-neutral; if you ship a `context/` starting point, **say so in it** —
       otherwise the agent ignores the files and writes a design from scratch.
 - [ ] `metadata.json` `module_name` must equal what `tb.sv` instantiates as `dut`.
+- [ ] **Sequential design?** Top-level clock port named `clk`, reset `rst` — see section 4. Any other
+      name silently under-reports delay (no reg-to-reg paths are timed at all).
 - [ ] `tb.sv` stimuli are thorough — directed **corner cases** *and* a batch of **randomized inputs**;
       the tb is the only correctness oracle, so weak coverage lets broken designs pass (see
       `README_add_benchmarks.md` → `tb.sv`).

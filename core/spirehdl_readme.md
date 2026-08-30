@@ -16,53 +16,30 @@
 - **Reduces area and delay vs. a traditional Verilog flow:** optimization is part of the compile
 - **Integrated with ABC and mockturtle:** modern synthesis optimization wired directly into the compilation pipeline
 - **Arithmetic library with automated replacement:** swap adders, multipliers, and FP cores driven by an objective
-- **Cycle-accurate Python simulator"** drive inputs, tick clocks, inspect expressions/outputs without leaving Python
+- **Cycle-accurate Python simulator:** drive inputs, tick clocks, inspect expressions/outputs without leaving Python
 - **Content-addressed optimization cache:** instant re-runs via the `@abc_optimized` decorator
 
 ## Optimizations built in 💡
 
 Spire supports **source-level optimization intent**: the designer marks *what* to optimize (e.g. a module, FSM, or arithmetic block) directly in the HDL source, and the compiler realizes it through synthesis-aware passes.
 
-Because these passes run as part of the compile, the emitted Verilog is already small and fast before external tools see it. The numbers below are measured against a plain Yosys flow on the same RTL.
+Because these passes run as part of the compile, the emitted Verilog is already small and fast before external tools see it. Each feature's guide below includes measured results against a plain Yosys flow on the same RTL.
 
 ### 🔢 Arithmetic auto-replacement: `@arithmetic_optimized`
 
-Drops in topology-tuned adders, multipliers, and MAC fusions against an `area` / `delay` / `adp` objective. On an 8-bit ALU (add + sub + mul):
-
-- **−51% transistors** with the `area` objective
-- **4.2× shorter critical path** with the `delay` objective
-- balanced `adp` gets near-minimal area *and* near-minimal depth at once
-
-MAC patterns (`a*b + c`) are fused into single column-reduction units, eliminating a full adder stage. See [`README_arithmetic_optimization.md`](docs/README_arithmetic_optimization.md).
+Drops in topology-tuned adders, multipliers, and MAC fusions against an `area` / `delay` / `adp` objective. MAC patterns (`a*b + c`) are fused into single column-reduction units, eliminating a full adder stage. See [`README_arithmetic_optimization.md`](docs/README_arithmetic_optimization.md).
 
 ### 🧩 ABC decorator: `@abc_optimized`
 
-One decorator stacks modern AIG synthesis (`resyn2`, `&deepsyn`) onto any `Component` or `Netlist`, with a content-addressed cache for instant re-runs:
-
-- **−69% AIG gates** on an 8-bit multiplier (`resyn2`)
-- **−83%** on a 16-bit multiplier
-- stack with `@arithmetic_optimized` for compounding wins — ABC cleans up after the arithmetic rewriter
-
-See [`README_optimization_decorators.md`](docs/README_optimization_decorators.md).
+One decorator stacks modern AIG synthesis (`resyn2`, `&deepsyn`) onto any `Component` or function, with a content-addressed cache for instant re-runs. It stacks with `@arithmetic_optimized` for compounding wins — ABC cleans up after the arithmetic rewriter. See [`README_optimization_decorators.md`](docs/README_optimization_decorators.md).
 
 ### 🎯 FSM + encoding search: `optimized_fsm` / `optimized_encoding`
 
-Hopcroft state minimisation and bit-assignment search as two composable context managers. On a 7-state `case10` Moore FSM:
-
-- **−19% cells** with `optimized_encoding` alone
-- **−44% cells** with `optimized_fsm` alone
-- **−69.5% cells** when both are nested — a ~3× reduction with two `with` blocks, no hand-tuned encoding tables
-
-An 8-opcode CPU decoder sees **−66.7% cells** from a single `optimized_encoding`, because the search discovers an opcode layout where each wide OR collapses to one bit-test. See [`README_fsm_optimization.md`](docs/README_fsm_optimization.md).
+Hopcroft state minimisation and bit-assignment search as two composable context managers — nest both for compounding cell-count reductions, with no hand-tuned encoding tables. See [`README_fsm_optimization.md`](docs/README_fsm_optimization.md).
 
 ### 🔀 Selection & reduction topologies: `selection_topology` / `spire.reduce`
 
-Chained conditionals and reduction loops both lower to linear, O(N)-deep mux cascades. Two features re-emit them in log-depth form at the source:
-
-- **`selection_topology`** re-emits `switch_`/`if_` blocks and hand-built mux chains in a log-depth form. Wrap a scope (region or decorator), pick a mode: `onehot`, `bittree`, `tournament` (priority-preserving), or `auto`. The one-hot modes are validated against provably-disjoint case labels — overlap-safe by construction.
-- **`spire.reduce`** builds balanced trees for reductions: `max_` / `min_` / `argmax_` / `sum_` / `reduce_tree`, plus `prefix_scan` for running results. A 20-input max: **171 → 45 gate levels** at fewer cells.
-
-Rewrites are eager, so Verilog, AIG export, and the simulator all see the same structure. Details: [`README_control_structures.md`](docs/README_control_structures.md) and [`README_reductions.md`](docs/README_reductions.md).
+Chained conditionals and reduction loops both lower to linear, O(N)-deep mux cascades. `selection_topology` re-emits `switch_`/`if_` blocks and hand-built mux chains in log-depth form (`onehot`, `bittree`, priority-preserving `tournament`, or `auto`), with the one-hot modes validated against provably-disjoint case labels. `spire.reduce` builds balanced trees for `max_` / `min_` / `argmax_` / `sum_` / `reduce_tree`, plus `prefix_scan` for running results. Rewrites are eager, so Verilog, AIG export, and the simulator all see the same structure. Details: [`README_control_structures.md`](docs/README_control_structures.md) and [`README_reductions.md`](docs/README_reductions.md).
 
 ### 🛠️ Fine-grained architecture selection: `arithmetic_generator`
 

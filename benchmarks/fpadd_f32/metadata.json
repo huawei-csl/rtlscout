@@ -1,0 +1,34 @@
+{
+  "name": "fpadd_f32",
+  "module_name": "fp_add_e8f23",
+  "tb_module": "tb",
+  "testbench_note": "tb.sv is a directed golden-referenced tb (16.78M vectors, embedded fp_add_e8f23_ref), NOT the generated one; generator.num_vectors below describes the parked tb_vectors.sv + vectors.dat.",
+  "generator": {
+    "type": "fpadd",
+    "module_name": "fp_add_e8f23",
+    "num_vectors": 2000,
+    "config": {
+      "exponent_width": 8,
+      "fraction_width": 23,
+      "subnormals": true,
+      "adder_cfg": null,
+      "module_name": null,
+      "with_clock": false,
+      "with_reset": false
+    },
+    "command": [
+      "add_benchmark.py",
+      "fpadd",
+      "--exponent-width",
+      "8",
+      "--fraction-width",
+      "23",
+      "--subnormal-support",
+      "--name",
+      "fpadd_f32",
+      "--benchmarks-dir",
+      "/tmp/claude-10126/-workspaces-rtl-scout/803359e9-3ac3-4325-bec0-80837e791a9b/scratchpad/fpadd32",
+      "--force"
+    ]
+  }
+}

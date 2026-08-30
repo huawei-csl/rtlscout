@@ -126,8 +126,10 @@ def test_run_eval_skip_sim_cec_only(tmp_path):
 
 @requires_verilator
 @requires_yosys
-def test_run_benchmark_simple_adder(tmp_path):
+def test_run_benchmark_simple_adder(tmp_path, monkeypatch):
     """Run the agent loop on simple_adder with a fake Verilog provider."""
+    # The done tool is off by default (6b72f6e); this test exercises the done path.
+    monkeypatch.setenv("RTLSCOUT_ALLOW_DONE", "1")
     from core.benchmarks import load_benchmark
     from core.runner import run_agent_on_benchmark
 

@@ -67,8 +67,14 @@ _RC = {
 }
 
 
-def _apply_style():
-    plt.rcParams.update(_RC)
+# Half-text-width variant: rendered at print size so LaTeX does not downscale
+# it and the fonts stay physically legible when used as a paper subfigure.
+_RC_NARROW = {**_RC, "font.size": 7, "axes.labelsize": 7,
+              "xtick.labelsize": 6, "ytick.labelsize": 6}
+
+
+def _apply_style(narrow: bool = False):
+    plt.rcParams.update(_RC_NARROW if narrow else _RC)
 
 
 # ── Pareto helpers ───────────────────────────────────────────────────────────
@@ -133,8 +139,10 @@ def plot_fpmul_pareto(
     max_area: float = 130.0,
     max_delay: float = 2200.0,
     show_operator: bool = False,
+    narrow: bool = False,
 ) -> Path:
-    _apply_style()
+    _apply_style(narrow)
+    ms = 0.45 if narrow else 1.0        # marker scale
 
     with open(results_path) as f:
         data = json.load(f)
@@ -147,8 +155,8 @@ def plot_fpmul_pareto(
         return [(a, d) for a, d in pts if a <= max_area and d <= max_delay]
 
     _SRC_INIT = ["pareto_front_init"]
-    _SRC_NO_FLOWY = ["pareto_fpmul_no_flowy"]
-    _SRC_ALL = ["pareto_fpmul_no_flowy", "pareto_fpmul"]
+    _SRC_NO_FLOWY = ["pareto_fpmul_no_abc"]
+    _SRC_ALL = ["pareto_fpmul_no_abc", "pareto_fpmul_abc"]
 
     # Build groups — _op groups filter use_operator=True; others include all
     groups = []
@@ -160,19 +168,19 @@ def plot_fpmul_pareto(
         ))
 
     groups.append((
-        "initial", "Phase 3 only (init + arch sweep)",
+        "initial", ("Phase 3 only" if narrow else "Phase 3 only (init + arch sweep)"),
         _clip(_collect_points(case_results, _SRC_INIT)),
     ))
 
     groups.append((
-        "no_flowy", "Phases 1,3 (no Flowy agent)",
+        "no_flowy", ("Phases 1,3" if narrow else "Phases 1,3 (no ABC agent)"),
         _clip(_collect_points(case_results, _SRC_NO_FLOWY)),
     ))
 
     if show_operator:
         pts_flowy_op = _clip(_collect_points(case_results, _SRC_ALL, use_operator=True))
         groups.append((
-            "flowy_op", "Phases 1,2 (no arch sweep)",
+            "flowy_op", ("Phases 1,2" if narrow else "Phases 1,2 (no arch sweep)"),
             list(set(pts_flowy_op)),
         ))
 
@@ -182,7 +190,7 @@ def plot_fpmul_pareto(
         list(set(pts_flowy)),
     ))
 
-    fig, ax = plt.subplots(figsize=(5.5, 4))
+    fig, ax = plt.subplots(figsize=(2.75, 2.15) if narrow else (5.5, 4))
 
     # Plot scatter + Pareto front for each group.
     for zbase, (key, label, pts) in enumerate(groups):
@@ -196,7 +204,7 @@ def plot_fpmul_pareto(
         scatter_kw = dict(
             color=_COLORS[key],
             marker=_MARKERS[key],
-            s=60 if is_op else 25,
+            s=(60 if is_op else 25) * ms,
             alpha=0.12,
             zorder=z_scatter,
         )
@@ -232,6 +240,8 @@ def plot_fpmul_pareto(
 
     ax.set_xlabel(r"Area ($\mathrm{\mu m^2}$)")
     ax.set_ylabel("Delay (ps)")
+    if narrow:                       # headroom so the legend clears the fronts
+        ax.set_ylim(top=ax.get_ylim()[1] * 1.05)
 
     # Custom legend
     handles = []
@@ -243,16 +253,24 @@ def plot_fpmul_pareto(
             color=_COLORS[key],
             linestyle=_LINESTYLES[key],
             linewidth=1.8,
-            markersize=6,
+            markersize=6 * (0.7 if narrow else 1.0),
             label=label,
         )
         if _MARKERS[key] not in ("+", "x"):
             mkw["markeredgecolor"] = "none"
         handles.append(Line2D([], [], **mkw))
-    ax.legend(handles=handles, loc="upper right", framealpha=0.9)
+    # zorder: Pareto fronts draw at 4-10, legends default to 5.
+    # 6pt is the floor neurips_2026.sty enforces (it forces \tiny to 6pt);
+    # upper-left is the emptiest region, so the legend occludes no front there.
+    leg = ax.legend(handles=handles,
+              loc="upper left" if narrow else "lower left",
+              framealpha=1.0 if narrow else 0.9,
+              **({"fontsize": 6, "handlelength": 1.2, "borderpad": 0.25,
+                  "labelspacing": 0.25, "handletextpad": 0.4} if narrow else {}))
+    leg.set_zorder(20)
 
     fig.tight_layout()
-    suffix = "_with_op" if show_operator else ""
+    suffix = ("_with_op" if show_operator else "") + ("_narrow" if narrow else "")
     path = out / f"fpmul_pareto_area_delay{suffix}.pdf"
     fig.savefig(path)
     fig.savefig(path.with_suffix(".png"))
@@ -276,9 +294,13 @@ def main():
     parser.add_argument(
         "--show-operator", action="store_true", default=False,
         help="Add groups for use_operator=True (orig Verilog operators)")
+    parser.add_argument(
+        "--narrow", action="store_true", default=False,
+        help="Render at half text width (paper subfigure)")
     args = parser.parse_args()
 
-    plot_fpmul_pareto(args.results, args.output, show_operator=args.show_operator)
+    plot_fpmul_pareto(args.results, args.output,
+                      show_operator=args.show_operator, narrow=args.narrow)
 
 
 if __name__ == "__main__":

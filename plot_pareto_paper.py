@@ -65,8 +65,20 @@ _RC = {
 }
 
 
+# Half-text-width mode for paper subfigures: figures are rendered AT print
+# size so LaTeX does not downscale them and the fonts stay legible. 6pt is the
+# floor neurips_2026.sty enforces.
+NARROW = False
+_RC_NARROW = {**_RC, "font.size": 7, "axes.labelsize": 7,
+              "xtick.labelsize": 6, "ytick.labelsize": 6}
+
+
+def _nsuffix() -> str:
+    return "_narrow" if NARROW else ""
+
+
 def _apply_style():
-    plt.rcParams.update(_RC)
+    plt.rcParams.update(_RC_NARROW if NARROW else _RC)
 
 
 def _fmt_cost(v) -> str:
@@ -379,7 +391,8 @@ def plot_cost_evolution(data: Dict[str, Any], output_dir: Path) -> Path:
     # Build run_index → best_cost lookup
     cost_by_run = {r["run_index"]: r.get("best_cost") for r in runs}
 
-    fig, ax = plt.subplots(figsize=(max(5, len(runs) * 0.55 + 1.5), 3.5))
+    fig, ax = plt.subplots(figsize=(2.75, 2.15) if NARROW else
+                           (max(5, len(runs) * 0.55 + 1.5), 3.5))
 
     valid_costs = [c for c in costs if c is not None]
     if valid_costs:
@@ -443,7 +456,7 @@ def plot_cost_evolution(data: Dict[str, Any], output_dir: Path) -> Path:
     ax.legend(handles=handles, loc="best", framealpha=0.9)
 
     fig.tight_layout()
-    path = output_dir / "multirun_cost_evolution.png"
+    path = output_dir / f"multirun_cost_evolution{_nsuffix()}.png"
     fig.savefig(path)
     fig.savefig(path.with_suffix(".pdf"))
     plt.close(fig)
@@ -603,23 +616,46 @@ def plot_pareto_side_by_side(path_a: Path, path_b: Path, output_dir: Path,
 
 # ── Plot 5b: Combined side-by-side (single axes) ─────────────────────────────
 
+def _load_multirun_merged(paths):
+    """Merge one or more multirun roots into a single {'runs': [...]} dict.
+
+    Run indices of later roots are offset so colormap progression runs
+    across the concatenation (e.g. P1 runs then P2 runs)."""
+    if isinstance(paths, (str, Path)):
+        paths = [paths]
+    merged = {"runs": []}
+    for pth in paths:
+        d = load_multirun(Path(pth))
+        off = len(merged["runs"])
+        for r in sorted(d.get("runs", []), key=lambda r: r.get("run_index", 0)):
+            r = dict(r)
+            r["run_index"] = r.get("run_index", 0) + off
+            merged["runs"].append(r)
+    return merged
+
+
 def plot_pareto_side_by_side_combined(
-    path_a: Path, path_b: Path, output_dir: Path,
+    path_a, path_b, output_dir: Path,
     label_a: str = "Area target",
     label_b: str = "Delay target",
+    starting_point: 'Optional[tuple]' = None,
+    path_c=None,
+    label_c: str = "ADP target",
 ) -> Path:
-    """Overlay two multirun campaigns on a single area-vs-delay plot.
+    """Overlay two or three multirun campaigns on a single area-vs-delay plot.
 
-    Marker shape encodes the campaign (circle vs triangle).
-    Marker colour encodes run index within each campaign, using two
-    distinct sequential colormaps (Purples for A, Reds for B).
+    Marker shape encodes the campaign (circle / triangle / square).
+    Marker colour encodes run index within each campaign, using distinct
+    sequential colormaps (Purples for A, Oranges for B, Greens for C).
+    Passing path_c adds a third campaign and its own Pareto front.
     """
     _apply_style()
 
-    data_a = load_multirun(path_a)
-    data_b = load_multirun(path_b)
+    data_a = _load_multirun_merged(path_a)
+    data_b = _load_multirun_merged(path_b)
+    data_c = _load_multirun_merged(path_c) if path_c else None
 
-    fig = plt.figure(figsize=(5.5, 4))
+    fig = plt.figure(figsize=(2.75, 2.15) if NARROW else (5.5, 4))
     gs = fig.add_gridspec(1, 2, width_ratios=[1, 0.03], wspace=0.03)
     ax = fig.add_subplot(gs[0, 0])
     cax = fig.add_subplot(gs[0, 1])
@@ -627,6 +663,7 @@ def plot_pareto_side_by_side_combined(
     # Pareto front line colours (darkest shade of each cmap)
     _FRONT_A = "#332288"   # indigo
     _FRONT_B = "#CC6677"   # rose
+    _FRONT_C = "#117733"   # green (third campaign, e.g. ADP-targeted)
 
     def _extract_per_run(data):
         """Return (areas, delays, run_indices, n_runs)."""
@@ -646,10 +683,9 @@ def plot_pareto_side_by_side_combined(
         n_runs = len(data.get("runs", []))
         return areas, delays, ridxs, n_runs
 
-    # Use the maximum run count across both campaigns for a shared scale
-    _, _, ridxs_a, n_a = _extract_per_run(data_a)
-    _, _, ridxs_b, n_b = _extract_per_run(data_b)
-    vmin, vmax = 0, max(max(n_a, n_b) - 1, 1)
+    # Use the maximum run count across all campaigns for a shared scale
+    _n = [_extract_per_run(d)[3] for d in (data_a, data_b, data_c) if d]
+    vmin, vmax = 0, max(max(_n) - 1, 1)
 
     _CMAP_LO = 0.35  # minimum colormap intensity (avoids invisible early runs)
 
@@ -660,10 +696,13 @@ def plot_pareto_side_by_side_combined(
         return matplotlib.colors.LinearSegmentedColormap.from_list(
             f"{name}_trunc", colors, N=n)
 
-    for data, cmap_name, front_col, marker, label, zoff in [
+    _series = [
         (data_a, "Purples", _FRONT_A, "o", label_a, 0),
         (data_b, "Oranges", _FRONT_B, "^", label_b, 1),
-    ]:
+    ]
+    if data_c:
+        _series.append((data_c, "Greens", _FRONT_C, "s", label_c, 2))
+    for data, cmap_name, front_col, marker, label, zoff in _series:
         areas, delays, ridxs, _ = _extract_per_run(data)
         if not areas:
             continue
@@ -676,20 +715,24 @@ def plot_pareto_side_by_side_combined(
         xs, ys = _stepify(front)
         ax.plot(xs, ys, color=front_col, linewidth=2.0, zorder=5 + zoff)
 
-    # Starting point: most common first eval across both campaigns
-    from collections import Counter
-    first_evals = []
-    for data in [data_a, data_b]:
-        for run in data.get("runs", []):
-            evals = run.get("all_evals", [])
-            if evals and evals[0].get("passed"):
-                ppa = evals[0].get("metrics") or {}
-                a, d = ppa.get("area"), ppa.get("delay")
-                if a is not None and d is not None:
-                    first_evals.append((float(a), float(d)))
-    if first_evals:
-        (sp_area, sp_delay), _ = Counter(first_evals).most_common(1)[0]
-        ax.scatter([sp_area], [sp_delay], marker="*", s=200, c="#222222",
+    # Explicit --starting-point wins (a seeded campaign's first eval is the seed,
+    # not the baseline); else the most common first eval across both campaigns.
+    sp = starting_point
+    if sp is None:
+        from collections import Counter
+        first_evals = []
+        for data in [d for d in (data_a, data_b, data_c) if d]:
+            for run in data.get("runs", []):
+                evals = run.get("all_evals", [])
+                if evals and evals[0].get("passed"):
+                    ppa = evals[0].get("metrics") or {}
+                    a, d = ppa.get("area"), ppa.get("delay")
+                    if a is not None and d is not None:
+                        first_evals.append((float(a), float(d)))
+        if first_evals:
+            sp, _ = Counter(first_evals).most_common(1)[0]
+    if sp is not None:
+        ax.scatter([sp[0]], [sp[1]], marker="*", s=200, c="#222222",
                    zorder=10, edgecolors="white", linewidths=0.5)
 
     ax.set_xlabel(r"Area ($\mathrm{\mu m^2}$)")
@@ -713,13 +756,20 @@ def plot_pareto_side_by_side_combined(
                linewidth=1.8, markersize=5,
                markerfacecolor=plt.cm.Oranges(0.55),
                markeredgecolor="none", label=label_b),
-        Line2D([], [], marker="*", color="#222222", linestyle="None",
-               markersize=10, markeredgecolor="none", label="Starting point"),
     ]
+    if data_c:
+        handles.append(
+            Line2D([], [], marker="s", color=_FRONT_C, linestyle="-",
+                   linewidth=1.8, markersize=5,
+                   markerfacecolor=plt.cm.Greens(0.55),
+                   markeredgecolor="none", label=label_c))
+    handles.append(
+        Line2D([], [], marker="*", color="#222222", linestyle="None",
+               markersize=10, markeredgecolor="none", label="Starting point"))
     ax.legend(handles=handles, loc="upper right", framealpha=0.9)
 
     fig.subplots_adjust(left=0.12, right=0.92, bottom=0.14, top=0.96)
-    path = output_dir / "pareto_area_vs_delay_metric_combined.png"
+    path = output_dir / f"pareto_area_vs_delay_metric_combined{_nsuffix()}.png"
     fig.savefig(path)
     fig.savefig(path.with_suffix(".pdf"))
     plt.close(fig)
@@ -840,6 +890,18 @@ def main():
         metavar=("RUN_A", "RUN_B"),
         help="Combined single-plot overlay of two multirun campaigns")
     parser.add_argument(
+        "--narrow", action="store_true",
+        help="render at half text width (paper subfigure), suffixing _narrow")
+    parser.add_argument(
+        "--roots-a", nargs="+", type=Path, default=None,
+        help="Multi-root combined mode: campaign roots merged into side A")
+    parser.add_argument(
+        "--roots-b", nargs="+", type=Path, default=None,
+        help="Multi-root combined mode: campaign roots merged into side B")
+    parser.add_argument(
+        "--roots-c", nargs="+", type=Path, default=None,
+        help="Multi-root combined mode: optional third campaign (e.g. ADP-targeted)")
+    parser.add_argument(
         "-o", "--output", type=Path, default=None,
         help="Output directory (default: <input>/plots)")
     parser.add_argument(
@@ -848,6 +910,9 @@ def main():
     parser.add_argument(
         "--label-b", default=None,
         help="Label for second comparison/side-by-side set")
+    parser.add_argument(
+        "--label-c", default=None,
+        help="Label for the optional third combined campaign")
     parser.add_argument(
         "--run", type=int, default=None,
         help="Plot a specific run index for single-run plot (default: best run)")
@@ -863,6 +928,20 @@ def main():
         "--dim-y", default="delay",
         help="Y-axis metric for the multirun Pareto overview (default: delay).")
     args = parser.parse_args()
+
+    global NARROW
+    NARROW = args.narrow
+
+    if args.roots_a and args.roots_b:
+        (args.output or Path("plots")).mkdir(parents=True, exist_ok=True)
+        plot_pareto_side_by_side_combined(
+            args.roots_a, args.roots_b, args.output or Path("plots"),
+            label_a=args.label_a or "Area target",
+            label_b=args.label_b or "Delay target",
+            starting_point=tuple(args.starting_point) if args.starting_point else None,
+            path_c=args.roots_c,
+            label_c=args.label_c or "ADP target")
+        return
 
     if not args.input and not args.compare and not args.side_by_side and not args.side_by_side_combined:
         parser.error("Provide a multirun run directory, --compare, --side-by-side, or --side-by-side-combined")
@@ -886,7 +965,9 @@ def main():
         p = plot_pareto_side_by_side(
             args.side_by_side[0], args.side_by_side[1], output_dir,
             label_a=args.label_a or "Area target",
-            label_b=args.label_b or "Delay target")
+            label_b=args.label_b or "Delay target",
+            starting_point=(tuple(args.starting_point)
+                            if args.starting_point else None))
         if p:
             saved.append(p)
 
@@ -897,7 +978,9 @@ def main():
             args.side_by_side_combined[0], args.side_by_side_combined[1],
             output_dir,
             label_a=args.label_a or "Area target",
-            label_b=args.label_b or "Delay target")
+            label_b=args.label_b or "Delay target",
+            starting_point=(tuple(args.starting_point)
+                            if args.starting_point else None))
         if p:
             saved.append(p)
 

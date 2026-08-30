@@ -26,6 +26,19 @@ def _stepify(front: List[Tuple[float, float]]) -> Tuple[List[float], List[float]
     return xs, ys
 
 
+# get_ppa splits power by path: `power_total` (VCD, rebased to fmax) or
+# `power_probabilistic_fixed_clock` (fallback); pre-split runs wrote flat `power`.
+_METRIC_ALIASES = {"power": ("power", "power_total", "power_probabilistic_fixed_clock")}
+
+
+def _resolve_metric_key(groups: Dict[str, List[dict]], metric_key: str) -> Optional[str]:
+    """First alias of metric_key actually present in the rows, else None."""
+    for alias in _METRIC_ALIASES.get(metric_key, (metric_key,)):
+        if any(alias in e for entries in groups.values() for e in entries):
+            return alias
+    return None
+
+
 def _plot_metric_vs_area(
     results_payload: Dict,
     groups: Dict[str, List[dict]],
@@ -40,6 +53,11 @@ def _plot_metric_vs_area(
     title_label: str,
     add_legend: bool,
 ) -> None:
+    # A missing optional metric must not kill the sweep after the results are saved.
+    data_key = _resolve_metric_key(groups, metric_key)
+    if data_key is None:
+        print(f"[plotting2] no '{metric_key}' field in results — skipping that plot")
+        return
     out_path = os.path.join(
         out_dir,
         f"{design_prefix}_m{results_payload['meta']['dim_m']}_a{results_payload['meta']['a_width']}_{suffix}_{x_metric_key}_vs_{metric_key}.png",
@@ -50,8 +68,11 @@ def _plot_metric_vs_area(
     for idx, (group_label, entries) in enumerate(groups.items()):
         if not entries:
             continue
-        x_values = [e[x_metric_key] for e in entries]
-        metrics = [e[metric_key] for e in entries]
+        pairs = [(e[x_metric_key], e[data_key]) for e in entries if data_key in e]
+        if not pairs:
+            continue
+        x_values = [p[0] for p in pairs]
+        metrics = [p[1] for p in pairs]
         color = colors[idx % len(colors)] if colors else None
         plt.scatter(
             x_values,

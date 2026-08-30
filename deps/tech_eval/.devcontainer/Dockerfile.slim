@@ -79,8 +79,15 @@ RUN ./build_openroad.sh --local --openroad-args "-DENABLE_TESTS=OFF"; \
 FROM builder-base AS build-verilator
 ARG VERILATOR_VER
 ARG NPROC
+# Fix Verilator's sequential-UDP lowering: blocking assigns make UDP flops
+# race within a clock edge (silently corrupt gate-level sims of large
+# netlists with vendor cell models). The patch switches sequential UDP
+# outputs to non-blocking assigns. See
+# internal/task_level/power/verilator_udp_bug/ in rtlscout for reproducers.
+COPY .devcontainer/patches/verilator_v5.040_seq_udp_nba.patch /tmp/verilator_seq_udp_nba.patch
 RUN git clone --depth 1 --branch "${VERILATOR_VER}" https://github.com/verilator/verilator /build/verilator \
  && cd /build/verilator \
+ && git apply /tmp/verilator_seq_udp_nba.patch \
  && autoconf \
  && ./configure \
  && make -j "${NPROC}" \

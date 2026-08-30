@@ -345,6 +345,6 @@ class FpMulSN(Component):
 
 def build_fp_mul_sn(name: str, EW: int, FW: int, *, subnormals: bool = True, always_subnormal_rounding: bool = False) -> "Module":
     comp = FpMulSN(EW, FW, subnormals=subnormals, always_subnormal_rounding=always_subnormal_rounding)
-    return comp.to_module(name, with_clock=False, with_reset=False)
+    return comp.to_netlist(name, with_clock=False, with_reset=False)
 
 

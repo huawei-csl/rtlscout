@@ -8,10 +8,11 @@ from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Sequence,
 from tech_eval.int_tb_sim import run_component_with_vectors
 from tech_eval.ppa_extract.core.ppa_configs import InstanceConfig
 from tech_eval.ppa_extract.core.ppa_extraction import get_ppa, remove_worker_path
-from spirehdl.spirehdl_module import Module, Component
-from spirehdl.helpers import get_yosys_metrics, refactor_module_to_aig
+from spire import Component
+from spire.component import Netlist as Module
+from spire.helpers import get_yosys_metrics, refactor_module_to_aig
 
-from spirehdl.helpers import sim_and_switch_count
+from spire.helpers import sim_and_switch_count
 
 # if TYPE_CHECKING:
 #     from tech_eval.ppa_extract.ppa_extraction_mp_plot_exended import AdderConfig, MultConfig
@@ -90,7 +91,7 @@ def _run_single(
     
     # generate one instance of the design
     impl : Component = config.gen_instance()
-    module = impl.to_module(f"{design_prefix}", with_clock=True)
+    module = impl.to_netlist(f"{design_prefix}", with_clock=True)
     
     basic = vectors is None
     if basic:
@@ -112,9 +113,8 @@ def _run_single(
         
         # convert to aig and do some optimizations on it, optional
         # module = refactor_module_to_aig(module, optimize=True)
-        
         sim_result = run_component_with_vectors(
-            module.to_component(),
+            impl,
             vectors,
             module_name=module.name,
             tb_from_data=True,

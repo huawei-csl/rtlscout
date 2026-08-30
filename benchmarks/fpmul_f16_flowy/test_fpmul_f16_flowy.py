@@ -252,7 +252,7 @@ def build_optimized(pareto_point=None):
         opt_fn = flowy_optimized(**_FLOWY_KWARGS, pareto_point=pareto_point)(_fpmul_f16_body)
     else:
         opt_fn = fpmul_f16_optimized
-    return _FpMulOptimized(opt_fn).to_module("fp_mul_e5f10", with_clock=False, with_reset=False)
+    return _FpMulOptimized(opt_fn).to_netlist("fp_mul_e5f10", with_clock=False, with_reset=False)
 
 
 # ── Run ───────────────────────────────────────────────────────────────────────

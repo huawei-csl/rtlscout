@@ -1,0 +1,82 @@
+# PIPELINED 16-lane PDPU, both languages. Same pipeline shape as `reduced`
+# (P1 decorator-free structural exploration, P2 polishes the P1 elite with
+# arith+abc, per-phase Pareto fronts, phase 4 refines every front point against
+# deepsyn-from-scratch at matched compute) — but on the 5-stage sequential
+# design instead of the combinational one.
+#
+# Sequential support landed 2026-08-08: batch_deepsyn's AIG prep now runs
+# `async2sync; dfflegalize -cell $_DFF_P_ 01` before aigmap (aigmap rejects
+# anything but plain posedge DFFs), and the eval wrapper declares `clk` and
+# drives abc's latch clock. &deepsyn itself always handled latches. Caveats for
+# this profile specifically:
+#   - abc assumes don't-care latch init values are 0 and warns the result "may
+#     not verify". Harmless here: pdpu_top_pipelined is reset-less feed-forward
+#     (upstream FFNR flops), so state flushes in 5 cycles and the tb confirms
+#     bit-exactness over 10k vectors. NOT safe to assume for an FSM design.
+#   - no formal CEC runs for sequential designs; correctness is netlist
+#     simulation against the benchmark tb.
+tag: pdpu16p-glm
+model: openrouter:z-ai/glm-5.2
+
+benchmarks:                 # spire-only for now; the verilog arm is VERIFIED
+                            # working (1059.6um2/918.9ps). Re-add the line and
+  verilog: pdpu_dot16_pipe   # resume (no --new-run) to fill its columns into
+  spirehdl: pdpu_dot16_pipe_spire   # the SAME run dir; spire stages stay done.
+
+top_module: pdpu_top_pipelined
+ports:                      # widths only; PI/PO order comes from write_aiger -map.
+                            # `clk` is deliberately absent — the wrapper finds the
+                            # clock PI from the map and wires it separately.
+  inputs: "acc:16,operands_a:128,operands_b:128"
+  outputs: "result_o:16"
+
+agent:
+  max_steps: 30
+  elite_size: 2
+  target_delay: 1000.0      # the agent's own synthesis constraint: just above
+                            # both designs' achievable floor (see eval below),
+                            # so the agent gets a target it can actually close.
+
+# Same campaign shape as `reduced` (see that file for fresh_first / fresh_base
+# semantics), plus a third `adp` branch. Three objectives widen the front, and
+# adp is the one that is structurally immune to collapsing the pipeline into a
+# combinational datapath + output delay line: that trades ~3.9x delay for ~0.7x
+# area, so it wins on area but loses ~3x on the product. Each branch is
+# independently switchable — delete or comment out an entry to drop it.
+campaigns_p1:
+  - {name: area,  metric: area,  runs: 6, concurrent: 2, fresh_first: 3}
+  - {name: delay, metric: delay, runs: 6, concurrent: 2, fresh_first: 3}
+  - {name: adp,   metric: area_delay_product, runs: 6, concurrent: 2, fresh_first: 3}
+campaigns_p2:
+  - {name: area,  metric: area,  runs: 6, concurrent: 2, fresh_first: 0,
+     fresh_base: 0.0, fresh_min: 0.0, seed_from: area}
+  - {name: delay, metric: delay, runs: 6, concurrent: 2, fresh_first: 0,
+     fresh_base: 0.0, fresh_min: 0.0, seed_from: delay}
+  - {name: adp,   metric: area_delay_product, runs: 6, concurrent: 2, fresh_first: 0,
+     fresh_base: 0.0, fresh_min: 0.0, seed_from: adp}
+
+front:
+  n_points: 5
+
+deepsyn:
+  time_budget: 1200         # s per &deepsyn trajectory (paper: 20 min)
+  refine_runs: 50           # trajectories per front point; the from-scratch arm
+                            # matches at n_points x refine_runs over a DISJOINT
+                            # config slice per seed
+  workers: 50               # cores per arm; the two languages run concurrently
+  double_effort: false
+
+eval:
+  target_delays: [500.0, 900.0, 1600.0]
+                            # Measured starting-point PPA (asap7) for reference:
+                            #   spire   864.8 ps / 1049.2 um2  @ td 700
+                            #   verilog 935.4 ps / 1063.7 um2  @ td 700
+                            #   verilog 956.6 ps              @ td 1000
+                            # so the achievable floor is ~865 (spire) / ~935
+                            # (verilog). 500 sits below that floor by design: it
+                            # is the max-delay-effort anchor (abc pushes as hard
+                            # as it can, giving the min-delay/max-area corner) and
+                            # will report negative slack. 900 is at the floor,
+                            # 1600 past saturation i.e. minimum area with timing
+                            # effectively unconstrained.
+  workers: 25               # PPA evals per language; peak is 2x this

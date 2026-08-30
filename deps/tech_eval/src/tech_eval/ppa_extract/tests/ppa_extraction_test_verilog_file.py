@@ -1,10 +1,10 @@
 from typing import Type
 from tech_eval.int_tb_sim import TwInputArit, generate_vectors, run_component_with_vectors
-from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import Encoding, FSAOption, PPAOption, PPGOption, TwoInputAritEncodings, MultiplierTestVectors, MultiplierOption
-from spirehdl.arithmetic.int_multipliers.eval.testvector_generation import TwoInputArithmeticTestVectorsBase
-from spirehdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import StageBasedMultiplierBasic
-from spirehdl.arithmetic.int_multipliers.multipliers.multipliers_ext_karatsuba import KaratsubaMultiplier
-from spirehdl.arithmetic.int_multipliers.multipliers.multipliers_ext_optimized import OptimizedMultiplierFrom4BitBlocks, OptimizedMultiplierFrom4BitBlocksStrong, OptimizedMultiplier, OptimizedSignMagnitudeMultiplier
+from spire.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import Encoding, FSAOption, PPAOption, PPGOption, TwoInputAritEncodings, MultiplierTestVectors, MultiplierOption
+from spire.arithmetic.int_multipliers.eval.testvector_generation import TwoInputArithmeticTestVectorsBase
+from spire.arithmetic.int_multipliers.multipliers.multiplier_stage_core import StageBasedMultiplierBasic
+from spire.arithmetic.int_multipliers.multipliers.multipliers_ext_karatsuba import KaratsubaMultiplier
+from spire.arithmetic.int_multipliers.multipliers.multipliers_ext_optimized import OptimizedMultiplierFrom4BitBlocks, OptimizedMultiplierFrom4BitBlocksStrong, OptimizedMultiplier, OptimizedSignMagnitudeMultiplier
 
 from tech_eval.ppa_extract.core.ppa_extraction import get_ppa, remove_worker_path
 
@@ -91,7 +91,7 @@ def test1():
     with_clock = False
 
     if use_simple_generation:
-        module = mult.to_module(module_name, with_clock=with_clock)
+        module = mult.to_netlist(module_name, with_clock=with_clock)
         rtl_path = "int_multiplier.v"
         module.to_verilog_file(rtl_path)
         top_module_name = module.name

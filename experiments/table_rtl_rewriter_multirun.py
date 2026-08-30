@@ -144,6 +144,31 @@ def _mean(xs: List[float]) -> Optional[float]:
     return None if not xs else sum(xs) / len(xs)
 
 
+def _phase_run_values(rec: Dict[str, Any], phase: str, metric: str) -> List[float]:
+    """Per-run best values (passed runs only) behind a phase's stats."""
+    runs = ((rec or {}).get(phase) or {}).get("runs") or []
+    return [r[f"best_{metric}"] for r in runs
+            if r.get("passed") and r.get(f"best_{metric}") is not None]
+
+
+def _phase_mean(rec: Dict[str, Any], phase: str, metric: str) -> Optional[float]:
+    """Mean of the per-run bests (n=1 -> identical to the best)."""
+    vals = _phase_run_values(rec, phase, metric)
+    return (sum(vals) / len(vals)) if vals else _phase_best(rec, phase, metric)
+
+
+def _ltx_stat_suffix(rec: Dict[str, Any], phase: str, metric: str) -> str:
+    r"""`` {\scriptsize$\mu{\pm}\sigma$}`` across the n per-run bests; empty
+    below n=2 (single-run tables look exactly as before)."""
+    vals = _phase_run_values(rec, phase, metric)
+    if len(vals) < 2:
+        return ""
+    import statistics
+    mu = statistics.mean(vals)
+    sd = statistics.stdev(vals)
+    return (r" {\scriptsize$" + f"{mu:.0f}" + r"{\pm}" + f"{sd:.0f}" + r"$}")
+
+
 # ---------------------------------------------------------------------------
 # Table 1: best per case × phase
 # ---------------------------------------------------------------------------
@@ -191,6 +216,8 @@ def _render_best_table(summary: Dict[str, Any], metric: str) -> str:
         "s_base": 0, "s_final": 0, "p1s": 0, "p2s": 0,
         "rtlr_v": 0, "rtlr_s": 0,
     }
+    totals_m = {k: 0.0 for k in ("p1v", "p2v", "p1s", "p2s",
+                                 "v_final", "s_final")}
     # Per-case percentages for the mean row (equal weight per case).
     pct_lists = {
         "dv12": [], "ds12": [], "v_rtlr": [], "s_rtlr": [], "svref": [],
@@ -208,22 +235,29 @@ def _render_best_table(summary: Dict[str, Any], metric: str) -> str:
         p2v = _phase_best(v, "phase2", metric) if has_phase2 else None
         p1s = _phase_best(s, "phase1", metric)
         p2s = _phase_best(s, "phase2", metric) if has_phase2 else None
-        dv12 = _delta(p2v, p1v) if has_phase2 else None
-        ds12 = _delta(p2s, p1s) if has_phase2 else None
+        # Δ columns compare per-run MEANS (identical to best at n=1).
+        p1v_m = _phase_mean(v, "phase1", metric)
+        p2v_m = _phase_mean(v, "phase2", metric) if has_phase2 else None
+        p1s_m = _phase_mean(s, "phase1", metric)
+        p2s_m = _phase_mean(s, "phase2", metric) if has_phase2 else None
+        dv12 = _delta(p2v_m, p1v_m) if has_phase2 else None
+        ds12 = _delta(p2s_m, p1s_m) if has_phase2 else None
         # Cross-language delta: Spire P2 best vs Verilog P2 best. Both went
         # through the same Phase 1 + Phase 2 pipeline, so this isolates the
         # language/framework contribution from the agent's contribution. When
         # no phase2 is run, falls back to phase1 on both sides.
         s_final = p2s if has_phase2 and p2s is not None else p1s
         v_final = p2v if has_phase2 and p2v is not None else p1v
-        svref = _delta(s_final, v_final)
+        s_final_m = p2s_m if has_phase2 and p2s_m is not None else p1s_m
+        v_final_m = p2v_m if has_phase2 and p2v_m is not None else p1v_m
+        svref = _delta(s_final_m, v_final_m)
 
         rtlr = _load_rtlr_targets(
             v.get("benchmark_path") or s.get("benchmark_path"))[metric]
         # vs.\ RTLR normally; vs.\ the language's own Base when there is no
         # RTLR target (transistors).
-        v_rtlr  = _delta(v_final, v_base if vs_base else rtlr)
-        s_rtlr  = _delta(s_final, s_base if vs_base else rtlr)
+        v_rtlr  = _delta(v_final_m, v_base if vs_base else rtlr)
+        s_rtlr  = _delta(s_final_m, s_base if vs_base else rtlr)
 
         row = [case_id, f"`{module}`",
                _fmt_int(v_base), _fmt_int(rtlr),
@@ -241,15 +275,21 @@ def _render_best_table(summary: Dict[str, Any], metric: str) -> str:
         if v_base is not None and v_final is not None:
             totals["v_base"]  += v_base
             totals["v_final"] += v_final
+            totals_m["v_final"] += v_final_m
             if p1v is not None: totals["p1v"] += p1v
+            if p1v_m is not None: totals_m["p1v"] += p1v_m
             if has_phase2 and p2v is not None: totals["p2v"] += p2v
+            if has_phase2 and p2v_m is not None: totals_m["p2v"] += p2v_m
             if rtlr is not None: totals["rtlr_v"] += rtlr
             has_any = True
         if s_base is not None and s_final is not None:
             totals["s_base"]  += s_base
             totals["s_final"] += s_final
+            totals_m["s_final"] += s_final_m
             if p1s is not None: totals["p1s"] += p1s
+            if p1s_m is not None: totals_m["p1s"] += p1s_m
             if has_phase2 and p2s is not None: totals["p2s"] += p2s
+            if has_phase2 and p2s_m is not None: totals_m["p2s"] += p2s_m
             if rtlr is not None: totals["rtlr_s"] += rtlr
             has_any = True
 
@@ -264,13 +304,13 @@ def _render_best_table(summary: Dict[str, Any], metric: str) -> str:
         rtlr_sum_display = _fmt_int(totals["rtlr_v"] or totals["rtlr_s"] or None)
         # Δ-vs-reference sum: denominator is the summed Base (Δ vs B) when there
         # is no RTLR target, else the summed RTLR target (Δ vs R).
-        v_rtlr_sum = _delta(totals["v_final"],
+        v_rtlr_sum = _delta(totals_m["v_final"],
                             (totals["v_base"] if vs_base else totals["rtlr_v"]) or None)
-        s_rtlr_sum = _delta(totals["s_final"],
+        s_rtlr_sum = _delta(totals_m["s_final"],
                             (totals["s_base"] if vs_base else totals["rtlr_s"]) or None)
-        dv12_sum = _delta(totals["p2v"] or None, totals["p1v"] or None) if has_phase2 else None
-        ds12_sum = _delta(totals["p2s"] or None, totals["p1s"] or None) if has_phase2 else None
-        svref_sum = _delta(totals["s_final"], totals["v_final"] or None)
+        dv12_sum = _delta(totals_m["p2v"] or None, totals_m["p1v"] or None) if has_phase2 else None
+        ds12_sum = _delta(totals_m["p2s"] or None, totals_m["p1s"] or None) if has_phase2 else None
+        svref_sum = _delta(totals_m["s_final"], totals_m["v_final"] or None)
 
         # Sum row: absolute totals + sum-derived deltas (weighted by case size).
         row = ["**sum**", "",
@@ -500,6 +540,14 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
             r"Negative $=$ reduction; \textbf{bold} $=$ strict row minimum, "
             r"\underline{underline} $=$ tied for minimum."
         )
+    n_runs = max((len(_phase_run_values(results[c].get(l, {}), p, metric))
+                  for c in results for l in ("verilog", "spirehdl")
+                  for p in ("phase1", "phase2")), default=0)
+    if n_runs >= 2:
+        cap += (r" Agent cells additionally show mean$\pm$std of the "
+                r"per-repetition bests across $n{=}" + str(n_runs) +
+                r"$ repetitions; the leading number is the best repetition, "
+                r"all $\Delta$ columns compare per-repetition means.")
     out.append(r"\caption{" + cap + r"}")
     out.append(r"\label{tab:best-" + metric + "}")
     out.append(r"\resizebox{\textwidth}{!}{%")
@@ -515,6 +563,8 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
         "s_base": 0, "s_final": 0, "p1s": 0, "p2s": 0,
         "rtlr_v": 0, "rtlr_s": 0,
     }
+    totals_m = {k: 0.0 for k in ("p1v", "p2v", "p1s", "p2s",
+                                 "v_final", "s_final")}
     pct_lists = {"dv12": [], "ds12": [], "v_rtlr": [], "s_rtlr": [], "svref": []}
     has_any = False
 
@@ -529,20 +579,27 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
         p2v = _phase_best(v, "phase2", metric) if has_phase2 else None
         p1s = _phase_best(s, "phase1", metric)
         p2s = _phase_best(s, "phase2", metric) if has_phase2 else None
-        dv12 = _delta(p2v, p1v) if has_phase2 else None
-        ds12 = _delta(p2s, p1s) if has_phase2 else None
+        # Δ columns compare per-run MEANS (identical to best at n=1).
+        p1v_m = _phase_mean(v, "phase1", metric)
+        p2v_m = _phase_mean(v, "phase2", metric) if has_phase2 else None
+        p1s_m = _phase_mean(s, "phase1", metric)
+        p2s_m = _phase_mean(s, "phase2", metric) if has_phase2 else None
+        dv12 = _delta(p2v_m, p1v_m) if has_phase2 else None
+        ds12 = _delta(p2s_m, p1s_m) if has_phase2 else None
         # Cross-language delta: Spire P2 vs Verilog P2 (same pipeline both
         # sides) — isolates the language contribution from the agent's.
         s_final = p2s if has_phase2 and p2s is not None else p1s
         v_final = p2v if has_phase2 and p2v is not None else p1v
-        svref = _delta(s_final, v_final)
+        s_final_m = p2s_m if has_phase2 and p2s_m is not None else p1s_m
+        v_final_m = p2v_m if has_phase2 and p2v_m is not None else p1v_m
+        svref = _delta(s_final_m, v_final_m)
 
         rtlr = _load_rtlr_targets(
             v.get("benchmark_path") or s.get("benchmark_path"))[metric]
         # Δ-vs-reference column: vs.\ RTLR normally, vs.\ the language's own
         # Base when there is no RTLR target (transistors) — see `vs_base`.
-        v_rtlr = _delta(v_final, v_base if vs_base else rtlr)
-        s_rtlr = _delta(s_final, s_base if vs_base else rtlr)
+        v_rtlr = _delta(v_final_m, v_base if vs_base else rtlr)
+        s_rtlr = _delta(s_final_m, s_base if vs_base else rtlr)
 
         # Per-row winner highlight on the absolute-count columns
         # (RTLR + the four agent results + the two baselines). Strict minimum
@@ -561,17 +618,21 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
             return (r"\textbf{" + formatted + r"}") if _n == 1 \
                 else (r"\underline{" + formatted + r"}")
 
+        # Agent-result cells carry a mean±std annotation of the per-run bests
+        # (n>=2 runs); the winner highlight marks the best value alone.
         row = [_latex_escape(case_id), _ltx_mod(module),
                _mark("rtlr", _ltx_int(rtlr)),
                _mark("v_base", _ltx_int(v_base)),
-               _mark("p1v", _ltx_int(p1v))]
+               _mark("p1v", _ltx_int(p1v)) + _ltx_stat_suffix(v, "phase1", metric)]
         if has_phase2:
-            row += [_mark("p2v", _ltx_int(p2v)), _ltx_pct(dv12)]
+            row += [_mark("p2v", _ltx_int(p2v)) + _ltx_stat_suffix(v, "phase2", metric),
+                    _ltx_pct(dv12)]
         row += [_ltx_pct(v_rtlr),
                 _mark("s_base", _ltx_int(s_base)),
-                _mark("p1s", _ltx_int(p1s))]
+                _mark("p1s", _ltx_int(p1s)) + _ltx_stat_suffix(s, "phase1", metric)]
         if has_phase2:
-            row += [_mark("p2s", _ltx_int(p2s)), _ltx_pct(ds12)]
+            row += [_mark("p2s", _ltx_int(p2s)) + _ltx_stat_suffix(s, "phase2", metric),
+                    _ltx_pct(ds12)]
         row += [_ltx_pct(s_rtlr), _ltx_pct(svref)]
         out.append(" & ".join(row) + r" \\")
 
@@ -583,6 +644,11 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
             totals["v_final"] += v_final
         if s_final is not None:
             totals["s_final"] += s_final
+        for key, val in (("p1v", p1v_m), ("p2v", p2v_m), ("p1s", p1s_m),
+                         ("p2s", p2s_m), ("v_final", v_final_m),
+                         ("s_final", s_final_m)):
+            if val is not None:
+                totals_m[key] += val
         if rtlr is not None and v_final is not None:
             totals["rtlr_v"] += rtlr
         if rtlr is not None and s_final is not None:
@@ -600,16 +666,16 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
         # there is no RTLR target, else the summed RTLR target (Δ vs R).
         v_ref_sum = totals["v_base"] if vs_base else totals["rtlr_v"]
         s_ref_sum = totals["s_base"] if vs_base else totals["rtlr_s"]
-        sum_v_rtlr_pct = (_delta(totals["v_final"], v_ref_sum)
+        sum_v_rtlr_pct = (_delta(totals_m["v_final"], v_ref_sum)
                           if v_ref_sum else None)
-        sum_s_rtlr_pct = (_delta(totals["s_final"], s_ref_sum)
+        sum_s_rtlr_pct = (_delta(totals_m["s_final"], s_ref_sum)
                           if s_ref_sum else None)
-        sum_svref_pct = (_delta(totals["s_final"], totals["v_final"])
-                         if totals["v_final"] else None)
-        sum_dv12_pct = (_delta(totals["p2v"], totals["p1v"])
-                        if has_phase2 and totals["p1v"] else None)
-        sum_ds12_pct = (_delta(totals["p2s"], totals["p1s"])
-                        if has_phase2 and totals["p1s"] else None)
+        sum_svref_pct = (_delta(totals_m["s_final"], totals_m["v_final"])
+                         if totals_m["v_final"] else None)
+        sum_dv12_pct = (_delta(totals_m["p2v"], totals_m["p1v"])
+                        if has_phase2 and totals_m["p1v"] else None)
+        sum_ds12_pct = (_delta(totals_m["p2s"], totals_m["p1s"])
+                        if has_phase2 and totals_m["p1s"] else None)
 
         # Sum row uses the SAME winner-highlight convention as the data rows:
         # \textbf{} the strict row minimum over the absolute-count columns,

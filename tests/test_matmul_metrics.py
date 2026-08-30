@@ -74,7 +74,7 @@ def stub_ppa(monkeypatch):
 
     def fake(self, workdir, top_module=None, design_file=None, sim_stats=None):
         return CostResult(ok=True, value=50.0,
-                          stats={"area": 100.0, "delay": 50.0, "power": 1.0})
+                          stats={"area": 100.0, "delay": 50.0, "power_total": 1e-3})
 
     monkeypatch.setattr(PPACost, "evaluate", fake)
 
@@ -124,7 +124,7 @@ def test_make_cost_metric_new():
     assert a.primary_key == "area_runtime_product" and a.target_delay == 500
 
 
-# ── Unit: energy / edap (data-movement) metrics ──────────────────────────────
+# ── Unit: energy / access (data-movement) metrics ────────────────────────────
 
 def test_parse_sim_stats_reads_writes():
     from core.correctness import parse_sim_stats
@@ -135,58 +135,107 @@ def test_parse_sim_stats_reads_writes():
     assert parse_sim_stats("TB_SUMMARY total=5 errors=0\n", "") == {}
 
 
-def test_energy_cost_math():
-    from core.cost import EnergyCost
-    r = EnergyCost().evaluate(Path("."), "matmul_core", sim_stats={"reads": 4352, "writes": 256})
+def test_access_cost_math():
+    from core.cost import AccessCost
+    r = AccessCost().evaluate(Path("."), "matmul_core", sim_stats={"reads": 4352, "writes": 256})
     assert r.ok and r.value == 4608.0
-    assert r.stats == {"energy": 4608.0, "reads": 4352.0, "writes": 256.0}
+    assert r.stats == {"accesses": 4608.0, "reads": 4352.0, "writes": 256.0}
 
 
 @pytest.mark.parametrize("sim_stats", [None, {}, {"reads": 10}, {"cycles": 1}])
-def test_energy_cost_fails_without_counts(sim_stats):
-    from core.cost import EnergyCost
-    r = EnergyCost().evaluate(Path("."), "matmul_core", sim_stats=sim_stats)
+def test_access_cost_fails_without_counts(sim_stats):
+    from core.cost import AccessCost
+    r = AccessCost().evaluate(Path("."), "matmul_core", sim_stats=sim_stats)
     assert not r.ok and "TB_READS" in r.error
 
 
-def test_edap_cost_math(stub_ppa):
-    from core.cost import EdapCost
-    ss = {"reads": 4352, "writes": 256, "cycles": 1000}  # energy=4608, runtime=1000*50=50000
-    r = EdapCost().evaluate(Path("."), "matmul_core", sim_stats=ss)
+def test_ppa_energy_cost_math(stub_ppa):
+    from core.cost import PPAEnergyCost
+    r = PPAEnergyCost().evaluate(Path("."), "matmul_core", sim_stats={"cycles": 1000})
     assert r.ok
-    # edap (k=1) = energy**1 * runtime * area = 4608 * 50000 * 100
+    runtime = 1000 * 50.0
+    assert r.value == pytest.approx(1e-3 * runtime * 1e3)  # power_total x runtime -> fJ
+    assert r.stats["energy"] == pytest.approx(r.value)
+    assert r.stats["runtime"] == pytest.approx(runtime)
+    assert PPAEnergyCost().use_vcd_for_power
+
+
+def test_aarp_cost_math(stub_ppa):
+    from core.cost import AccessAreaRuntimeProductCost
+    ss = {"reads": 4352, "writes": 256, "cycles": 1000}  # accesses=4608, runtime=1000*50=50000
+    r = AccessAreaRuntimeProductCost().evaluate(Path("."), "matmul_core", sim_stats=ss)
+    assert r.ok
+    # aarp (k=1) = accesses**1 * runtime * area = 4608 * 50000 * 100
     assert r.value == pytest.approx(4608.0 * 50000.0 * 100.0)
-    assert r.stats["edap"] == pytest.approx(4608.0 * 50000.0 * 100.0)
-    assert r.stats["energy"] == 4608.0 and r.stats["runtime"] == 50000.0 and r.stats["area"] == 100.0
+    assert r.stats["access_area_runtime_product"] == pytest.approx(4608.0 * 50000.0 * 100.0)
+    assert r.stats["accesses"] == 4608.0 and r.stats["runtime"] == 50000.0 and r.stats["area"] == 100.0
 
 
-def test_edap_energy_exp_knob(stub_ppa):
-    from core.cost import EdapCost, make_cost_metric
-    ss = {"reads": 4352, "writes": 256, "cycles": 1000}  # energy=4608, runtime=50000, area=100
-    # k=2 weights energy harder: edap = energy**2 * runtime * area
-    r2 = EdapCost(energy_exp=2.0).evaluate(Path("."), "matmul_core", sim_stats=ss)
+def test_aarp_energy_exp_knob(stub_ppa):
+    from core.cost import AccessAreaRuntimeProductCost, make_cost_metric
+    ss = {"reads": 4352, "writes": 256, "cycles": 1000}  # accesses=4608, runtime=50000, area=100
+    # k=2 weights accesses harder: aarp = accesses**2 * runtime * area
+    r2 = AccessAreaRuntimeProductCost(energy_exp=2.0).evaluate(Path("."), "matmul_core", sim_stats=ss)
     assert r2.value == pytest.approx(4608.0**2 * 50000.0 * 100.0)
-    # k=0 reduces to plain area_runtime_product (energy ignored): edap = runtime * area
-    r0 = EdapCost(energy_exp=0.0).evaluate(Path("."), "matmul_core", sim_stats=ss)
+    # k=0 reduces to plain area_runtime_product (accesses ignored): aarp = runtime * area
+    r0 = AccessAreaRuntimeProductCost(energy_exp=0.0).evaluate(Path("."), "matmul_core", sim_stats=ss)
     assert r0.value == pytest.approx(50000.0 * 100.0)
     # the knob is plumbed through the factory
-    assert make_cost_metric("edap", energy_exp=2.5).energy_exp == 2.5
+    assert make_cost_metric("access_area_runtime_product", energy_exp=2.5).energy_exp == 2.5
 
 
-def test_edap_fails_without_counts(stub_ppa):
-    from core.cost import EdapCost
+def test_aarp_fails_without_counts(stub_ppa):
+    from core.cost import AccessAreaRuntimeProductCost
     # missing reads/writes
-    assert not EdapCost().evaluate(Path("."), "matmul_core", sim_stats={"cycles": 1}).ok
+    assert not AccessAreaRuntimeProductCost().evaluate(Path("."), "matmul_core", sim_stats={"cycles": 1}).ok
     # missing cycles
-    assert not EdapCost().evaluate(Path("."), "matmul_core", sim_stats={"reads": 1, "writes": 1}).ok
+    assert not AccessAreaRuntimeProductCost().evaluate(Path("."), "matmul_core", sim_stats={"reads": 1, "writes": 1}).ok
 
 
-def test_energy_edap_registered():
-    from core.cost import COST_METRICS, make_cost_metric, EnergyCost, EdapCost
-    assert COST_METRICS["energy"] is EnergyCost and COST_METRICS["edap"] is EdapCost
-    assert isinstance(make_cost_metric("energy"), EnergyCost)
-    e = make_cost_metric("edap", target_delay=500)
-    assert isinstance(e, EdapCost) and e.primary_key == "edap" and e.target_delay == 500
+def test_earp_cost_math(stub_ppa):
+    from core.cost import EnergyAreaRuntimeProductCost
+    r = EnergyAreaRuntimeProductCost().evaluate(Path("."), "matmul_core", sim_stats={"cycles": 1000})
+    assert r.ok
+    runtime = 1000 * 50.0
+    energy_fj = 1e-3 * runtime * 1e3  # power_total [W] x runtime [ps] -> fJ
+    assert r.stats["energy"] == pytest.approx(energy_fj)
+    assert r.value == pytest.approx(energy_fj * 100.0 * runtime)
+    assert r.stats["energy_area_runtime_product"] == pytest.approx(r.value)
+    assert r.stats["runtime"] == pytest.approx(runtime)
+
+
+def test_earp_fails_without_cycles_or_power(stub_ppa):
+    from core.cost import CostResult, EnergyAreaRuntimeProductCost, PPACost
+    assert not EnergyAreaRuntimeProductCost().evaluate(Path("."), "matmul_core", sim_stats={}).ok
+
+    def no_power(self, workdir, top_module=None, design_file=None, sim_stats=None):
+        return CostResult(ok=True, value=50.0, stats={"area": 100.0, "delay": 50.0})
+    PPACost.evaluate = no_power  # stub_ppa monkeypatch restores the original
+    r = EnergyAreaRuntimeProductCost().evaluate(Path("."), "matmul_core", sim_stats={"cycles": 1})
+    assert not r.ok and "power_total" in r.error
+
+
+def test_energy_metrics_registered():
+    from core.cost import (COST_METRICS, AccessAreaRuntimeProductCost,
+                           EnergyAreaRuntimeProductCost)
+    assert COST_METRICS["access_area_runtime_product"] is AccessAreaRuntimeProductCost
+    assert COST_METRICS["energy_area_runtime_product"] is EnergyAreaRuntimeProductCost
+    assert "edap" not in COST_METRICS
+    assert EnergyAreaRuntimeProductCost().use_vcd_for_power
+    assert AccessAreaRuntimeProductCost().use_vcd_for_power is False
+
+
+def test_energy_aarp_registered():
+    from core.cost import (COST_METRICS, make_cost_metric, AccessCost, PPAEnergyCost,
+                           AccessAreaRuntimeProductCost)
+    assert COST_METRICS["accesses"] is AccessCost
+    assert COST_METRICS["energy"] is PPAEnergyCost
+    assert "power" not in COST_METRICS
+    assert isinstance(make_cost_metric("accesses"), AccessCost)
+    assert isinstance(make_cost_metric("energy"), PPAEnergyCost)
+    e = make_cost_metric("access_area_runtime_product", target_delay=500)
+    assert isinstance(e, AccessAreaRuntimeProductCost)
+    assert e.primary_key == "access_area_runtime_product" and e.target_delay == 500
 
 
 # ── Unit: run_netlist_sim toggle ─────────────────────────────────────────────

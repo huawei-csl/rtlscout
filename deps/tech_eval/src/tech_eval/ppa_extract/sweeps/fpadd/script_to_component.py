@@ -106,7 +106,7 @@ def patch_fpadd_source(source: str, filename: str = "<fpadd>") -> str:
 
     # Add import for build_adder at the top
     import_node = ast.parse(
-        "from spirehdl.arithmetic.int_arithmetic_config import AdderConfig, build_adder"
+        "from spire.arithmetic.int_arithmetic_config import AdderConfig, build_adder"
     ).body[0]
     # Insert after existing imports
     insert_idx = 0
@@ -148,7 +148,7 @@ def _import_from_source(source_text: str, file_path: Path, module_name: str):
 
 def _find_component_class(mod) -> type:
     """Return the first Component subclass defined in *mod*."""
-    from spirehdl.spirehdl_module import Component
+    from spire import Component
     for attr_name in dir(mod):
         obj = getattr(mod, attr_name)
         if (isinstance(obj, type)

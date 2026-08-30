@@ -1,5 +1,7 @@
 # inspired from https://github.com/dakfjalka/Arith-DAS/blob/master/utils/template.py
 
+import os
+
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import List, Optional
@@ -12,6 +14,17 @@ class Technology(str, Enum):
     FREEPDK45 = "freepdk45"
 
 
+# Cell models for gate-level netlist sims. True: use one generated Verilog
+# module per cell, derived from the liberty function attributes (2-state,
+# zero-delay -- same fidelity as the vendor models without SDF, ~5x faster
+# builds / ~25x faster sims, immune to the Verilator sequential-UDP
+# mis-lowering;
+# False: use the original vendor library sim models
+NETLIST_FUNCTIONAL_SIM_CELL_MODELS = True
+
+_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+
+
 @dataclass
 class TechConfig:
     """All technology-dependent paths and settings."""
@@ -21,6 +34,7 @@ class TechConfig:
     abc_constr: str
     verilator_netlist_flags: List[str]
     adder_map_file: Optional[str] = None
+    functional_models: Optional[str] = None  # generated functional cell models
 
 
 _TECH_CONFIGS = {
@@ -70,6 +84,7 @@ _TECH_CONFIGS = {
             "/app/asap7sc7p5t_28/Verilog/asap7sc7p5t_OA_RVT_TT_201020.v",
         ],
         adder_map_file="/prog/OpenROAD-flow-scripts/flow/platforms/asap7/yoSys/cells_adders_R.v",
+        functional_models=os.path.join(_DATA_DIR, "asap7_functional_cells.v"),
     ),
     Technology.FREEPDK45: TechConfig(
         # from https://github.com/mflowgen/mflowgen/tree/main/adks/freepdk-45nm/pkgs/base
@@ -151,7 +166,8 @@ verilator_common_flags = [
     "1ns/10ps",
 ]
 
-verilator_directive_flags = ["--build", "--binary", "-j", "16"]
+# currently no -j flags, as evals are often parallized by the caller
+verilator_directive_flags = ["--build", "--binary"]
 
 verilator_vcd_flag = ["--trace-vcd", "--trace-underscore", "--no-trace-top"]
 
@@ -198,7 +214,10 @@ read_verilog {verilog_path}
 link_design {top_module_name}
 
 
-set period 5
+# Clock at the synthesis target: reported delay is the worst-path ARRIVAL
+# (period-independent), but worst_slack becomes target - achieved instead of
+# the meaningless 5ps reference. All paths stay in this one clock group.
+set period {sta_target_delay}
 
 set clk_port [get_ports -quiet clk]
 
@@ -225,7 +244,16 @@ set out_ports   [delete_from_list [all_outputs] $clock_ports]
 
 set_output_delay 0 -clock $clk $out_ports
 
-set_max_delay -from [all_inputs] {sta_target_delay}
+# Constrain the inputs with the CLOCK, not `set_max_delay -from [all_inputs]
+# <target_delay>`. The old form put input->register paths in a separate path
+# group judged against an agent-settable target, so whenever target_delay
+# exceeded their arrival they showed positive slack and -sort_by_slack skipped
+# them -- a design that moved all its logic in front of the first register
+# reported the leftover register-to-register wire delay (53 ps instead of
+# 3487 ps). One clock group makes worst-slack == longest path, for
+# combinational (virtual clock) and sequential designs alike, and makes the
+# reported delay independent of target_delay.
+set_input_delay 0 -clock $clk $data_inputs
 set critical_path [lindex [find_timing_paths -sort_by_slack] 0]
 set path_delay [sta::format_time [[$critical_path path] arrival] 4]
 puts "wns $path_delay"
@@ -234,17 +262,38 @@ report_design_area
 # rsz::design_area returns square meters as a Tcl double).
 puts "design_area_precise [expr [rsz::design_area] * 1e12] um^2"
 
-{power_activity_cmd}
-report_power
-
-
 report_worst_slack
 
 puts "REPORT_CHECKS_BEGIN"
 report_checks
 puts "REPORT_CHECKS_END"
 
+{power_section}
 #exit
+"""
+
+# Power section of the STA script (VCD path only; without a VCD no power is
+# reported). Placed AFTER all timing reports: it redefines the clock to the
+# testbench's simulated period so report_power's clock-pin activity is on the
+# same time base as the VCD activities -- the 5 ps timing clock would model
+# clock/register power at a fictitious 200 GHz.
+power_section_template = """
+if {{[llength $clk_port] > 0}} {{
+    create_clock -period {vcd_clock_period} $clk_port
+}}
+read_vcd -scope {tb_scope_name} {{{vcd_path}}}
+report_activity_annotation
+report_power
+"""
+
+# Non-VCD fallback: probabilistic power at default input activity and the
+# script clock. A RELATIVE-only estimate (not physical watts) -- meaningful
+# mainly for comparing combinational blocks at a common clock; for sequential
+# designs the clock-pin term dominates. Returned as
+# `power_probabilistic_fixed_clock` (the fixed script clock, NOT fmax).
+power_section_probabilistic = """
+set_power_activity -input -activity 0.5
+report_power
 """
 
 yosys_script_template = """

@@ -114,3 +114,4 @@ def test_remove_worker_path_deletes_directory(tmp_path: Path) -> None:
     ppa_extraction.remove_worker_path(str(worker))
     assert not worker.exists()
 
+

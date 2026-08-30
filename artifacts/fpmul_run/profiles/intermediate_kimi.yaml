@@ -1,0 +1,37 @@
+# Intermediate run on OpenRouter Kimi K3 — same shape and budgets as
+# full.yaml (30 steps, full 61-config sweep grid, deepsyn 20 min x 50/design
+# + matched equal-compute, same eval target delays) but a SINGLE agent run
+# per campaign (user request 2026-07-30): quality signal at ~1/6 the agent
+# cost, without the n=6 elite-pool exploration.
+# Select with: run_all.py --profile intermediate_kimi
+
+tag: kk3i
+model: openrouter:moonshotai/kimi-k3
+
+agent:
+  max_steps: 30
+  elite_size: 2
+  target_delay: 500.0
+
+campaigns_p1:
+  - {name: p1_area,  metric: area,  runs: 1, concurrent: 1, fresh_first: 1}
+  - {name: p1_delay, metric: delay, runs: 1, concurrent: 1, fresh_first: 1}
+campaigns_p2:                 # seeded + @abc_optimized; fresh 0/0 (user decision
+                              # 2026-07-28): P2 ONLY improves existing designs
+  - {name: p2_area,  metric: area,  runs: 1, concurrent: 1, fresh_first: 0, fresh_base: 0.0, fresh_min: 0.0, seed_from: p1_area}
+  - {name: p2_delay, metric: delay, runs: 1, concurrent: 1, fresh_first: 0, fresh_base: 0.0, fresh_min: 0.0, seed_from: p1_delay}
+
+sweep:
+  single_point: false         # full 61-config grid per design
+  target_delays: null         # null = eval.target_delays below
+
+deepsyn:
+  time_budget: 1200           # seconds per &deepsyn job (paper: 20 min)
+  refine_runs: 50             # per post-sweep design (paper budget)
+  equal_compute_runs: null    # null = MATCHED compute: N front designs x refine_runs
+  workers: 100
+  double_effort: false   # optional 2x-time from-scratch baseline arm
+
+eval:
+  target_delays: [800.0, 1200.0, 1800.0]  # log-uniform (1200 = sqrt(800*1800)); 800 may pull delays <900, <800 not expected; also the sweep grid via sweep.target_delays: null
+  workers: 50

@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 from tech_eval.int_tb_sim import TwInputArit, run_component_with_vectors
 
-from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
+from spire.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
     FSAOption,
     PPAOption,
     PPGOption,
@@ -17,19 +17,19 @@ from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib 
     TwoInputAritEncodings,
     MultiplierTestVectors,
 )
-from spirehdl.arithmetic.int_multipliers.eval.testvector_generation import (
+from spire.arithmetic.int_multipliers.eval.testvector_generation import (
     Encoding as VecEncoding,
     EncoderDecoderTestVectors,
 )
 
-from spirehdl.arithmetic.encoding.sign_magnitude import TwosComplementToSignMagnitudeEncoder
-from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
+from spire.arithmetic.encoding.sign_magnitude import TwosComplementToSignMagnitudeEncoder
+from spire.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
     encoding_for_multiplier,
 )
 
 from tech_eval.ppa_extract.core.ppa_extraction import get_ppa, remove_worker_path
-from spirehdl.spirehdl import reset_shared_cache
-from spirehdl.helpers import  refactor_module_to_aig
+from spire.expr import reset_shared_cache
+from spire.helpers import  refactor_module_to_aig
 
 CASE_MULTIPLIER = "multiplier"
 CASE_ENCODER = "encoder"
@@ -194,7 +194,7 @@ def _run_case(
         raise ValueError(f"Unknown case type: {case.case_type}")
     
     # optional    
-    #comp = refactor_module_to_aig(comp.to_module(), optimize=True).to_component()
+    #comp = refactor_module_to_aig(comp.to_netlist(), optimize=True).to_component()
 
     ppa_results = []
     powers = []
@@ -221,7 +221,7 @@ def _run_case(
         remove_worker_path(worker_path)
         ppa["sigma"] = sigma
         ppa_results.append(ppa)
-        powers.append(ppa["power"])
+        powers.append(ppa["power_probabilistic_fixed_clock"])
 
     encoding_names = (encodings.a.name, encodings.b.name, encodings.y.name)
     return {

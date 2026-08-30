@@ -1,0 +1,38 @@
+# GLM 5.2 twin of profiles/full.yaml — identical scale and settings, only the
+# model differs. Purpose: the paper's fpmul and generalization results are all
+# GLM 5.2 while RTLRewriter was Opus 4.8, so the cross-language claim rested on
+# a different model from every other number. This makes the paper uniform.
+tag: rrglm
+model: openrouter:z-ai/glm-5.2
+
+cases: null                   # null = all 14
+# n=3 INDEPENDENT repetitions (2026-07-29 user decision), each a single agent
+# run per phase: repetitions invokes the runner N times with a fresh elite
+# pool (P2 seeds from its OWN rep's P1); total_runs>1 would instead be
+# elite-pool multirun WITHIN a rep (P1 runs cross-seed, all P2 runs seed from
+# the shared P1 pool). Rep summaries are merged for tables (mean±std across
+# reps, delta-of-means) and CEC (global best over reps).
+repetitions: 3
+total_runs: 1                 # agent runs per phase within ONE repetition
+phases: 2
+workers: 8
+max_concurrent: 2
+elite_size: 5
+
+# enabled: false skips a campaign in the default pipeline (explicit
+# --campaigns overrides). To run campaigns separately: run with cells only,
+# then flip transistors to true and re-invoke WITHOUT --new-run — it resumes
+# the same run dir and continues at transistors. Setup (stage0) always runs
+# first and self-skips when done.
+campaigns:
+  cells:       {cost_metric: yosys_cells,       max_steps: 30, fsm_optimize: true, enabled: true}
+  transistors: {cost_metric: yosys_transistors, max_steps: 30, fsm_optimize: true, enabled: false}  # Appendix B: state-encoding API access
+
+vectors:
+  target_total: 10000         # per case; existing ~2000 kept, rest appended
+  seed: 20260729
+
+cec:
+  sim_cases: [2, 12]          # SAT-intractable 32-bit multipliers -> 1M-vector sim
+  sim_vectors: 1000000
+  workers: 16

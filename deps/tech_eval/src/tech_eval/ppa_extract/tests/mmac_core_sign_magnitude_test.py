@@ -8,22 +8,22 @@ import numpy as np
 
 from tech_eval.int_tb_sim import run_component_with_vectors
 from tech_eval.ppa_extract.core.ppa_extraction import get_ppa, remove_worker_path
-from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
+from spire.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
     FSAOption,
     MultiplierOption,
     PPAOption,
     PPGOption,
     TwoInputAritEncodings,
 )
-from spirehdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, EncodingModel
-from spirehdl.cores.matmul_accumulate.matmul_accumulate_core import (
+from spire.arithmetic.int_multipliers.eval.testvector_generation import Encoding, EncodingModel
+from spire.cores.matmul_accumulate.matmul_accumulate_core import (
     AdderConfig,
     MMAcDims,
     MMAcWidths,
     max_y_width_unsigned,
     MatmulAccumulateCore,
 )
-from spirehdl.cores.matmul_accumulate.matmul_accumulate_core_sign_magnitude import (
+from spire.cores.matmul_accumulate.matmul_accumulate_core_sign_magnitude import (
     MMAcEncodedCfg,
     MultiplierConfig,
     SignMagnitudeEncoderConfig,
@@ -147,7 +147,7 @@ def test_mmac_core_sign_magnitude_vector_simulation() -> None:
 
 
     comp = MatmulAccumulateComponent(core_cfg, signed_io_type=False)
-    module = comp.to_module()
+    module = comp.to_netlist()
 
     vectors = _build_vectors_encoding(comp, encoding=encoding, num_vectors=50, sigma=sigma)
 

@@ -4,19 +4,19 @@ from dataclasses import dataclass
 from itertools import product
 from typing import ClassVar, Dict, List, Optional
 
-from spirehdl.spirehdl import reset_shared_cache
+from spire.expr import reset_shared_cache
 
-from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
+from spire.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
     FSAOption,
     PPAOption,
     PPGOption,
     MultiplierOption,
     TwoInputAritEncodings,
 )
-from spirehdl.arithmetic.int_multipliers.eval.testvector_generation import (
+from spire.arithmetic.int_multipliers.eval.testvector_generation import (
     Encoding,
 )
-from spirehdl.cores.matmul_accumulate.matmul_accumulate_core import (
+from spire.cores.matmul_accumulate.matmul_accumulate_core import (
     AdderConfig as MMAcAdderConfig,
     MMAcCfg,
     MMAcDims,
@@ -25,12 +25,12 @@ from spirehdl.cores.matmul_accumulate.matmul_accumulate_core import (
     MatmulAccumulateComponent as MatmulAccumulateComponentBase,
     max_y_width_unsigned,
 )
-from spirehdl.cores.matmul_accumulate.matmul_accumulate_core_fused import (
+from spire.cores.matmul_accumulate.matmul_accumulate_core_fused import (
     MMAcFusedCfg,
     MultiplierConfig as MMAcFusedMultiplierConfig,
     MatmulAccumulateComponent as MatmulAccumulateComponentFused,
 )
-from spirehdl.cores.matmul_accumulate.matmul_accumulate_core_sign_magnitude import (
+from spire.cores.matmul_accumulate.matmul_accumulate_core_sign_magnitude import (
     AdderConfig as MMAcEncodedAdderConfig,
     MMAcEncodedCfg,
     MultiplierConfig as MMAcEncodedMultiplierConfig,

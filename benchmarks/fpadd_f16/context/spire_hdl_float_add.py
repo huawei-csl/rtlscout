@@ -307,7 +307,7 @@ class FpAdd(Component):
 
 def build_fp_add(name: str, EW: int, FW: int, subnormals: bool = True) -> "Netlist":
     comp = FpAdd(EW, FW, subnormals=subnormals)
-    return comp.to_module(name, with_clock=False, with_reset=False)
+    return comp.to_netlist(name, with_clock=False, with_reset=False)
 
 
 def build_f16_add(name: str = "F16Add") -> "Netlist":

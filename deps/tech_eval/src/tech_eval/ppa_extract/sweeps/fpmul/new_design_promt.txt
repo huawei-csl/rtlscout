@@ -14,7 +14,7 @@ Only patch these two lines — everything else must be verbatim:
     → `exp_sum = build_adder(eA_eff, eB_eff, adder_cfg) if adder_cfg is not None else eA_eff + eB_eff`
 
 Also patch any `m.wire(...)` calls → `Wire(...)` (Wire is available via
-`from spirehdl.spirehdl import *`).
+`from spire.expr import *`).
 
 Infer the class name, output filename, and case suffix from the design file.
 Use fp_mul_v16.py as the reference for the Component boilerplate.

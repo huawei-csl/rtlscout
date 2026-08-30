@@ -26,5 +26,5 @@ class Adder(Component):
 
 adder = Adder()
 replace_arithmetic_ops(adder, ArithmeticAutoConfig(objective="area"))
-module = adder.to_module("example")
+module = adder.to_netlist("example")
 module.to_verilog_file("design.v")

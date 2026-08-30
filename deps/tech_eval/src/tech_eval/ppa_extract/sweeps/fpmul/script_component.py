@@ -8,7 +8,7 @@ executes the script to obtain a Module which is converted to a Component.
 import ast
 from pathlib import Path
 
-from spirehdl.arithmetic.int_arithmetic_config import (
+from spire.arithmetic.int_arithmetic_config import (
     build_adder,
     build_multiplier,
 )

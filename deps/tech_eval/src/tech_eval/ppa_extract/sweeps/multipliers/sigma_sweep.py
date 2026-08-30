@@ -5,7 +5,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from tech_eval.int_tb_sim import TwInputArit, generate_vectors, run_component_with_vectors
-from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
+from spire.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
     Encoding,
     FSAOption,
     PPAOption,
@@ -14,7 +14,7 @@ from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib 
     TwoInputAritEncodings,
     MultiplierTestVectors,
 )
-from spirehdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import (
+from spire.arithmetic.int_multipliers.multipliers.multiplier_stage_core import (
     StageBasedMultiplierBasic,
 )
 
@@ -151,7 +151,7 @@ def run_sigma_sweep_and_plot():
         remove_worker_path(worker_path)
         ppa["sigma"] = sigma
         ppa_results.append(ppa)
-        powers.append(ppa["power"])
+        powers.append(ppa["power_probabilistic_fixed_clock"])
 
     plot_path = os.path.join(worker_base, "power_vs_sigma.png")
     plt.figure(figsize=(6, 4))

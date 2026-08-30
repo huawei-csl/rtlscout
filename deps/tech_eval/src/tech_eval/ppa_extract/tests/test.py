@@ -3,9 +3,9 @@ import os
 from pathlib import Path
 import pytest
 
-from spirehdl.spirehdl import UInt
-from spirehdl.spirehdl_module import Module
-from spirehdl.spirehdl_verilog_testbench import VerilogTestbenchSimulator
+from spire.expr import UInt
+from spire.component import Netlist as Module
+from spire.verilog_testbench import VerilogTestbenchSimulator
 
 
 def build_accumulator():
