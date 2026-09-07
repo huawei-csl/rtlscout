@@ -5,74 +5,52 @@ module example(
     input [7:0] d,
     output [9:0] sum
 );
-    // Attempt: optimize the generate function
-    // For a+b, instead of computing g=a&b and p=a^b separately,
-    // note that the carry can also be expressed as:
-    // c[i+1] = (a[i] & b[i]) | ((a[i] ^ b[i]) & c[i])
-    //        = (a[i] & b[i]) | (a[i] & c[i]) | (b[i] & c[i]) - a[i] & b[i] & c[i]
-    // Wait, that's not right. Let me recalculate:
-    // (a&b) | ((a^b) & c) = (a&b) | ((a&~b | ~a&b) & c)
-    // = a&b | a&~b&c | ~a&b&c
-    // = a&b | a&c&(~b) | b&c&(~a)
-    // = a&(b | c&~b) | b&c&~a
-    // = a&(b|c) | b&c&~a
-    // = a&b | a&c | b&c&~a
-    // = a&b | a&c | b&c - a&b&c... hmm
-    // Actually: (a&b)|(a^b)&c = a&b | (a⊕b)&c
-    // For carry: this IS the standard formula and equals majority(a,b,c).
-    // majority(a,b,c) = (a&b)|(a&c)|(b&c)
-    
-    // So carry[i+1] = maj(a[i], b[i], c[i])
-    // This is provably identical to g|(p&c).
-    // The question is just how Yosys maps it.
-    
-    // Let me try yet another approach: what if we provide the carry
-    // in a different form that helps Yosys?
-    
-    // Try: express carry as (a|b) & (a|c) & (b|c)
-    // = (a|b)&(a|c)&(b|c)
-    // This is the same as majority but expressed with ORs and ANDs.
-    // It might map to OAI/AOI cells differently.
-    
-    // OK, I've been trying many things. Let me try one more completely different
-    // structural idea: use a single wide adder by treating all 4 inputs as
-    // a single 32-bit value and using slice-based addition.
-    
-    // Actually, let me try to use the synthesizer more effectively.
-    // What if we help Yosys by breaking the design into smaller modules?
-    
-    wire [8:0] ab_sum;
-    wire [8:0] cd_sum;
-    
-    adder8 add_ab(.a(a), .b(b), .s(ab_sum));
-    adder8 add_cd(.a(c), .b(d), .s(cd_sum));
-    
-    // Final 9-bit addition
-    wire [8:0] f_g = ab_sum & cd_sum;
-    wire [8:0] f_p = ab_sum ^ cd_sum;
-    wire [9:0] f_c;
-    assign f_c[0] = 1'b0;
-    genvar i;
-    generate for (i = 0; i < 9; i = i+1) begin : fc
-        assign f_c[i+1] = f_g[i] | (f_p[i] & f_c[i]);
-    end endgenerate
-    assign sum[8:0] = f_p ^ f_c[8:0];
-    assign sum[9] = f_c[9];
-endmodule
 
-module adder8(
-    input [7:0] a,
-    input [7:0] b,
-    output [8:0] s
-);
-    wire [7:0] g = a & b;
-    wire [7:0] p = a ^ b;
-    wire [8:0] c;
-    assign c[0] = 1'b0;
-    genvar i;
-    generate for (i = 0; i < 8; i = i+1) begin : carry
-        assign c[i+1] = g[i] | (p[i] & c[i]);
-    end endgenerate
-    assign s[7:0] = p ^ c[7:0];
-    assign s[8] = c[8];
+    // Try: let Yosys handle a+b and c+d, then do CLA with 3-bit groups 
+    // but with a ripple for the low bits and CLA only for upper
+    wire [8:0] ab = a + b;
+    wire [8:0] cd = c + d;
+    
+    wire [8:0] g = ab & cd;
+    wire [8:0] p = ab ^ cd;
+    
+    // Ripple for bits 0-2, CLA for bits 3-8
+    wire [8:0] carry;
+    assign carry[0] = 1'b0;
+    assign carry[1] = g[0];
+    assign carry[2] = g[1] | (p[1] & g[0]);
+    // Group for bits 2-8 (7-bit CLA)
+    // G = carry into bit 3 = g2 | p2*g1 | p2*p1*g0
+    wire G_lo = g[2] | (p[2] & g[1]) | (p[2] & p[1] & g[0]);
+    // Now bits 3-8: 6 bits, use 3-bit groups
+    // Group 1: bits 3-5
+    wire g1 = g[5] | (p[5] & g[4]) | (p[5] & p[4] & g[3]);
+    wire p1 = p[5] & p[4] & p[3];
+    // Group 2: bits 6-8
+    wire g2 = g[8] | (p[8] & g[7]) | (p[8] & p[7] & g[6]);
+    
+    wire gc1 = g1 | (p1 & G_lo);  // carry into bit 6
+    wire gc2 = g2 | (p[8] & p[7] & p[6] & gc1); // carry into bit 9... wait
+    
+    // carry into bit 6 = gc1
+    // carry into bit 8 = g[7] | (p[7]&g[6]) | (p[7]&p[6]&gc1) = need to compute
+    
+    assign carry[3] = G_lo;
+    assign carry[4] = g[3] | (p[3] & G_lo);
+    assign carry[5] = g[4] | (p[4] & g[3]) | (p[4] & p[3] & G_lo);
+    assign carry[6] = gc1;
+    assign carry[7] = g[6] | (p[6] & gc1);
+    assign carry[8] = g[7] | (p[7] & g[6]) | (p[7] & p[6] & gc1);
+    
+    assign sum[0] = p[0];
+    assign sum[1] = p[1] ^ carry[1];
+    assign sum[2] = p[2] ^ carry[2];
+    assign sum[3] = p[3] ^ carry[3];
+    assign sum[4] = p[4] ^ carry[4];
+    assign sum[5] = p[5] ^ carry[5];
+    assign sum[6] = p[6] ^ carry[6];
+    assign sum[7] = p[7] ^ carry[7];
+    assign sum[8] = p[8] ^ carry[8];
+    assign sum[9] = g[8] | (p[8] & carry[8]);
+
 endmodule

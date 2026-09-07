@@ -1,30 +1,31 @@
-from dataclasses import dataclass
-from spirehdl.spirehdl import UInt, Signal
-from spirehdl.spirehdl_module import Component
-from spirehdl.arithmetic.int_arithmetic_config import ArithmeticAutoConfig, replace_arithmetic_ops
+from spire import Component, IORecord, Input, Output, UInt, Bool, Wire
+from spire.expr import cat, Const, flat_emit
 
 
-@dataclass
-class AddIO:
-    a: Signal
-    b: Signal
-    sum: Signal
-
-
-class Adder(Component):
+class Example(Component):
     def __init__(self):
-        self.io = AddIO(
-            a=Signal(name="a", typ=UInt(8), kind="input"),
-            b=Signal(name="b", typ=UInt(8), kind="input"),
-            sum=Signal(name="sum", typ=UInt(9), kind="output"),
+        self.io = IORecord(
+            a=Input(UInt(8)),
+            b=Input(UInt(8)),
+            sum=Output(UInt(9)),
         )
         self.elaborate()
 
     def elaborate(self):
-        self.io.sum <<= self.io.a + self.io.b
+        a = self.io.a
+        b = self.io.b
+
+        carries = [Const(0, Bool())]
+        sums = []
+        for i in range(8):
+            g = a[i] & b[i]
+            p = a[i] ^ b[i]
+            c = g | (p & carries[i])
+            carries.append(c)
+            sums.append(p ^ carries[i])
+
+        self.io.sum <<= cat(cat(*sums), carries[8])
 
 
-adder = Adder()
-replace_arithmetic_ops(adder, ArithmeticAutoConfig(objective="area"))
-module = adder.to_netlist("example")
-module.to_verilog_file("design.v")
+with flat_emit(True):
+    Example().to_verilog_file("design.v", name="example")

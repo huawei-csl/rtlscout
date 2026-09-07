@@ -5,8 +5,8 @@
   "top_module": "example",
   "type": "sequential",
   "metric": "cells",
-  "best_phase": "phase1",
-  "metric_value": 6,
+  "best_phase": "phase2",
+  "metric_value": 36,
   "cec_status": "EQUIVALENT",
   "cec_method": "tempinduct",
   "cec_detail": "reset-anchored temporal induction \u2014 complete proof",
@@ -14,6 +14,6 @@
     "starting_point": "starting_point.v",
     "tb.sv": "tb.sv",
     "vectors.dat": "vectors.dat",
-    "best_netlist": "best.v"
+    "best_netlist": "best.sv"
   }
 }

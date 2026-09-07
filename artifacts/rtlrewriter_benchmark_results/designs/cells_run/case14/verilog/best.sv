@@ -6,6 +6,7 @@ module mux_tree(
     input wire d,
     output wire y
 );
-    wire s = sel ? d : c;
+    wire s;
+    assign s = sel ? d : c;
     assign y = s ? b : a;
 endmodule

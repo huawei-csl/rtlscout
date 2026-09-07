@@ -5,8 +5,8 @@
   "top_module": "example",
   "type": "sequential",
   "metric": "cells",
-  "best_phase": "phase1",
-  "metric_value": 40,
+  "best_phase": "phase2",
+  "metric_value": 39,
   "cec_status": "EQUIVALENT",
   "cec_method": "equiv_induct",
   "cec_detail": "equiv flow: all 7 $equiv cells proven",
@@ -14,6 +14,6 @@
     "starting_point": "starting_point.v",
     "tb.sv": "tb.sv",
     "vectors.dat": "vectors.dat",
-    "best_netlist": "best.v"
+    "best_netlist": "best.sv"
   }
 }

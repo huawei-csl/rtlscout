@@ -1,32 +1,35 @@
-"""Seed + arithmetic + abc stacked."""
-from spirehdl.spirehdl import UInt, cat
-from spirehdl.spirehdl_module import Module
-from spirehdl.optimize import abc_optimized, arithmetic_optimized
+"""Variant: try different abc scripts stacked on arithmetic_optimized(area).
+"""
+from spire import Component, IORecord, Input, Output, UInt
+from spire.optimize import arithmetic_optimized, abc_optimized, ABC_RECIPES
 
 
-@abc_optimized(abc_script="strash; &get -n; &deepsyn -T 30; &put")
+@abc_optimized(abc_script="strash; balance; rewrite -l; refactor -l; balance; rewrite -l; rewrite -lz; balance; refactor -lz; rewrite -lz; balance")
 @arithmetic_optimized(objective="area")
-def compute(x):
-    x2 = (x << 2)[0:32]
-    x3 = (x << 3)[0:32]
-    x4 = (x << 4)[0:32]
-    x6 = (x << 6)[0:32]
-    x9 = (x3 + x)[0:32]
-    y = (x9 + x2)[0:32]
-    z = (x9 + x4)[0:32]
-    w = (x6 - x)[0:32]
-    return cat(y, z, w)
+def const_mul_datapath(x):
+    s = (x << 3) + x   # 9x
+    y = (x << 2) + s   # 13x
+    z = (x << 4) + s   # 25x
+    w = (x << 6) - x   # 63x
+    return y, z, w
 
 
-m = Module("example", with_clock=False, with_reset=False)
-x = m.input(UInt(32), "x")
-y = m.output(UInt(32), "y")
-z = m.output(UInt(32), "z")
-w = m.output(UInt(32), "w")
+class Example(Component):
+    def __init__(self):
+        self.io = IORecord(
+            x=Input(UInt(32)),
+            y=Output(UInt(32)),
+            z=Output(UInt(32)),
+            w=Output(UInt(32)),
+        )
+        self.elaborate()
 
-packed = compute(x)
-y <<= packed[0:32]
-z <<= packed[32:64]
-w <<= packed[64:96]
+    def elaborate(self):
+        x = self.io.x
+        y, z, w = const_mul_datapath(x)
+        self.io.y <<= y[0:32]
+        self.io.z <<= z[0:32]
+        self.io.w <<= w[0:32]
 
-m.to_verilog_file("design.v")
+
+Example().to_verilog_file("design.v", name="example")

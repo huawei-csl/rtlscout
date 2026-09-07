@@ -1,38 +1,34 @@
-"""Optimize each output separately with ABC."""
-from spirehdl.spirehdl_module import Module
-from spirehdl.spirehdl import UInt
-from spirehdl.optimize import abc_optimized, arithmetic_optimized
+"""Variant: arithmetic_optimized + abc_optimized area."""
+from spire import Component, IORecord, Input, Output, UInt
+from spire.expr import Wire
+from spire.optimize import abc_optimized, arithmetic_optimized, ABC_RECIPES
 
 
-@abc_optimized(abc_script="strash; &get -n; &deepsyn -T 30; &put")
+@abc_optimized(abc_script=ABC_RECIPES["area"])
 @arithmetic_optimized(objective="area")
-def compute_y(x):
-    return ((x << 3) + x)[0:32]
+def datapath(x):
+    y = ((x << 3) + x)[0:32]
+    z = ((x << 5) - y)[0:32]
+    w = ((y << 3) + y)[0:32]
+    return y, z, w
 
 
-@abc_optimized(abc_script="strash; &get -n; &deepsyn -T 30; &put")
-@arithmetic_optimized(objective="area")
-def compute_z(x, y_full):
-    return ((x << 5) - y_full)[0:32]
+class Example(Component):
+    def __init__(self):
+        self.io = IORecord(
+            x=Input(UInt(32)),
+            y=Output(UInt(32)),
+            z=Output(UInt(32)),
+            w=Output(UInt(32)),
+        )
+        self.elaborate()
+
+    def elaborate(self):
+        x = self.io.x
+        y, z, w = datapath(x)
+        self.io.y <<= y
+        self.io.z <<= z
+        self.io.w <<= w
 
 
-@abc_optimized(abc_script="strash; &get -n; &deepsyn -T 30; &put")
-@arithmetic_optimized(objective="area")
-def compute_w(y_full):
-    return ((y_full << 3) + y_full)[0:32]
-
-
-m = Module("example", with_clock=False, with_reset=False)
-x = m.input(UInt(32), "x")
-y = m.output(UInt(32), "y")
-z = m.output(UInt(32), "z")
-w = m.output(UInt(32), "w")
-
-yv = compute_y(x)
-y <<= yv
-# Reconstruct y_full at 33 bits via cat? Just use 32-bit y, but z and w need 33 bits or wrap?
-# Use the y output directly (32-bit) for further computations since output is mod 2^32 anyway
-z <<= compute_z(x, yv)
-w <<= compute_w(yv)
-
-m.to_verilog_file("design.v")
+Example().to_verilog_file("design.v", name="example")

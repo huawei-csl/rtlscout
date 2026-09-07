@@ -1,25 +1,33 @@
-"""Try x3-based sharing: 13=16-3, 25=8*3+1, 63=64-1."""
-from spirehdl.spirehdl_module import Module
-from spirehdl.spirehdl import UInt, cat
-from spirehdl.optimize import arithmetic_optimized
+"""Approach AA: nested abc - deepsyn seed 3 then seed 0."""
+from spire import Component, IORecord, Input, Output, UInt
+from spire.optimize import abc_optimized
 
-m = Module("example", with_clock=False, with_reset=False)
-x = m.input(UInt(32), "x")
-y = m.output(UInt(32), "y")
-z = m.output(UInt(32), "z")
-w = m.output(UInt(32), "w")
 
-@arithmetic_optimized(objective="area")
+@abc_optimized(abc_script="strash; &get -n; &deepsyn -T 60 -S 0; &put")
+@abc_optimized(abc_script="strash; &get -n; &deepsyn -T 120 -S 3; &put")
 def compute_all(x):
-    x3 = x + (x << 1)         # 3x (1 add)
-    y_val = (x << 4) - x3     # 16x - 3x = 13x (1 sub)
-    z_val = (x3 << 3) + x     # 24x + x = 25x (1 add)
-    w_val = (x << 6) - x      # 64x - x = 63x (1 sub)
-    return cat(y_val[0:32], z_val[0:32], w_val[0:32])
+    y_val = ((x << 3) + (x << 2) + x)[0:32]
+    z_val = ((y_val << 1) - x)[0:32]
+    w_val = ((z_val << 1) + y_val)[0:32]
+    return y_val, z_val, w_val
 
-result = compute_all(x)
-y <<= result[0:32]
-z <<= result[32:64]
-w <<= result[64:96]
 
-m.to_verilog_file("design.v")
+class Example(Component):
+    def __init__(self):
+        self.io = IORecord(
+            x=Input(UInt(32)),
+            y=Output(UInt(32)),
+            z=Output(UInt(32)),
+            w=Output(UInt(32)),
+        )
+        self.elaborate()
+
+    def elaborate(self):
+        x = self.io.x
+        y_val, z_val, w_val = compute_all(x)
+        self.io.y <<= y_val
+        self.io.z <<= z_val
+        self.io.w <<= w_val
+
+
+Example().to_verilog_file("design.v", name="example")

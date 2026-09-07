@@ -1,65 +1,38 @@
-"""Try grouping results that share CD into blocks for combined optimization."""
-from spirehdl.spirehdl_module import Module
-from spirehdl.spirehdl import UInt
-from spirehdl.optimize import arithmetic_optimized, abc_optimized
+"""Optimized with replace_arithmetic_ops (area objective)."""
+from spire import Component, IORecord, Input, Output, UInt
+from spire.expr import Wire
+from spire.arithmetic.int_arithmetic_config import ArithmeticAutoConfig, replace_arithmetic_ops
 
-# CD multiplier - shared
-@abc_optimized(abc_script="strash; &get -n; &deepsyn -J 3 -T 20; &put", cache_read="none")
-@arithmetic_optimized(objective="area")
-def opt_mul(a, b):
-    return a * b
 
-# Adder with resyn2 (lighter, for when deepsyn overhead hurts)
-resyn2 = "strash; balance; rewrite -l; refactor -l; balance; rewrite -l; rewrite -lz; balance; refactor -lz; rewrite -lz; balance"
+class ArithmeticOperations(Component):
+    def __init__(self):
+        self.io = IORecord(
+            A=Input(UInt(32)), B=Input(UInt(32)), C=Input(UInt(32)), D=Input(UInt(32)),
+            E=Input(UInt(32)), F=Input(UInt(32)), G=Input(UInt(32)), H=Input(UInt(32)),
+            result1=Output(UInt(32)), result2=Output(UInt(32)), result3=Output(UInt(32)),
+            result4=Output(UInt(32)), result5=Output(UInt(32)), result6=Output(UInt(32)),
+        )
+        self.elaborate()
 
-@abc_optimized(abc_script=resyn2)
-@arithmetic_optimized(objective="area")
-def opt_add(a, b):
-    return a + b
+    def elaborate(self):
+        A, B, C, D = self.io.A, self.io.B, self.io.C, self.io.D
+        E, F, G, H = self.io.E, self.io.F, self.io.G, self.io.H
 
-@abc_optimized(abc_script=resyn2)
-@arithmetic_optimized(objective="area")
-def opt_sub(a, b):
-    return a - b
+        cd = Wire(UInt(32)); cd <<= C * D       # C*D mod 2^32
+        ab = Wire(UInt(32)); ab <<= A + B       # A+B mod 2^32
+        ef = Wire(UInt(32)); ef <<= E - F       # E-F mod 2^32
 
-m = Module("arithmetic_operations", with_clock=False, with_reset=False)
-A = m.input(UInt(32), "A")
-B = m.input(UInt(32), "B")
-C = m.input(UInt(32), "C")
-D = m.input(UInt(32), "D")
-E = m.input(UInt(32), "E")
-F = m.input(UInt(32), "F")
-G = m.input(UInt(32), "G")
-H = m.input(UInt(32), "H")
-result1 = m.output(UInt(32), "result1")
-result2 = m.output(UInt(32), "result2")
-result3 = m.output(UInt(32), "result3")
-result4 = m.output(UInt(32), "result4")
-result5 = m.output(UInt(32), "result5")
-result6 = m.output(UInt(32), "result6")
+        self.io.result1 <<= ab + cd
+        self.io.result2 <<= cd + ef
+        self.io.result3 <<= ab + G + H
+        cde = Wire(UInt(32)); cde <<= cd + E
+        self.io.result4 <<= cde * ab
+        fa = Wire(UInt(32)); fa <<= F + A
+        self.io.result5 <<= cd - fa
+        abc = Wire(UInt(32)); abc <<= ab + C
+        self.io.result6 <<= abc * ef
 
-# Common subexpressions
-CD = m.wire(UInt(32), "CD")
-CD <<= opt_mul(C, D)
 
-AB = m.wire(UInt(32), "AB")
-AB <<= opt_add(A, B)
-
-EF = m.wire(UInt(32), "EF")
-EF <<= opt_sub(E, F)
-
-result1 <<= opt_add(AB, CD)
-result2 <<= opt_add(CD, EF)
-result3 <<= opt_add(opt_add(AB, G), H)
-
-CDE = m.wire(UInt(32), "CDE")
-CDE <<= opt_add(CD, E)
-result4 <<= opt_mul(CDE, AB)
-
-result5 <<= opt_sub(opt_sub(CD, A), F)
-
-ABC_w = m.wire(UInt(32), "ABC_w")
-ABC_w <<= opt_add(AB, C)
-result6 <<= opt_mul(ABC_w, EF)
-
-m.to_verilog_file("design.v")
+comp = ArithmeticOperations()
+replace_arithmetic_ops(comp, ArithmeticAutoConfig(objective="area"))
+comp.to_verilog_file("design.v", name="arithmetic_operations")

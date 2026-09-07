@@ -1,23 +1,31 @@
-"""SpireHDL optimized — stacked abc + arithmetic."""
-from spirehdl.spirehdl_module import Module
-from spirehdl.spirehdl import UInt, mux
-from spirehdl.optimize import arithmetic_optimized, abc_optimized
+"""Variant 15: abc_optimized area seed 15 on the multiply."""
+from spire import Component, IORecord, Input, Output, UInt
+from spire.expr import mux
+from spire.optimize import abc_optimized
 
-@abc_optimized(abc_script="strash; &get -n; &deepsyn -T 10; &put")
-@arithmetic_optimized(objective="area")
-def opt_mult(a, b):
+
+@abc_optimized(abc_script="strash; &get -n; &deepsyn -T 120 -S 15; &put")
+def opt_mul(a, b):
     return a * b
 
-m = Module("inefficient_multiplier", with_clock=False, with_reset=False)
-multiplicandA = m.input(UInt(8), "multiplicandA")
-multiplierB   = m.input(UInt(8), "multiplierB")
-multiplicandC = m.input(UInt(8), "multiplicandC")
-multiplierD   = m.input(UInt(8), "multiplierD")
-sel           = m.input(UInt(1), "sel")
-product       = m.output(UInt(16), "product")
 
-op1 = mux(sel, multiplicandA, multiplicandC)
-op2 = mux(sel, multiplierB, multiplierD)
-product <<= opt_mult(op1, op2)
+class InefficientMultiplier(Component):
+    def __init__(self):
+        self.io = IORecord(
+            multiplicandA=Input(UInt(8)),
+            multiplierB=Input(UInt(8)),
+            multiplicandC=Input(UInt(8)),
+            multiplierD=Input(UInt(8)),
+            sel=Input(UInt(1)),
+            product=Output(UInt(16)),
+        )
+        self.elaborate()
 
-m.to_verilog_file("design.v")
+    def elaborate(self):
+        io = self.io
+        multiplicand = mux(io.sel, io.multiplicandA, io.multiplicandC)
+        multiplier   = mux(io.sel, io.multiplierB,   io.multiplierD)
+        io.product <<= opt_mul(multiplicand, multiplier)
+
+
+InefficientMultiplier().to_verilog_file("design.v", name="inefficient_multiplier")

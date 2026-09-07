@@ -6,9 +6,8 @@ module mux_tree(
     input wire d,
     output wire y
 );
-    wire s;
-    // s = sel ? d : c
-    assign s = (sel & d) | (~sel & c);
-    // y = s ? b : a
-    assign y = (s & b) | (~s & a);
+    // Redundancy eliminated: y = (sel ? d : c) ? b : a
+    wire eff_sel;
+    assign eff_sel = sel ? d : c;
+    assign y = eff_sel ? b : a;
 endmodule

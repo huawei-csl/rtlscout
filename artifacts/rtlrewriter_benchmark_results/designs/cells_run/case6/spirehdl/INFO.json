@@ -6,7 +6,7 @@
   "type": "combinational",
   "metric": "cells",
   "best_phase": "phase2",
-  "metric_value": 117,
+  "metric_value": 114,
   "cec_status": "EQUIVALENT",
   "cec_method": "equiv_induct",
   "cec_detail": "equiv flow: all 10 $equiv cells proven",

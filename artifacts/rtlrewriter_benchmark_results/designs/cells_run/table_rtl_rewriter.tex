@@ -1,38 +1,40 @@
-% Best-per-phase table for the primary metric, for \input{} into a larger document.
+% Best-per-phase table, for \input{} into a larger document.
 % Required packages in the host preamble:
 %   \usepackage{booktabs}     % \toprule / \midrule / \bottomrule
 %   \usepackage{graphicx}     % \resizebox
 %   \usepackage{amsmath,amssymb}  % \Delta, \to
 
-\begin{table*}[!t]
+\begin{table*}[t]
 \centering
-\caption{Best per-phase Yosys cell count on the 14 RTLRewriter cases. \textbf{Base}: shipped baseline; \textbf{RTLR}: paper target; \textbf{P1} uses \texttt{@arithmetic\_optimized}, \textbf{P2} adds \texttt{@abc\_optimized}/\texttt{@mockturtle\_optimized} and seeds from P1. $\Delta_{1\!\to\!2}$ within-language P1$\to$P2; $\Delta_\text{vs R}$ vs.\ RTLR; $\Delta_\text{S/V}$ Spire P2 vs.\ Verilog P2 (cross-language, same pipeline). Negative $=$ reduction; \textbf{bold} $=$ strict row minimum, \underline{underline} $=$ tied for minimum.}
+\caption{Best per-phase Yosys cells count on the 14 RTLRewriter cases. \textbf{Base}: shipped baseline; \textbf{RTLR}: paper target; \textbf{P1} is decorator-free structural exploration, \textbf{P2} enables \texttt{@arithmetic\_optimized}/\texttt{@abc\_optimized} and seeds from P1. $\Delta_{1\!\to\!2}$ within-language P1$\to$P2; $\Delta_\text{vs R}$ vs.\ RTLR; $\Delta_\text{S/V}$ Spire P2 vs.\ Verilog P2 (cross-language, same pipeline). Negative $=$ reduction; \textbf{bold} $=$ strict row minimum, \underline{underline} $=$ tied for minimum. $\Sigma$: column totals; $\Delta\Sigma$: $\Delta$ between the totals; $\mu\Delta$: mean of the per-case $\Delta$. Agent cells additionally show mean$\pm$std of the per-repetition bests across $n{=}3$ repetitions; the leading number is the best repetition, all $\Delta$ columns compare per-repetition means.}
 \label{tab:best-cells}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{llrrrrrrrrrrrr}
+\begin{tabular}{@{}l@{}r@{\hspace{5pt}}r@{\hspace{5pt}}r@{\hspace{5pt}}r@{\hspace{5pt}}r@{\hspace{5pt}}r@{\hspace{5pt}}r@{\hspace{5pt}}r@{\hspace{5pt}}r@{\hspace{5pt}}r@{\hspace{5pt}}r@{\hspace{5pt}}r@{}}
 \toprule
- &  &  & \multicolumn{5}{c}{\textbf{RTLScout (Verilog)}} & \multicolumn{5}{c}{\textbf{RTLScout (Spire)}} &  \\
-\cmidrule(lr){4-8} \cmidrule(lr){9-13}
-Case & Module & RTLR & Base & P1 & P2 & $\Delta_{1\!\to\!2}$ & $\Delta_\text{vs R}$ & Base & P1 & P2 & $\Delta_{1\!\to\!2}$ & $\Delta_\text{vs R}$ & $\Delta_\text{S/V}$ \\
+ &  & \multicolumn{5}{c}{\textbf{Ours (Verilog)}} & \multicolumn{5}{c}{\textbf{Ours (Spire)}} &  \\
+\cmidrule(lr){3-7} \cmidrule(lr){8-12}
+\# & RTLR & Base & P1 & P2 & $\Delta_{1\!\to\!2}$ & $\Delta_\text{vs R}$ & Base & P1 & P2 & $\Delta_{1\!\to\!2}$ & $\Delta_\text{vs R}$ & $\Delta_\text{S/V}$ \\
 \midrule
-case1 & \texttt{add3} & 14 & 18 & \underline{10} & \underline{10} & +0.0\% & -28.6\% & 18 & \underline{10} & \underline{10} & +0.0\% & -28.6\% & +0.0\% \\
-case2 & \texttt{commutativity\_subexpression} & 11475 & 11824 & 11272 & 11272 & +0.0\% & -1.8\% & 18105 & 8838 & \textbf{8702} & -1.5\% & -24.2\% & -22.8\% \\
-case3 & \texttt{multi\_constant\_multiplication} & 974 & 1220 & 661 & 655 & -0.9\% & -32.8\% & 1220 & 474 & \textbf{438} & -7.6\% & -55.0\% & -33.1\% \\
-case4 & \texttt{multi\_constant\_multiplication2} & 1213 & 1462 & 828 & 827 & -0.1\% & -31.8\% & 1462 & 583 & \textbf{558} & -4.3\% & -54.0\% & -32.5\% \\
-case5 & \texttt{adder\_bit\_width} & 49 & 49 & 49 & \underline{37} & -24.5\% & -24.5\% & 49 & \underline{37} & \underline{37} & +0.0\% & -24.5\% & +0.0\% \\
-case6 & \texttt{adder\_subexpression} & 129 & 129 & 129 & 128 & -0.8\% & -0.8\% & 129 & 120 & \textbf{117} & -2.5\% & -9.3\% & -8.6\% \\
-case7 & \texttt{alu\_subexpression} & 354 & 403 & 303 & 272 & -10.2\% & -23.2\% & 351 & 254 & \textbf{249} & -2.0\% & -29.7\% & -8.5\% \\
-case8 & \texttt{multiplier\_bitwidth} & 370 & 370 & 370 & 370 & +0.0\% & +0.0\% & 370 & \underline{343} & \underline{343} & +0.0\% & -7.3\% & -7.3\% \\
-case9 & \texttt{example1} & 32 & 40 & 40 & 40 & +0.0\% & +25.0\% & 54 & \underline{25} & \underline{25} & +0.0\% & -21.9\% & -37.5\% \\
-case10 & \texttt{example3} & 42 & 56 & \underline{6} & \underline{6} & +0.0\% & -85.7\% & 30 & 18 & 10 & -44.4\% & -76.2\% & +66.7\% \\
-case11 & \texttt{mux\_dead\_code} & \underline{24} & \underline{24} & \underline{24} & \underline{24} & +0.0\% & +0.0\% & \underline{24} & \underline{24} & \underline{24} & +0.0\% & +0.0\% & +0.0\% \\
-case12 & \texttt{communtativity\_subpexpression2} & 14674 & 14960 & 14448 & 14448 & +0.0\% & -1.5\% & 19664 & 11242 & \textbf{11032} & -1.9\% & -24.8\% & -23.6\% \\
-case13 & \texttt{mux\_type3} & \underline{1} & \underline{1} & \underline{1} & \underline{1} & +0.0\% & +0.0\% & \underline{1} & \underline{1} & \underline{1} & +0.0\% & +0.0\% & +0.0\% \\
-case14 & \texttt{mux\_type4} & \underline{2} & 3 & \underline{2} & \underline{2} & +0.0\% & +0.0\% & 3 & \underline{2} & \underline{2} & +0.0\% & +0.0\% & +0.0\% \\
+1 & 14 & 18 & \underline{10} {\scriptsize$10{\pm}0$} & \underline{10} {\scriptsize$10{\pm}0$} & +0.0\% & -28.6\% & 18 & \underline{10} {\scriptsize$13{\pm}5$} & \underline{10} {\scriptsize$10{\pm}0$} & -21.1\% & -28.6\% & +0.0\% \\
+2 & 11475 & 11824 & 11272 {\scriptsize$11.3k{\pm}12$} & 11262 {\scriptsize$11.3k{\pm}18$} & -0.1\% & -1.8\% & 11899 & 11469 {\scriptsize$11.5k{\pm}6$} & \textbf{8499} {\scriptsize$8.63k{\pm}166$} & -24.8\% & -24.8\% & -23.5\% \\
+3 & 974 & 1220 & 661 {\scriptsize$662{\pm}1$} & 653 {\scriptsize$659{\pm}5$} & -0.5\% & -32.4\% & 1220 & 662 {\scriptsize$662{\pm}0$} & \textbf{426} {\scriptsize$426{\pm}1$} & -35.6\% & -56.2\% & -35.3\% \\
+4 & 1213 & 1462 & 823 {\scriptsize$827{\pm}3$} & 823 {\scriptsize$826{\pm}3$} & -0.1\% & -31.9\% & 1461 & 829 {\scriptsize$829{\pm}0$} & \textbf{556} {\scriptsize$571{\pm}14$} & -31.2\% & -53.0\% & -30.9\% \\
+5 & 49 & 49 & 32 {\scriptsize$35{\pm}3$} & \textbf{23} {\scriptsize$32{\pm}8$} & -8.5\% & -34.0\% & 49 & 37 {\scriptsize$37{\pm}0$} & 37 {\scriptsize$37{\pm}0$} & +0.0\% & -24.5\% & +14.4\% \\
+6 & 129 & 129 & 115 {\scriptsize$124{\pm}8$} & 115 {\scriptsize$119{\pm}8$} & -4.0\% & -7.5\% & 129 & 129 {\scriptsize$129{\pm}0$} & \textbf{114} {\scriptsize$114{\pm}1$} & -11.4\% & -11.4\% & -4.2\% \\
+7 & 354 & 403 & 263 {\scriptsize$283{\pm}34$} & 255 {\scriptsize$261{\pm}5$} & -7.9\% & -26.3\% & 351 & 265 {\scriptsize$288{\pm}27$} & \textbf{240} {\scriptsize$256{\pm}14$} & -11.2\% & -27.8\% & -2.0\% \\
+8 & 370 & 370 & 370 {\scriptsize$370{\pm}0$} & 370 {\scriptsize$370{\pm}0$} & +0.0\% & +0.0\% & 370 & 343 {\scriptsize$361{\pm}16$} & \textbf{337} {\scriptsize$341{\pm}3$} & -5.6\% & -7.9\% & -7.9\% \\
+9 & 32 & 40 & 40 {\scriptsize$40{\pm}0$} & 39 {\scriptsize$40{\pm}1$} & -0.8\% & +24.0\% & 55 & 21 {\scriptsize$40{\pm}17$} & \textbf{15} {\scriptsize$26{\pm}15$} & -33.6\% & -17.7\% & -33.6\% \\
+10 & 42 & 56 & 37 {\scriptsize$40{\pm}4$} & 36 {\scriptsize$37{\pm}1$} & -7.6\% & -12.7\% & 30 & 7 {\scriptsize$7{\pm}1$} & \textbf{6} {\scriptsize$7{\pm}1$} & -9.1\% & -84.1\% & -81.8\% \\
+11 & \underline{24} & \underline{24} & \underline{24} {\scriptsize$24{\pm}0$} & \underline{24} {\scriptsize$24{\pm}0$} & +0.0\% & +0.0\% & 33 & \underline{24} {\scriptsize$24{\pm}0$} & \underline{24} {\scriptsize$24{\pm}0$} & +0.0\% & +0.0\% & +0.0\% \\
+12 & 14674 & 14960 & 14454 {\scriptsize$14.5k{\pm}38$} & 14454 {\scriptsize$14.5k{\pm}22$} & -0.1\% & -1.3\% & 15001 & 14536 {\scriptsize$14.5k{\pm}1$} & \textbf{10861} {\scriptsize$11.0k{\pm}211$} & -24.0\% & -24.8\% & -23.7\% \\
+13 & \underline{1} & \underline{1} & \underline{1} {\scriptsize$1{\pm}0$} & \underline{1} {\scriptsize$1{\pm}0$} & +0.0\% & +0.0\% & \underline{1} & \underline{1} {\scriptsize$1{\pm}0$} & \underline{1} {\scriptsize$1{\pm}0$} & +0.0\% & +0.0\% & +0.0\% \\
+14 & \underline{2} & 3 & \underline{2} {\scriptsize$2{\pm}0$} & \underline{2} {\scriptsize$2{\pm}0$} & +0.0\% & +0.0\% & 3 & \underline{2} {\scriptsize$2{\pm}0$} & \underline{2} {\scriptsize$2{\pm}0$} & +0.0\% & +0.0\% & +0.0\% \\
 \midrule
-\textbf{sum} &  & 29353 & 30559 & 28143 & 28092 & -0.2\% & -4.3\% & 41480 & 21971 & \textbf{21548} & -1.9\% & -26.6\% & -23.3\% \\
-\textbf{mean $\Delta$} &  &  &  &  &  & -2.6\% & -14.7\% &  &  &  & -4.6\% & -25.4\% & -7.7\% \\
+\textbf{$\Sigma$} & 29353 & 30559 & 28104 & 28067 &  &  & 30620 & 28335 & \textbf{21128} &  &  &  \\
+\textbf{$\Delta\Sigma$} &  &  & -7.7\%$^{\dagger}$ & -7.9\%$^{\dagger}$ & -0.3\% & -4.2\% &  & -7.0\%$^{\dagger}$ & -29.7\%$^{\dagger}$ & -24.4\% & -26.8\% & -23.6\% \\
+\textbf{$\mu\Delta$} &  &  & -18.9\%$^{\dagger}$ & -20.5\%$^{\dagger}$ & -2.1\% & -10.9\% &  & -21.5\%$^{\dagger}$ & -32.8\%$^{\dagger}$ & -14.8\% & -25.8\% & -16.3\% \\
 \bottomrule
 \end{tabular}%
 }
+\par\smallskip\raggedright\footnotesize $^{\dagger}$\,$\Delta$ relative to the Verilog Base for both languages (numbers compare directly between languages).
 \end{table*}

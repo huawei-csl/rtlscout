@@ -4,6 +4,9 @@ This folder contains the **best RTL designs found by RTLScout** on the 14
 [RTLRewriter](https://github.com/yaoxufeng/RTLRewriter-Bench) benchmark cases,
 in two source languages (**Verilog** and **SpireHDL**) and for two optimization
 objectives (**Yosys cell count** and **Yosys transistor count**).
+The designs come from the GLM 5.2 campaigns `rrglm_20260813_130031` (cells)
+and `rrglm_20260830_221657` (transistors); `make_package.py` rebuilds this
+package from a campaign's `summary.json` + `cec_results.json`.
 
 Each design is shipped together with:
 
@@ -36,8 +39,8 @@ designs/
       verilog/            starting_point.v  best.sv  tb.sv  vectors.dat  INFO.json
       spirehdl/           starting_point.py  starting_point.v  best.py  best.v
                           tb.sv  vectors.dat  INFO.json
-  transistor_run/         backs table_rtl_rewriter_transistors_v2.tex   (objective: Yosys transistors)
-    table_rtl_rewriter_transistors_v2.tex
+  transistor_run/         backs table_rtl_rewriter_transistors.tex   (objective: Yosys transistors)
+    table_rtl_rewriter_transistors.tex
     case1/ … case14/
       verilog/ …
       spirehdl/ …
@@ -81,8 +84,7 @@ python /path/to/rtl_scout/run_eval.py best.py \
 ```
 
 Expected: `PASS` (all testbench vectors) and a cost equal to `metric_value` in
-the adjacent `INFO.json` (e.g. `3782` for case3 verilog transistors, `3564` for
-case3 spirehdl). Add `--json` for machine-readable output.
+the adjacent `INFO.json` (e.g. `3192` for case3 verilog transistors, `3092` for case3 spirehdl). Add `--json` for machine-readable output.
 
 **Evaluate everything in a run** (bash):
 
@@ -134,8 +136,7 @@ Method notes (full details in `README_cec_results.md`):
 
 - **Combinational** designs: `equiv` flow above, or a `miter`+SAT fallback.
 - **Sequential** designs (cases 1, 9, 10 — pipelines / FSMs): reset-anchored
-  temporal induction (`sat -tempinduct`), a complete unbounded proof — including
-  the 7→4-state re-encoded FSM in case10.
+  temporal induction (`sat -tempinduct`), a complete unbounded proof.
 - **case2 / case12**: these contain 32-bit multipliers, so a SAT miter is
   intractable; equivalence was established by **1,000,000 random-vector
   simulation** (Verilator), 0 mismatches.

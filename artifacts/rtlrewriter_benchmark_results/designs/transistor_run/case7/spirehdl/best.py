@@ -1,50 +1,47 @@
-"""Try stacking abc_optimized on top of arithmetic_optimized."""
-from spirehdl.spirehdl_module import Module
-from spirehdl.spirehdl import UInt, Bool, Const, mux, cat
-from spirehdl.optimize import abc_optimized, arithmetic_optimized
+from spire import Component, IORecord, Input, Output, UInt
+from spire.expr import mux
+from spire.optimize import abc_optimized, ABC_RECIPES
 
-m = Module("example", with_clock=False, with_reset=False)
-input_a = m.input(UInt(8), "input_a")
-input_b = m.input(UInt(8), "input_b")
-input_c = m.input(UInt(8), "input_c")
-input_d = m.input(UInt(8), "input_d")
-opcode  = m.input(UInt(4), "opcode")
-sel     = m.input(UInt(1), "sel")
-result    = m.output(UInt(8), "result")
-zero_flag = m.output(UInt(1), "zero_flag")
+@abc_optimized(abc_script=ABC_RECIPES["area"])
+def alu_logic(a, b, c, d, op0, op1, op2, op3, sel):
+    ac = a + c
+    bd = b + d
+    sum4 = ac + bd
+    sel_sum_val = mux(sel, ac, bd)
+    sub = a - b
 
-@abc_optimized(abc_script="strash; &get -n; &deepsyn -T 30; &put")
-@arithmetic_optimized(objective="area")
-def alu_core(input_a, input_b, input_c, input_d, opcode, sel):
-    op0 = opcode[0]
-    op1 = opcode[1]
-    op2 = opcode[2]
-    op3 = opcode[3]
+    lo   = mux(op0, sub, sum4)
+    mid  = mux(op0, a | b, a & b)
+    hi0  = mux(op0, ~a, a ^ b)
+    hi1  = mux(op0, sum4, sel_sum_val)
 
-    is_sub = ~op2 & ~op1 & op0
-    not_b = ~input_b
-    second = mux(is_sub, not_b, input_c)
-    adder1 = (input_a + second + cat(is_sub))[0:8]
+    lower  = mux(op1, mid, lo)
+    upper  = mux(op1, hi1, hi0)
+    sel_res = mux(op2, upper, lower)
+    result = mux(op3, 0, sel_res)[0:8]
+    return result
 
-    sum_bd = input_b + input_d
-    sum_all = (adder1 + sum_bd)[0:8]
-    sel_sum = mux(sel, adder1, sum_bd)
+class Example(Component):
+    def __init__(self):
+        self.io = IORecord(
+            input_a=Input(UInt(8)),
+            input_b=Input(UInt(8)),
+            input_c=Input(UInt(8)),
+            input_d=Input(UInt(8)),
+            opcode=Input(UInt(4)),
+            sel=Input(UInt(1)),
+            result=Output(UInt(8)),
+            zero_flag=Output(UInt(1)),
+        )
+        self.elaborate()
 
-    is_sum = ~(op0 ^ op1) & ~(op1 ^ op2)
+    def elaborate(self):
+        op = self.io.opcode
+        result = alu_logic(
+            self.io.input_a, self.io.input_b, self.io.input_c, self.io.input_d,
+            op[0], op[1], op[2], op[3], self.io.sel
+        )
+        self.io.result <<= result
+        self.io.zero_flag <<= (result == 0)
 
-    xor_not_input = mux(op0, Const(0xFF, UInt(8)), input_b)
-    xor_not_result = input_a ^ xor_not_input
-
-    bitwise_lo = mux(op0, input_a | input_b, input_a & input_b)
-
-    non_sum_lo = mux(op1, bitwise_lo, adder1)
-    non_sum_hi = mux(op1, sel_sum, xor_not_result)
-    non_sum = mux(op2, non_sum_hi, non_sum_lo)
-
-    inner = mux(is_sum, sum_all, non_sum)
-    return mux(op3, Const(0, UInt(8)), inner)
-
-result <<= alu_core(input_a, input_b, input_c, input_d, opcode, sel)
-zero_flag <<= (result == Const(0, UInt(8)))
-
-m.to_verilog_file("design.v")
+Example().to_verilog_file("design.v", name="example")

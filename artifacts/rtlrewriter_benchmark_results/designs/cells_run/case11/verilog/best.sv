@@ -1,9 +1,11 @@
 module example(
-    input x,
-    input sel,
-    input [7:0] a,
-    input [7:0] b,
-    output [7:0] result
+    input  wire       x,
+    input  wire       sel,
+    input  wire [7:0] a,
+    input  wire [7:0] b,
+    output wire [7:0] result
 );
+
     assign result = x ? (a & b) : (a | b);
+
 endmodule

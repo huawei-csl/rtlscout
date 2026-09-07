@@ -6,7 +6,7 @@
   "type": "sequential",
   "metric": "cells",
   "best_phase": "phase2",
-  "metric_value": 10,
+  "metric_value": 6,
   "cec_status": "EQUIVALENT",
   "cec_method": "tempinduct",
   "cec_detail": "reset-anchored temporal induction \u2014 complete proof",

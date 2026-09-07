@@ -6,7 +6,7 @@
   "type": "combinational",
   "metric": "transistors",
   "best_phase": "phase2",
-  "metric_value": 4642,
+  "metric_value": 4168,
   "cec_status": "EQUIVALENT",
   "cec_method": "equiv_induct",
   "cec_detail": "equiv flow: all 96 $equiv cells proven",
