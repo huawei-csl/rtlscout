@@ -47,10 +47,16 @@ def phase12_plots() -> None:
              ("p12_delay", cfg.RUNS_P1_DELAY, cfg.RUNS_P2_DELAY)]
     if cfg.RUNS_P1_ADP and cfg.RUNS_P2_ADP:
         pairs.append(("p12_adp", cfg.RUNS_P1_ADP, cfg.RUNS_P2_ADP))
+    # starting design as a star at run index -1 (seed arrows to the fresh runs)
+    start_cost = {"p12_area": baseline.get("area"), "p12_delay": baseline.get("delay"),
+                  "p12_adp": (baseline["area"] * baseline["delay"]
+                              if baseline.get("area") else None)}
     for name, p1, p2 in pairs:
+        sc = ([] if start_cost.get(name) is None else
+              ["--start-cost", start_cost[name]])
         for extra, tag in (([], ""), (["--narrow"], "_narrow")):
             common.sh(common.py(cfg.REPO / "plot_pareto_paper.py", p1,
-                                "--phase2", p2, "-o", out / name, *extra),
+                                "--phase2", p2, "-o", out / name, *sc, *extra),
                       f"stage5_{name}{tag}")
     for name, a, b, c in (("p1", cfg.RUNS_P1_AREA, cfg.RUNS_P1_DELAY, cfg.RUNS_P1_ADP),
                           ("p2", cfg.RUNS_P2_AREA, cfg.RUNS_P2_DELAY, cfg.RUNS_P2_ADP)):
@@ -119,7 +125,7 @@ def arrows_plot() -> None:
             manifest = p
             break
     cmd = common.py(cfg.ARTIFACTS / "ported" / "plot_deepsyn_arrows.py",
-                    "--data", "RTLScout: Phases 1-3 + Deepsyn",
+                    "--data", "RTLScout: Phases 1-4",
                     cfg.FRONT_DEEPSYN_REFINE / "eval_results.json",
                     "--commercial",                  # Larsson-Edefors reference
                     "-o", out)
@@ -132,13 +138,13 @@ def arrows_plot() -> None:
     if ec_eval.exists() and baseline.get("area"):
         n = len({e.get("design") for e in json.loads(ec_eval.read_text())})
         cmd += ["--standalone",
-                f"Deepsyn from scratch ({n}x{cfg.DEEPSYN_TIME_BUDGET // 60} min)",
+                f"Deepsyn only ({n}x{cfg.DEEPSYN_TIME_BUDGET // 60} min)",
                 str(ec_eval), str(baseline["area"]), str(baseline["delay"])]
         # Optional double-effort arm: staircase only (no second arrow fan).
         ec2 = cfg.FRONT_INITIAL_DEEPSYN_2X / "eval_results.json"
         if ec2.exists():
             n2 = len({e.get("design") for e in json.loads(ec2.read_text())})
-            label2 = (f"Deepsyn from scratch "
+            label2 = (f"Deepsyn only "
                       f"({n2}x{2 * cfg.DEEPSYN_TIME_BUDGET // 60} min)")
             cmd += ["--standalone", label2, str(ec2),
                     str(baseline["area"]), str(baseline["delay"]),

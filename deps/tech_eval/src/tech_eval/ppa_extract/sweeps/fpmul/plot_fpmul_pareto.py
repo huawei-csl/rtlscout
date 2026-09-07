@@ -163,7 +163,7 @@ def plot_fpmul_pareto(
 
     if show_operator:
         groups.append((
-            "initial_op", "Initial design",
+            "initial_op", "Starting design",
             _clip(_collect_points(case_results, _SRC_INIT, use_operator=True)),
         ))
 
@@ -197,7 +197,9 @@ def plot_fpmul_pareto(
         if not pts:
             continue
         areas, delays = zip(*pts)
-        z_scatter = 3 + zbase
+        # The "flowy" scatter is a superset of every teal point (union of both
+        # agent arms); draw it below the others so the subsets stay visible.
+        z_scatter = 2 if key == "flowy" else 3 + zbase
         z_front = 4 + zbase
 
         is_op = key.endswith("_op")

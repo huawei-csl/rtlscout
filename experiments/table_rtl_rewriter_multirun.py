@@ -157,6 +157,15 @@ def _phase_mean(rec: Dict[str, Any], phase: str, metric: str) -> Optional[float]
     return (sum(vals) / len(vals)) if vals else _phase_best(rec, phase, metric)
 
 
+def _ltx_stat_num(x: float) -> str:
+    """Stat-suffix number: values >=1000 as 3-significant-digit k-form (14.5k)."""
+    if abs(x) >= 1000:
+        k = abs(x) / 1000
+        d = 0 if k >= 100 else 1 if k >= 10 else 2
+        return f"{x / 1000:.{d}f}k"
+    return f"{x:.0f}"
+
+
 def _ltx_stat_suffix(rec: Dict[str, Any], phase: str, metric: str) -> str:
     r"""`` {\scriptsize$\mu{\pm}\sigma$}`` across the n per-run bests; empty
     below n=2 (single-run tables look exactly as before)."""
@@ -166,7 +175,8 @@ def _ltx_stat_suffix(rec: Dict[str, Any], phase: str, metric: str) -> str:
     import statistics
     mu = statistics.mean(vals)
     sd = statistics.stdev(vals)
-    return (r" {\scriptsize$" + f"{mu:.0f}" + r"{\pm}" + f"{sd:.0f}" + r"$}")
+    return (r" {\scriptsize$" + _ltx_stat_num(mu) + r"{\pm}"
+            + _ltx_stat_num(sd) + r"$}")
 
 
 # ---------------------------------------------------------------------------
@@ -451,12 +461,16 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
     #  13.    Cross: Δ_{S/V} (Spire final best vs Verilog reference baseline)
     # Phase-2 columns (P2 and Δ_{1→2}) collapse to absent when phases=1.
     per_lang_cols = 5 if has_phase2 else 3   # Base, P1, [P2, Δ12,] ΔR
-    n_cols = 2 + 2 * per_lang_cols + 1       # +1 for cross-language Δ_S/V
-    aligns = ["l"] + ["r"] * (n_cols - 1)
+    # The RTLR column exists only when the paper provides targets (dropped
+    # for transistors instead of rendering an all-em-dash column).
+    n_cols = (1 if vs_base else 2) + 2 * per_lang_cols + 1  # +1 for Δ_S/V
+    # Tight spec: no outer padding, 5pt between numeric columns — the wide
+    # table then survives \resizebox{\textwidth} with a larger effective font.
+    colspec = ("@{}l@{}" + "@{\\hspace{5pt}}".join(["r"] * (n_cols - 1)) + "@{}")
 
     # Headers: two rows — a top "group" row and a bottom "field" row.
     # \cmidrule(lr){from-to} draws a horizontal line under each spanned group.
-    verilog_span_from = 3
+    verilog_span_from = 2 if vs_base else 3
     verilog_span_to = verilog_span_from + per_lang_cols - 1
     spirehdl_span_from = verilog_span_to + 1
     spirehdl_span_to = spirehdl_span_from + per_lang_cols - 1
@@ -464,7 +478,7 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
     # Compact group row uses one cell per multicol:
     # 2 leading blanks + 1 multicol + 1 multicol + 1 trailing blank
     # = 5 LaTeX-cell positions, spanning the real column count.
-    group_cells = ["", "",
+    group_cells = [""] * (1 if vs_base else 2) + [
                    r"\multicolumn{" + str(per_lang_cols) + r"}{c}{\textbf{Ours (Verilog)}}",
                    r"\multicolumn{" + str(per_lang_cols) + r"}{c}{\textbf{Ours (Spire)}}",
                    ""]
@@ -478,7 +492,7 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
     field_labels_lang += [r"$\Delta_\text{vs B}$" if vs_base
                           else r"$\Delta_\text{vs R}$"]
 
-    header_row2 = (["Case", "RTLR"]
+    header_row2 = ([r"\#"] + ([] if vs_base else ["RTLR"])
                    + field_labels_lang + field_labels_lang
                    + [r"$\Delta_\text{S/V}$"])
 
@@ -497,9 +511,8 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
             summary.get("cost_metric") in ("yosys_transistors", "transistors"))
         if objective_is_transistors:
             obj_note = (
-                r"Transistor count \emph{is} the optimization objective here "
-                r"(\texttt{--cost-metric yosys\_transistors}); wires/cells in the "
-                r"companion tables are side stats from the same Yosys \texttt{synth} pass."
+                r"Counts are Yosys's post-\texttt{synth} CMOS transistor "
+                r"estimate (\texttt{stat -tech cmos})."
             )
         else:
             obj_note = (
@@ -518,10 +531,12 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
             r"$\Delta_\text{vs B}$ final best vs.\ that language's own \textbf{Base}; "
             r"$\Delta_\text{S/V}$ Spire P2 vs.\ Verilog P2 (cross-language, same pipeline). "
             r"The RTLRewriter paper reports no transistor target, so the "
-            r"\textbf{RTLR} column is em-dash and $\Delta_\text{vs B}$ takes the "
+            r"RTLR column is omitted and $\Delta_\text{vs B}$ takes the "
             r"place of the cell table's $\Delta_\text{vs R}$. "
             r"Negative $=$ reduction; \textbf{bold} $=$ strict row minimum, "
-            r"\underline{underline} $=$ tied for minimum."
+            r"\underline{underline} $=$ tied for minimum. "
+            r"$\Sigma$: column totals; $\Delta\Sigma$: $\Delta$ between the "
+            r"totals; $\mu\Delta$: mean of the per-case $\Delta$."
         )
     else:
         cap = (
@@ -532,7 +547,9 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
             r"$\Delta_{1\!\to\!2}$ within-language P1$\to$P2; $\Delta_\text{vs R}$ vs.\ RTLR; "
             r"$\Delta_\text{S/V}$ Spire P2 vs.\ Verilog P2 (cross-language, same pipeline). "
             r"Negative $=$ reduction; \textbf{bold} $=$ strict row minimum, "
-            r"\underline{underline} $=$ tied for minimum."
+            r"\underline{underline} $=$ tied for minimum. "
+            r"$\Sigma$: column totals; $\Delta\Sigma$: $\Delta$ between the "
+            r"totals; $\mu\Delta$: mean of the per-case $\Delta$."
         )
     n_runs = max((len(_phase_run_values(results[c].get(l, {}), p, metric))
                   for c in results for l in ("verilog", "spirehdl")
@@ -545,7 +562,7 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
     out.append(r"\caption{" + cap + r"}")
     out.append(r"\label{tab:best-" + metric + "}")
     out.append(r"\resizebox{\textwidth}{!}{%")
-    out.append(r"\begin{tabular}{" + "".join(aligns) + "}")
+    out.append(r"\begin{tabular}{" + colspec + "}")
     out.append(r"\toprule")
     out.append(" & ".join(group_cells) + r" \\")
     out.append(cmidrule)
@@ -559,7 +576,8 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
     }
     totals_m = {k: 0.0 for k in ("p1v", "p2v", "p1s", "p2s",
                                  "v_final", "s_final")}
-    pct_lists = {"dv12": [], "ds12": [], "v_rtlr": [], "s_rtlr": [], "svref": []}
+    pct_lists = {"dv12": [], "ds12": [], "v_rtlr": [], "s_rtlr": [], "svref": [],
+                 "p1v_b": [], "p2v_b": [], "p1s_b": [], "p2s_b": []}
     has_any = False
 
     for case_id in sorted(results, key=_case_sort_key):
@@ -614,9 +632,10 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
 
         # Agent-result cells carry a mean±std annotation of the per-run bests
         # (n>=2 runs); the winner highlight marks the best value alone.
-        row = [_latex_escape(case_id),
-               _mark("rtlr", _ltx_int(rtlr)),
-               _mark("v_base", _ltx_int(v_base)),
+        row = [case_id.replace("case", "")]   # number-only row label
+        if not vs_base:
+            row.append(_mark("rtlr", _ltx_int(rtlr)))
+        row += [_mark("v_base", _ltx_int(v_base)),
                _mark("p1v", _ltx_int(p1v)) + _ltx_stat_suffix(v, "phase1", metric)]
         if has_phase2:
             row += [_mark("p2v", _ltx_int(p2v)) + _ltx_stat_suffix(v, "phase2", metric),
@@ -649,7 +668,13 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
             totals["rtlr_s"] += rtlr
         for key, val in (("dv12", dv12), ("ds12", ds12),
                           ("v_rtlr", v_rtlr), ("s_rtlr", s_rtlr),
-                          ("svref", svref)):
+                          ("svref", svref),
+                          # P1/P2 vs the VERILOG Base for both languages, so
+                          # the two blocks' footer deltas compare directly.
+                          ("p1v_b", _delta(p1v_m, v_base)),
+                          ("p2v_b", _delta(p2v_m, v_base)),
+                          ("p1s_b", _delta(p1s_m, v_base)),
+                          ("p2s_b", _delta(p2s_m, v_base))):
             if val is not None:
                 pct_lists[key].append(val)
         has_any = True
@@ -693,33 +718,51 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
             return (r"\textbf{" + formatted + r"}") if _n == 1 \
                 else (r"\underline{" + formatted + r"}")
 
-        sum_row = [r"\textbf{sum}",
-                   # `or None` → em-dash when no RTLR target exists (transistors),
-                   # rather than a misleading 0.
-                   _smark("rtlr", _ltx_int(totals["rtlr_v"] or None)),
-                   _smark("v_base", _ltx_int(totals["v_base"])),
+        sum_row = [r"\textbf{$\Sigma$}"]
+        if not vs_base:
+            # `or None` → em-dash if a case lacked a target, not a misleading 0
+            sum_row.append(_smark("rtlr", _ltx_int(totals["rtlr_v"] or None)))
+        sum_row += [_smark("v_base", _ltx_int(totals["v_base"])),
                    _smark("p1v", _ltx_int(totals["p1v"]))]
         if has_phase2:
-            sum_row += [_smark("p2v", _ltx_int(totals["p2v"])), _ltx_pct(sum_dv12_pct)]
-        sum_row += [_ltx_pct(sum_v_rtlr_pct),
+            sum_row += [_smark("p2v", _ltx_int(totals["p2v"])), ""]
+        sum_row += ["",
                     _smark("s_base", _ltx_int(totals["s_base"])),
                     _smark("p1s", _ltx_int(totals["p1s"]))]
         if has_phase2:
-            sum_row += [_smark("p2s", _ltx_int(totals["p2s"])), _ltx_pct(sum_ds12_pct)]
-        sum_row += [_ltx_pct(sum_s_rtlr_pct), _ltx_pct(sum_svref_pct)]
+            sum_row += [_smark("p2s", _ltx_int(totals["p2s"])), ""]
+        sum_row += ["", ""]
         out.append(" & ".join(sum_row) + r" \\")
+
+        # ΔΣ row: the Δ columns recomputed on the column totals (one concept
+        # per footer row; the Σ row above carries only the absolute totals).
+        dsum_row = [r"\textbf{$\Delta\Sigma$}"] + [""] * (1 if vs_base else 2) + [
+                    _ltx_pct(_delta(totals_m["p1v"], totals["v_base"])) + r"$^{\dagger}$"]
+        if has_phase2:
+            dsum_row += [_ltx_pct(_delta(totals_m["p2v"], totals["v_base"])) + r"$^{\dagger}$",
+                         _ltx_pct(sum_dv12_pct)]
+        dsum_row += [_ltx_pct(sum_v_rtlr_pct), "",
+                     _ltx_pct(_delta(totals_m["p1s"], totals["v_base"])) + r"$^{\dagger}$"]
+        if has_phase2:
+            dsum_row += [_ltx_pct(_delta(totals_m["p2s"], totals["v_base"])) + r"$^{\dagger}$",
+                         _ltx_pct(sum_ds12_pct)]
+        dsum_row += [_ltx_pct(sum_s_rtlr_pct), _ltx_pct(sum_svref_pct)]
+        out.append(" & ".join(dsum_row) + r" \\")
 
         # mean Δ row: only the percentage columns carry a value; numeric columns
         # blank. Δ% columns are never highlighted (same as the data rows), so
         # nothing in this row is bold. Layout matches the data row exactly:
         #   Case, RTLR, V/Base, V/P1, [V/P2, V/Δ12,] V/ΔR, S/Base, S/P1, [S/P2, S/Δ12,] S/ΔR, Δ_S/V
-        mean_row = [r"\textbf{mean $\Delta$}", "", "", ""]
+        mean_row = [r"\textbf{$\mu\Delta$}"] + [""] * (1 if vs_base else 2) + [
+                    _ltx_pct(_mean(pct_lists["p1v_b"])) + r"$^{\dagger}$"]
         if has_phase2:
-            mean_row += ["", _ltx_pct(_mean(pct_lists["dv12"]))]
+            mean_row += [_ltx_pct(_mean(pct_lists["p2v_b"])) + r"$^{\dagger}$",
+                         _ltx_pct(_mean(pct_lists["dv12"]))]
         mean_row += [_ltx_pct(_mean(pct_lists["v_rtlr"])),
-                     "", ""]
+                     "", _ltx_pct(_mean(pct_lists["p1s_b"])) + r"$^{\dagger}$"]
         if has_phase2:
-            mean_row += ["", _ltx_pct(_mean(pct_lists["ds12"]))]
+            mean_row += [_ltx_pct(_mean(pct_lists["p2s_b"])) + r"$^{\dagger}$",
+                         _ltx_pct(_mean(pct_lists["ds12"]))]
         mean_row += [_ltx_pct(_mean(pct_lists["s_rtlr"])),
                      _ltx_pct(_mean(pct_lists["svref"]))]
         out.append(" & ".join(mean_row) + r" \\")
@@ -727,6 +770,11 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
     out.append(r"\bottomrule")
     out.append(r"\end{tabular}%")
     out.append(r"}")
+    if has_any:
+        # dagger note outside the \resizebox so it renders at normal size
+        out.append(r"\par\smallskip\raggedright\footnotesize"
+                   r" $^{\dagger}$\,$\Delta$ relative to the Verilog Base for both "
+                   r"languages (numbers compare directly between languages).")
     out.append(r"\end{table*}")
     return "\n".join(out)
 
@@ -738,6 +786,19 @@ _LATEX_HEADER_COMMENT = (
     "%   \\usepackage{graphicx}     % \\resizebox\n"
     "%   \\usepackage{amsmath,amssymb}  % \\Delta, \\to\n"
 )
+
+
+def render_case_names(summary: Dict[str, Any]) -> str:
+    """LaTeX one-liner mapping case numbers to RTLRewriter module names (the
+    Module column dropped from the paper tables), for \\input into the paper."""
+    results = summary.get("results", {})
+    items = [f"{_case_sort_key(c)}:~{_ltx_mod(_case_label(results[c]))}"
+             for c in sorted(results, key=_case_sort_key)]
+    return ("% Generated by table_rtl_rewriter_multirun.py -- edit the script, "
+            "not this file.\n"
+            "\\noindent\\textbf{Case index.} Case numbers in "
+            "Tables~\\ref{tab:best-cells} and~\\ref{tab:best-transistors} denote "
+            "the RTLRewriter modules " + ", ".join(items) + ".\n")
 
 
 def render_latex_table(summary: Dict[str, Any],
@@ -850,6 +911,11 @@ def main():
     transistors_path = latex_path.with_name(latex_path.stem + "_transistors.tex")
     transistors_path.write_text(render_latex_table(summary, metric="transistors"))
     print(f"Wrote LaTeX (transistors): {transistors_path}", file=sys.stderr)
+
+    # Case-number -> module-name list (the Module column lives only here).
+    names_path = latex_path.with_name("case_names.tex")
+    names_path.write_text(render_case_names(summary))
+    print(f"Wrote LaTeX (case names): {names_path}", file=sys.stderr)
 
 
 if __name__ == "__main__":
