@@ -25,5 +25,7 @@
     "rtlr_file_note": "Upstream mux_type_ours.v is 0 bytes / missing (and the filename is itself typo'd \u2014 missing the `4`). Two non-empty candidates exist in the directory: mux_type4_redundancy_improve.v and mux_type4_redundancy_optimzied.v (note the upstream `optimzied` typo); they are byte-identical, so this scaffold uses the `_optimzied.v` variant. Numbers drift from paper in both metrics \u2014 likely Yosys-version differences on this trivial design."
   },
   "tb_module": "tb",
-  "tb_mode": "comb"
+  "tb_mode": "comb",
+  "golden_reference": "context/starting_point.v",
+  "golden_reference_language": "verilog"
 }

@@ -25,5 +25,7 @@
     "rtlr_file_note": "Upstream multiplier_bitwidth_ours.v is 0 bytes / missing \u2014 substituted multiplier_bitwidth_optimized.v (the human-golden file) as the rtlr reference. That file declares a different top module name (`optimized_multiplier`), so its numbers were captured via `hierarchy -auto-top` rather than the case's `module_name`. Reproduced rtlr numbers (360/370) are identical to baseline, suggesting Yosys 0.55 already optimizes the inefficient bit-widths automatically; this is why cells matches paper rtlr 354 only within 16."
   },
   "tb_module": "tb",
-  "tb_mode": "comb"
+  "tb_mode": "comb",
+  "golden_reference": "context/starting_point.v",
+  "golden_reference_language": "verilog"
 }

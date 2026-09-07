@@ -10,6 +10,11 @@
     "files.watcherExclude": {
         "**/artifacts/*/data/**": true,
         "**/artifacts/*/verify_work/**": true,
+        "**/internal/**/data/**": true,
+        "**/internal/**/power/**": true,
+        "/workspaces/rtl_scout/runs/**": true,
+        "**/_debug/**": true,
+        "**/obj_dir/**": true,
         "**/__pycache__/**": true
     },
     "search.exclude": {

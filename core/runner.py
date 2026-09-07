@@ -402,6 +402,7 @@ def _run_model_benchmarks(task: dict) -> Dict[str, Any]:
         cost_metric = make_cost_metric(
             cost_metric_cfg["name"],
             target_delay=cost_metric_cfg.get("target_delay", 500.0),
+            run_netlist_sim=cost_metric_cfg.get("run_netlist_sim", True),
         )
     else:
         cost_metric = None
@@ -464,6 +465,9 @@ def run_agent_across_models_and_benchmarks(
         cost_metric_cfg = {
             "name": cost_metric.metric_name,
             "target_delay": getattr(cost_metric, "target_delay", 500.0),
+            # netlist_sim (stat metrics) / run_netlist_sim (PPA metrics)
+            "run_netlist_sim": getattr(cost_metric, "netlist_sim",
+                                       getattr(cost_metric, "run_netlist_sim", None)),
         }
 
     model_results: List[Dict[str, Any]] = []

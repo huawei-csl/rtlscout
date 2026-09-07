@@ -592,12 +592,15 @@ class _YosysStatCost(CostMetric):
 
     _name: str
 
-    def __init__(self, timeout: Optional[int] = None):
+    def __init__(self, timeout: Optional[int] = None,
+                 netlist_sim: bool = True):
         # Large hierarchical designs (e.g. flattened third-party RTL) can need more
         # than the 60s default; override per run via RTLSCOUT_YOSYS_STAT_TIMEOUT.
         if timeout is None:
             timeout = int(os.environ.get("RTLSCOUT_YOSYS_STAT_TIMEOUT", "60"))
         self.timeout = timeout
+        # Netlist gate, on by default
+        self.netlist_sim = netlist_sim
 
     @property
     def metric_name(self) -> str:
@@ -622,6 +625,10 @@ class _YosysStatCost(CostMetric):
         os.close(fd_wc)
         fd_tr, tr_file = tempfile.mkstemp(suffix=".txt")
         os.close(fd_tr)
+        fd_ck, chk_file = tempfile.mkstemp(suffix=".txt")
+        os.close(fd_ck)
+        fd_nl, nl_file = tempfile.mkstemp(suffix=".v")
+        os.close(fd_nl)
         try:
             cmds = ["design -reset"]
             for vf in design_files:
@@ -642,6 +649,10 @@ class _YosysStatCost(CostMetric):
             # block (last in the file) recurses into submodule instances, so a
             # design shipped as a module hierarchy is still counted correctly.
             cmds.append(f"tee -q -o {wc_file} stat{top_flag}")
+            if self.netlist_sim:
+                # The exact netlist the counts describe, plus its check report.
+                cmds.append(f"tee -q -o {chk_file} check")
+                cmds.append(f"write_verilog -noattr {nl_file}")
 
             # Transistor side-stat -- hierarchy-correct, see TRANSISTOR_STAT_MODE.
             # A fresh `abc; opt` runs before the transistor stat: yosys `synth`'s
@@ -688,6 +699,13 @@ class _YosysStatCost(CostMetric):
 
             stats["transistors"] = self._parse_transistors(tr_file, top_module)
 
+            if self.netlist_sim:
+                err = self._netlist_gate(chk_file, Path(nl_file), workdir)
+                if err:
+                    return CostResult(ok=False, value=None, stats=stats, error=err)
+                stats["netlist_sim"] = ("pass" if (workdir / "tb.sv").exists()
+                                        else "skipped (no tb.sv)")
+
             return CostResult(ok=True, value=float(stats[self.primary_key]), stats=stats)
 
         except subprocess.TimeoutExpired:
@@ -701,9 +719,41 @@ class _YosysStatCost(CostMetric):
                 error=f"yosys stat failed: {e}",
             )
         finally:
-            for f in (wc_file, tr_file):
+            for f in (wc_file, tr_file, chk_file, nl_file):
                 if os.path.exists(f):
                     os.remove(f)
+
+    @staticmethod
+    def _netlist_gate(chk_file: str, netlist: Path, workdir: Path) -> Optional[str]:
+        """Layer-1 hardening: reject evals whose measured netlist is invalid.
+
+        Two checks on the post-synth netlist the counts were taken from:
+        yosys `check` must report no conflicting drivers, and the netlist must
+        pass the workspace testbench (skipped when no tb.sv is present)."""
+        chk = _read_text_or_empty(chk_file)
+        if "conflicting drivers" in chk:
+            first = next((ln.strip() for ln in chk.splitlines()
+                          if "conflicting drivers" in ln), "")
+            return ("Post-synth netlist is invalid: multiple conflicting "
+                    f"drivers ({first}). The RTL simulates but does not "
+                    "synthesize to working logic.")
+        tb = workdir / "tb.sv"
+        if not tb.exists():
+            return None
+        from core.correctness import parse_testbench_checks, simulate
+        sim = simulate([netlist, tb], "tb", workdir)
+        if not sim.ok:
+            try:
+                checks = parse_testbench_checks(sim.stdout, sim.stderr)
+            except Exception:   # tb died before printing any summary
+                checks = []
+            fails = sum(1 for c in checks if not c.get("passed"))
+            detail = (f"{fails}/{len(checks)} checks failed" if checks
+                      else (sim.stdout + sim.stderr).strip()[-300:] or
+                      "testbench produced no output")
+            return ("Post-synth netlist re-simulation failed: the synthesized "
+                    f"netlist does not match the RTL behavior ({detail}).")
+        return None
 
     @staticmethod
     def _parse_transistors(tr_file: str, top_module: Optional[str]) -> int:
@@ -1733,10 +1783,11 @@ def make_cost_metric(name: str, target_delay: float = 500.0,
         name: One of 'transistors', 'delay', 'area', 'energy', 'area_delay_product'.
         target_delay: Target delay in {target_delay_time_unit} for PPA metrics (ignored for transistors).
         technology: Process technology for PPA metrics (ignored for transistors/sky130).
-        run_netlist_sim: For PPA metrics (delay/area/energy/area_delay_product/runtime/area_runtime_product/access_area_runtime_product/energy_area_runtime_product),
-            whether to re-simulate the synthesized gate-level netlist as a correctness
-            cross-check. False skips it (much faster for large designs); ignored by
-            non-PPA metrics.
+        run_netlist_sim: Whether to re-simulate the synthesized gate-level
+            netlist against the testbench as a correctness cross-check (and,
+            for the Yosys stat metrics, reject netlists with conflicting
+            drivers). On by default;
+            False skips it (much faster, but sim/synth mismatches pass).
         energy_exp: For the 'access_area_runtime_product' and
             'energy_area_runtime_product' metrics — the exponent k in
             accesses**k × runtime × area. k=1 is balanced, k>1 weights
@@ -1751,11 +1802,11 @@ def make_cost_metric(name: str, target_delay: float = 500.0,
     if name == "sky130_adp_v2":
         return Sky130ADPCostV2()
     if name == "yosys_wires":
-        return YosysWiresCost()
+        return YosysWiresCost(netlist_sim=run_netlist_sim)
     if name == "yosys_cells":
-        return YosysCellsCost()
+        return YosysCellsCost(netlist_sim=run_netlist_sim)
     if name == "yosys_transistors":
-        return YosysTransistorsCost()
+        return YosysTransistorsCost(netlist_sim=run_netlist_sim)
     if name == "aig_count":
         return AigCountCost()
     if name == "aig_depth":

@@ -24,5 +24,7 @@
     "rtlr_file": "short_benchmark/mux/mux_type3/mux_type3_ours.v"
   },
   "tb_module": "tb",
-  "tb_mode": "comb"
+  "tb_mode": "comb",
+  "golden_reference": "context/starting_point.v",
+  "golden_reference_language": "verilog"
 }

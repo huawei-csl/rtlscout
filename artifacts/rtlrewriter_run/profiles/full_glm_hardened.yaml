@@ -1,11 +1,12 @@
-# Full RTLRewriter rerun, per HANDOVER_rtlrewriter_rerun.md with the
-# user deviations (n=1 per the 2026-06-19 submission: "a single 30-step
-# agent run per phase" for cells, 60-step Appendix-B campaign for
-# transistors — supersedes the handover premise of n=3): Opus 4.8 for BOTH stages (handover: 4-7 cells / 4-6
-# transistors), POST-HOC CEC only (no in-run gating — see STATUS.md), and
-# >=10k golden-simulated stimuli per case.
-tag: rr48
-model: anthropic:claude-opus-4-8
+# Hardened twin of profiles/full_glm.yaml — identical scale, model and settings,
+# but with the in-loop eval hardening ACTIVE (a new run epoch, results are not
+# comparable with rrglm_* campaigns): the post-synth netlist gate (conflicting
+# drivers + tb re-sim) runs on every eval, and in-run CEC gates `passed` on the
+# tractable combinational cases (per-case metadata golden_reference; the
+# sequential trio 1/9/10 joins once the sequential CEC engine is ported, and
+# cases 2/12 stay CEC-free). Post-hoc CEC remains the final gate either way.
+tag: rrglmh
+model: openrouter:z-ai/glm-5.2
 
 cases: null                   # null = all 14
 # n=3 INDEPENDENT repetitions (2026-07-29 user decision), each a single agent
@@ -27,10 +28,9 @@ elite_size: 5
 # the same run dir and continues at transistors. Setup (stage0) always runs
 # first and self-skips when done.
 campaigns:
-  # In-loop eval: CEC and netlist re-sim skipped, RTL sim still runs.
-  # The post-hoc verification gate (formal CEC / 1M-vector sim) stays active.
-  cells:       {cost_metric: yosys_cells,       max_steps: 30, fsm_optimize: true, enabled: true, skip_netlist_sim: true, skip_cec: true}
-  transistors: {cost_metric: yosys_transistors, max_steps: 30, fsm_optimize: true, enabled: false, skip_netlist_sim: true, skip_cec: true}  # Appendix B: state-encoding API access
+  # No skip_* keys: netlist gate + per-case in-run CEC are active.
+  cells:       {cost_metric: yosys_cells,       max_steps: 30, fsm_optimize: true, enabled: true}
+  transistors: {cost_metric: yosys_transistors, max_steps: 30, fsm_optimize: true, enabled: false}  # Appendix B: state-encoding API access
 
 vectors:
   target_total: 10000         # per case; existing ~2000 kept, rest appended
