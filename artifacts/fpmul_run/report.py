@@ -65,7 +65,8 @@ def build() -> str:
                   f"percentages reference this baseline."]
 
     # Best numbers per front, where extraction summaries exist.
-    fronts = [("Phases 1+2 (abc)", cfg.FRONT_ABC),
+    _p2 = "abc" if cfg.P2_ABC_OPTIMIZE else "no decorator, ABLATION"
+    fronts = [(f"Phases 1+2 ({_p2})", cfg.FRONT_ABC),
               ("Phase 1 only (ablation)", cfg.FRONT_NO_ABC),
               ("post-sweep (dedup)", cfg.FRONT_SWEEP_DEDUP)]
     rows = []

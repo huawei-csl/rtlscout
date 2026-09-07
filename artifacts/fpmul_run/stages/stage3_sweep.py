@@ -167,8 +167,12 @@ def _normalize_top_module(front: Path) -> None:
 def extract() -> None:
     # cwd=SWEEP_DIR so any cwd-relative worker paths in the results resolve.
     common.ensure_fresh(cfg.FRONT_SWEEP_DEDUP)
+    # sweep.dedup_max_points caps the p3->p4 handoff (and hence phase-4
+    # compute, which is n_designs x refine_runs).
+    cap = (["-n", str(cfg.SWEEP_DEDUP_MAX_POINTS)]
+           if cfg.SWEEP_DEDUP_MAX_POINTS else [])
     common.sh(common.py(cfg.REPO / "extract_sweep_pareto.py", cfg.SWEEP_RESULTS,
-                        "-o", cfg.FRONT_SWEEP_DEDUP, "--separate-dirs"),
+                        "-o", cfg.FRONT_SWEEP_DEDUP, "--separate-dirs", *cap),
               "stage3_extract_dedup", cwd=cfg.SWEEP_DIR)
     _normalize_top_module(cfg.FRONT_SWEEP_DEDUP)
     common.record("stage3", cfg.FRONT_SWEEP_DEDUP, "post-sweep Pareto (dedup, feeds Phase 4)")

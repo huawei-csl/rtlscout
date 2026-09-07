@@ -367,7 +367,8 @@ def plot_multirun_pareto(data: Dict[str, Any], output_dir: Path,
 # ── Plot 3: Cost evolution across runs ───────────────────────────────────────
 
 def plot_cost_evolution(data: Dict[str, Any], output_dir: Path,
-                        data2: Optional[Dict[str, Any]] = None) -> Path:
+                        data2: Optional[Dict[str, Any]] = None,
+                        start_cost: Optional[float] = None) -> Path:
     """Best cost per run with seed-provenance arrows.
 
     Each seeded run gets a curved arrow from its seed source run,
@@ -379,6 +380,10 @@ def plot_cost_evolution(data: Dict[str, Any], output_dir: Path,
     ``seed_run_index`` alone is ambiguous (its elite pool starts from the
     Phase-1 front, then fills with Phase-2 runs); the recorded ``seed_cost``
     identifies which phase the pool entry came from.
+
+    With ``start_cost`` the starting design is drawn as a star at run index
+    -1 (unlabelled tick) and every fresh run gets a seed arrow from it, so
+    each run shows where its initial design came from.
     """
     _apply_style()
     from matplotlib.patches import FancyArrowPatch
@@ -427,11 +432,18 @@ def plot_cost_evolution(data: Dict[str, Any], output_dir: Path,
             continue
         if r.get("best_cost") is not None:
             arrows.append((*src, offset + r["run_index"], r["best_cost"]))
+    _START_X = -1
+    if start_cost is not None:
+        for x, c, fresh in recs:
+            if fresh and c is not None:
+                arrows.append((_START_X, start_cost, x, c))
 
     fig, ax = plt.subplots(figsize=(2.75, 2.15) if NARROW else
                            (max(5, len(recs) * 0.55 + 1.5), 3.5))
 
     valid_costs = [c for _, c, _ in recs if c is not None]
+    if start_cost is not None:
+        valid_costs.append(start_cost)
     if valid_costs:
         y_min, y_max = min(valid_costs), max(valid_costs)
         y_range = y_max - y_min if y_max != y_min else y_max * 0.1 or 1.0
@@ -449,6 +461,10 @@ def plot_cost_evolution(data: Dict[str, Any], output_dir: Path,
         else:
             ax.scatter(x, c, marker=_MARKER_SEEDED, c=_SEEDED_COLOR,
                        s=msize, zorder=3, edgecolors="white", linewidths=0.4)
+
+    if start_cost is not None:   # same star as the phase-fronts figure
+        ax.scatter(_START_X, start_cost, marker="*", s=110 if NARROW else 220,
+                   c="#222222", zorder=4, edgecolors="none")
 
     # Seed-provenance arrows: curved arrow from seed source to seeded run
     _ARROW_COLOR = "#AAAAAA"
@@ -476,7 +492,11 @@ def plot_cost_evolution(data: Dict[str, Any], output_dir: Path,
     ax.set_xlabel("Run index")
     ax.set_ylabel(metric)
     # No title — use figure caption instead
-    ax.set_xticks(x_all)
+    if start_cost is not None:
+        ax.set_xticks([_START_X] + x_all)
+        ax.set_xticklabels([""] + [str(x) for x in x_all])
+    else:
+        ax.set_xticks(x_all)
 
     # Legend
     lms = 5 if runs2 else 7
@@ -488,6 +508,9 @@ def plot_cost_evolution(data: Dict[str, Any], output_dir: Path,
         FancyArrowPatch((0, 0), (1, 0), arrowstyle="-|>", color=_ARROW_COLOR,
                         mutation_scale=8, linewidth=1.0, label="Seed source"),
     ]
+    if start_cost is not None:
+        handles.insert(0, Line2D([], [], marker="*", color="#222222",
+                                 linestyle="None", markersize=lms + 3, label="Start"))
     if any(c is None for _, c, _ in recs):
         handles.append(Line2D([], [], marker="x", color=_FAIL_COLOR,
                               linestyle="None", markersize=lms, label="Failed"))
@@ -959,6 +982,10 @@ def main():
         "--label-c", default=None,
         help="Label for the optional third combined campaign")
     parser.add_argument(
+        "--start-cost", type=float, default=None,
+        help="Cost-evolution plot: draw the starting design as a star at run "
+             "index -1 with seed arrows to every fresh run")
+    parser.add_argument(
         "--phase2", type=Path, default=None,
         help="Phase-2 campaign dir: emit only the two-phase cost-evolution "
              "plot (Phase-2 runs continue the run index, seed arrows cross "
@@ -1042,7 +1069,8 @@ def main():
 
         if args.phase2:
             p = plot_cost_evolution(data, output_dir,
-                                    data2=load_multirun(args.phase2))
+                                    data2=load_multirun(args.phase2),
+                                    start_cost=args.start_cost)
             if p:
                 print(f"Saved: {p}")
             return
@@ -1078,7 +1106,7 @@ def main():
             saved.append(p)
 
         # Plot 3: Cost evolution
-        p = plot_cost_evolution(data, output_dir)
+        p = plot_cost_evolution(data, output_dir, start_cost=args.start_cost)
         if p:
             saved.append(p)
 

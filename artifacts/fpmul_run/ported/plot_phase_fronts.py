@@ -38,7 +38,7 @@ _RC_NARROW = {**_RC, "font.size": 7, "axes.labelsize": 7,
               "xtick.labelsize": 6, "ytick.labelsize": 6}
 
 # cmap / Pareto-line colour / marker, in campaign order
-_STYLES = [("Purples", "#332288", "o"), ("Oranges", "#CC6677", "^"),
+_STYLES = [("Purples", "#332288", "o"), ("Oranges", "#B34700", "^"),
            ("Greens", "#117733", "s"), ("Blues", "#6699DD", "D")]
 _CMAP_LO = 0.35   # avoids invisible early runs
 # Explicit dash pattern (not "--"): at a 6pt legend the default period is long
@@ -76,8 +76,12 @@ def plot_phase_fronts(campaigns, output_dir: Path, starting_point=None,
     # ~0.19in, and the PDF must land at ~2.7in so LaTeX does not downscale it
     # (which would push the 6pt legend under the neurips 6pt floor).
     fig = plt.figure(figsize=(2.515, 2.15) if narrow else (6.6, 4.6))
-    gs = fig.add_gridspec(1, 2, width_ratios=[1, 0.03], wspace=0.03)
-    ax, cax = fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1])
+    # right column split: the colourbar takes the lower rows, leaving the top
+    # for an upright "Run index" title (cheaper than the rotated side label,
+    # which cost ~0.17in of width and had to be dropped in the narrow twin)
+    gs = fig.add_gridspec(2, 2, width_ratios=[1, 0.03],
+                          height_ratios=[0.15, 0.85], wspace=0.03, hspace=0.0)
+    ax, cax = fig.add_subplot(gs[:, 0]), fig.add_subplot(gs[1, 1])
 
     series, vmax = [], 0
     for i, (label, p1_root, p2_root) in enumerate(campaigns):
@@ -94,11 +98,16 @@ def plot_phase_fronts(campaigns, output_dir: Path, starting_point=None,
                    c=[r for *_, r in pts], cmap=_truncated_cmap(cmap_name),
                    vmin=0, vmax=vmax, marker=marker, s=25 * ms, alpha=0.55,
                    zorder=3 + z, edgecolors="none")
-        for subset, style, width in (([(a, d) for a, d, _ in p1], _P1_DASH, 1.6),
-                                     ([(a, d) for a, d, _ in pts], "-", 2.2)):
+        # the delay-targeted Phases-1+2 front draws above the other fronts for
+        # readability; Phase-1 fronts, scatter stacking, and legend order all
+        # stay in campaign order
+        solid_z = 6 + (len(series) if "delay" in label else z)
+        for subset, style, width, fz in (
+                ([(a, d) for a, d, _ in p1], _P1_DASH, 2.2, 6 + z),
+                ([(a, d) for a, d, _ in pts], "-", 2.2, solid_z)):
             xs, ys = _stepify(_pareto_front(subset))
             ax.plot(xs, ys, color=front_col, linestyle=style,
-                    linewidth=width * (0.8 if narrow else 1.0), zorder=6 + z)
+                    linewidth=width * (0.8 if narrow else 1.0), zorder=fz)
 
     if starting_point:
         ax.scatter([starting_point[0]], [starting_point[1]], marker="*",
@@ -113,10 +122,7 @@ def plot_phase_fronts(campaigns, output_dir: Path, starting_point=None,
                                      norm=plt.Normalize(vmin=0, vmax=vmax))
     mappable.set_array([])
     cb = fig.colorbar(mappable, cax=cax)
-    # The rotated label costs ~0.17in of a 2.7in figure (its FONT HEIGHT, not its
-    # length), so the narrow twin drops it and the paper caption says it instead.
-    if not narrow:
-        cb.set_label("Run index", fontsize=9)
+    cax.set_title("Run\nindex", fontsize=5 if narrow else 8, pad=3)
     cb.ax.tick_params(labelsize=5 if narrow else 8, pad=1)
 
     handles = [Line2D([], [], marker=mk, color=col, linestyle="-", linewidth=1.8,
@@ -124,7 +130,7 @@ def plot_phase_fronts(campaigns, output_dir: Path, starting_point=None,
                       markerfacecolor=matplotlib.colormaps[cm](0.55),
                       markeredgecolor="none", label=lbl)
                for lbl, _, _, cm, col, mk in series]
-    handles += [Line2D([], [], color="#555555", linestyle=_P1_DASH, linewidth=1.6,
+    handles += [Line2D([], [], color="#555555", linestyle=_P1_DASH, linewidth=2.2,
                        label="Phase 1 front"),
                 Line2D([], [], color="#555555", linestyle="-", linewidth=2.2,
                        label="Phases 1+2 front")]

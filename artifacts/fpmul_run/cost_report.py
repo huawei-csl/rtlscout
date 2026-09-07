@@ -117,7 +117,7 @@ def collect_costs() -> dict:
     rows = []
 
     for label, campaigns in (("Phase 1 (agent)", cfg.CAMPAIGNS_P1),
-                             ("Phase 2 (agent+ABC)", cfg.CAMPAIGNS_P2)):
+                             ("Phase 2 (agent+synth)", cfg.CAMPAIGNS_P2)):
         a = _agent_phase(campaigns)
         if a["runs"] == 0:
             continue
@@ -153,7 +153,7 @@ def collect_costs() -> dict:
         ev_wall = sum(_log_wall_s(f"stage4_eval_{d.name}") for d in
                       cfg.FRONT_DEEPSYN_REFINE.glob("design_*") if d.is_dir())
         rows.append({
-            "phase": "Phase 4 (deepsyn)", "llm_runs": 0, "llm_steps": 0,
+            "phase": "Phase 4 (Deepsyn refine)", "llm_runs": 0, "llm_steps": 0,
             "tok_in_M": 0.0, "tok_out_M": 0.0, "llm_usd": 0.0,
             "wall_h": (ds_refine / cfg.DEEPSYN_WORKERS + ev_wall) / 3600,
             "core_h": (ds_refine + ev_wall * ev_conc) / 3600,
@@ -164,7 +164,7 @@ def collect_costs() -> dict:
     if ds_base:
         ev_wall_b = _log_wall_s("stage4_eval_equal_compute")
         rows.append({
-            "phase": "Baseline: deepsyn from scratch", "llm_runs": 0,
+            "phase": "Baseline: Deepsyn only", "llm_runs": 0,
             "llm_steps": 0, "tok_in_M": 0.0, "tok_out_M": 0.0, "llm_usd": 0.0,
             "wall_h": (ds_base / cfg.DEEPSYN_WORKERS + ev_wall_b) / 3600,
             "core_h": (ds_base + ev_wall_b * ev_conc) / 3600,
@@ -188,7 +188,7 @@ def collect_costs() -> dict:
     v_wall = _verify_wall_s()
     if v_wall:
         rows.append({
-            "phase": "Verification (Stage V)", "llm_runs": 0, "llm_steps": 0,
+            "phase": "Verification", "llm_runs": 0, "llm_steps": 0,
             "tok_in_M": 0.0, "tok_out_M": 0.0, "llm_usd": 0.0,
             "wall_h": v_wall / 3600, "core_h": v_wall / 3600 * 16,
             "note": "est: wall x 16 (build 8-way; 2^32 sim bursts 110-way, short)",
