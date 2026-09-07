@@ -596,6 +596,12 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
         p2v_m = _phase_mean(v, "phase2", metric) if has_phase2 else None
         p1s_m = _phase_mean(s, "phase1", metric)
         p2s_m = _phase_mean(s, "phase2", metric) if has_phase2 else None
+        # P2 seeds from P1, so an empty P2 (no valid surviving result)
+        # silently carries the P1 best forward, entering every aggregate.
+        if has_phase2 and p2v is None and p1v is not None:
+            p2v, p2v_m = p1v, p1v_m
+        if has_phase2 and p2s is None and p1s is not None:
+            p2s, p2s_m = p1s, p1s_m
         dv12 = _delta(p2v_m, p1v_m) if has_phase2 else None
         ds12 = _delta(p2s_m, p1s_m) if has_phase2 else None
         # Cross-language delta: Spire P2 vs Verilog P2 (same pipeline both
