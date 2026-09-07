@@ -309,6 +309,22 @@ _DELAY_OPTIMIZATION_TIPS = (
     "- For designs dominated by a multiply-accumulate chain, the critical path is the multiplier followed by the adder tree. Reducing the adder depth or splitting into parallel partial sums can help."
 )
 
+# Extra delay tip that names the decorator — must only appear when the abc flag
+# is set, so it is appended via _delay_tips() rather than the shared constant.
+_DELAY_TIP_ABC = (
+    "- The @abc_optimized decorator is ALSO a delay lever, not only an area one: "
+    "wrap a block on the reported critical path (worst_timing_path) and sweep "
+    "3-4 `-S` seeds. Interleave these sweeps with your structural attempts from "
+    "the start — do not save the decorator for last, or the step budget will "
+    "run out before it is tried.\n"
+)
+
+
+def _delay_tips(abc_optimize: bool) -> str:
+    """Shared delay tips, plus the decorator tip when the abc flag is set."""
+    return _DELAY_OPTIMIZATION_TIPS + (_DELAY_TIP_ABC if abc_optimize else "")
+
+
 # Agent-specific strategy tips for @flowy_optimized (appended after the README section).
 # The arithmetic restriction ("What NOT to optimize") is included only when
 # arith_autoconfig is NOT enabled — when it is, those ops are fair game.
@@ -382,77 +398,75 @@ def _flowy_agent_tips() -> str:
     return _FLOWY_OPTIMIZE_AGENT_TIPS_BASE + _FLOWY_OPTIMIZE_STRATEGY
 
 
-# Measured on an agent-optimized fp16-multiplier datapath with this exact
-# flow (area metric, relaxed-timing target; 2026-07-30). The delay-side
-# caveat is measured too: on a delay-tight agent design every recipe made
-# delay worse (critical path = the out-of-bounds main multiplier).
+# Figures come from internal measurements across several agent-optimized
+# datapaths with this exact flow. Deliberately design-agnostic: no benchmark,
+# module or helper-function name appears in the agent-facing text, so the block
+# cannot hint at the design under evaluation.
 _ABC_MEASURED_IMPACT = """
-### Measured impact — for AREA the decorator reliably pays
+### Measured impact — use it, seed it, persist
 
-An agent-optimized fp16-multiplier datapath, decorator applied to the
-non-arithmetic post-processing, evaluated with this exact flow (area metric):
+Best DECORATED vs best UNDECORATED design within the same run, across many
+campaigns on several unrelated datapaths, judged on each run's own metric:
 
-| variant                                            | area (um^2) | delay (ps) |
-|----------------------------------------------------|-------------|------------|
-| no decorator                                       | 108.1       | 1701       |
-| @abc_optimized  (bare -> balanced)                 | 112.3       | 1529       |
-| @abc_optimized(abc_script=ABC_RECIPES["area"])     |  98.2       | 1622       |
-| stacked: &deepsyn -T 30 pass, then the area recipe | 100.2       | 1654       |
+| metric | measured range   | reading                                        |
+|--------|------------------|------------------------------------------------|
+| area   | -0.8 % .. -9.6 % | won on EVERY design tried                      |
+| ADP    | -5.7 % .. +1.4 % | one large win; best structural fit (see rule 2) |
+| delay  | never won        | but ONLY single unseeded shots were ever tried |
 
-Insights:
-- On AREA campaigns the area recipe is a reliable win: -9% area here (and
-  -4% even on a much better hand-tuned design), with delay improving too.
-  Weaker starting designs gain more.
-- On DELAY campaigns the decorator often MAY NOT beat an already delay-tight
-  design (measured: every recipe made it slower) — the critical path runs
-  through the main multiplier, which stays outside the decorated region.
-  Try it once, keep it only if the measured delay improves.
-- On ADP campaigns treat the area recipe with suspicion: ADP is area x delay,
-  so a recipe that buys a few % area for a 20-30% delay regression is a large
-  ADP LOSS. Typically, on a timing-constrained datapath, every recipe applied
-  to the whole datapath loses 20-30% delay for 2-5% area.
-- Match the recipe to your cost metric, and evaluate rather than guess —
-  results vary by design. Decorated results are cached: re-evaluating an
-  unchanged decorated function costs nothing.
+Three rules, in order of measured importance:
 
-IMPORTANT: Make sure to use @abc_optimized on your best designs to improve them
-further. Applying the decorator is a 2-3 line change.
+1. SEED IT. Every `ABC_RECIPES` entry runs `&deepsyn` at seed 0, so each
+   unseeded application explores ONE fixed trajectory — a coin flip: 22 of 100
+   seeds measured WORSE than not decorating, while best-of-4 roughly doubles
+   the expected gain and best-of-16 reaches ~3.5x. Always sweep 3-4 seeds:
 
-IMPORTANT: the decorator optimizes ONLY the logic inside the callable it
-decorates, and it engages only on a function whose arguments are Exprs —
-decorating a `Component` subclass does nothing at all (it is returned
-unchanged, with no error). WHICH logic you put inside is the main lever, and
-the right scope depends on your cost metric. Note this is all about the
-TECHNOLOGY-MAPPED numbers you are scored on (ASAP7 area/delay from synthesis +
-STA) — against AIG proxies like node count or AIG depth, scope barely matters
-and the decorator nearly always looks like a win:
+       @abc_optimized(abc_script="strash; &get -n; &deepsyn -T 120 -S 3; &put")
 
-- ABC has no cell library, no timing model and no target delay: it minimizes
-  the AIG, trading delay for area wherever you apply it. The bigger the
-  decorated block, the more cross-block optimization it can do — but also the
-  more of your CRITICAL PATH it restructures.
-- PURE AREA metric (timing has slack): go big. One large block — most of the
-  combinational datapath in a single function — optimizes best together.
-- DELAY or ADP metric (timing-constrained): keep ABC OFF the critical path.
-  Decorate helpers that sit off it (per-lane decode, output post-processing)
-  and leave the critical datapath undecorated. A typical measured outcome on a
-  timing-constrained datapath: decorating the whole datapath lost 20-30% delay
-  for 2-5% area with EVERY recipe — a large ADP loss — while decorating only
-  the format decode/encode helpers beat the undecorated design on BOTH area
-  and delay.
-- A decorated helper becomes a hard optimization BOUNDARY: its logic is frozen
-  as gates, so synthesis can no longer constant-fold through it or merge it
-  with the surrounding cones. On a small helper that loss can outweigh what
-  ABC gains and make area worse. This depends on the block, not on how often
-  it is called — a helper used once can lose while one instantiated per lane
-  wins.
+   Each distinct script string is its own cache entry — re-trying a seed is free.
 
-Which scopes pay is not additive — a helper that loses on its own can win in
-combination with another — so try two or three scopes and keep whichever
-measures better. If you do want to decorate the whole datapath, you must
-REFACTOR first: pull it out of `elaborate()` into a module-level function
-taking the input Exprs and returning the output Exprs, decorate that, and call
-it from `elaborate()`. Keep the refactor only if the measured cost improves.
+2. ALWAYS FIND A BLOCK — any self-contained group of combinational logic can
+   be pulled into a function and decorated, so every design has candidates.
+   Rank them by three properties: SMALL, INSTANTIATED MANY TIMES, FLOPS ON BOTH
+   SIDES (measured: the same helper had 85/100 seeds worse than no decorator
+   without a register boundary, 2/100 with; N instances = N x the gain).
+   Regions dominated by wide word-level arithmetic pay less often — the
+   decorator lowers them to gates early, which can bake slow carry chains (a
+   no-op round trip cost 11 % delay) — so start elsewhere, but that is a reason
+   to DEPRIORITIZE such regions, never to skip decoration: with seeds even they
+   sometimes win. One good block beats several mediocre ones (measured), and
+   ending a run with zero or only a few decorated evaluations is a planning
+   failure, not a judgment call.
+   Know where the CRITICAL PATH runs — every evaluation reports it
+   (worst_timing_path). Wrapping blocks OFF that path cannot improve delay by
+   construction (it only buys area, safely: slack absorbs the tax). To move
+   DELAY the wrapped region must contain the path — the tax lands on it too, so
+   expect seed 0 to lose and judge only after a 3-4 seed sweep.
+   This split makes the decorator PARTICULARLY WELL SUITED TO ADP: it is the
+   one mechanism that gives different regions different synthesis objectives —
+   an area-minimizing sweep off the path buys area at zero delay cost, a pure
+   area x delay win that uniform whole-design synthesis cannot express, while
+   the main timing-driven synthesis keeps the path itself fast. On an ADP
+   campaign, decorating off-path blocks is the first move, not a fallback.
+
+3. PERSIST. Measurement noise alone is 6-8 % on delay and 1-3 % on area
+   (identical netlists, only wire names permuted). One bad number — especially
+   a few % on delay — is noise, not a verdict: answer it with more seeds and a
+   second scope or recipe, never by abandoning the decorator.
+
+Your seed design has already survived rounds of structural rewriting — more of
+the same tends to diminishing returns, and the decorator is usually the largest
+UNTRIED lever left. REQUIRED before you finish, on every metric (delay and ADP
+included): at least 4 evaluations of decorated variants of your best design —
+3-4 seeds, plus a second scope or recipe if the first disappoints.
+
+Mechanics: the decorator engages only on a function taking and returning Exprs —
+decorating a `Component` subclass silently does nothing. To decorate logic that
+lives inline in `elaborate()`, first pull it out into a module-level function
+(input Exprs in, output Exprs out), decorate that, and call it from
+`elaborate()`. All guidance above is about the technology-mapped numbers you are
+scored on; against AIG proxies (node count, depth) the decorator almost always
+looks like a win regardless of scope.
 """
 
 
@@ -552,6 +566,14 @@ _REFERENCES_HEADER = (
 )
 
 
+# Measurement-scope fact appended to every cost-metric note: true for every
+# metric and benchmark, so it lives here rather than in per-metric descriptions.
+COST_SCOPE_NOTE = (
+    "Cost is measured on your design alone. The testbench and everything it "
+    "owns (checking logic, the external memories, etc.) is "
+    "not synthesized and contributes nothing to area, delay, power, or energy.")
+
+
 # ---------------------------------------------------------------------------
 # System prompt builders
 # ---------------------------------------------------------------------------
@@ -560,8 +582,9 @@ def build_system_prompt(description: str, cost_metric_name: str, extra: str = ""
                         target_delay_is_settable: bool = False,
                         max_steps: int = 20, cost_metric_note: str = "") -> str:
     references_block = _build_references_block(VERILOG_REFERENCES)
-    cost_note_block = (f"\n\n**Cost metric `{cost_metric_name}`:** {cost_metric_note}"
-                       if cost_metric_note else "")
+    cost_note_block = (f"\n\n**Cost metric `{cost_metric_name}`:** {cost_metric_note} "
+                       f"{COST_SCOPE_NOTE}" if cost_metric_note else
+                       f"\n\n**Cost metric `{cost_metric_name}`:** {COST_SCOPE_NOTE}")
 
     run_eval_line = (
         f"- run_evaluation(filename[, target_delay]): Run evaluation on the given design file. "
@@ -621,8 +644,9 @@ def build_spirehdl_system_prompt(description: str, cost_metric_name: str, extra:
     gate = dict(abc_optimize=abc_optimize, flowy_optimize=flowy_optimize,
                 arith_autoconfig=arith_autoconfig, fsm_optimize=fsm_optimize)
     references_block = _build_references_block(SPIREHDL_REFERENCES, **gate)
-    cost_note_block = (f"\n\n**Cost metric `{cost_metric_name}`:** {cost_metric_note}"
-                       if cost_metric_note else "")
+    cost_note_block = (f"\n\n**Cost metric `{cost_metric_name}`:** {cost_metric_note} "
+                       f"{COST_SCOPE_NOTE}" if cost_metric_note else
+                       f"\n\n**Cost metric `{cost_metric_name}`:** {COST_SCOPE_NOTE}")
 
     run_eval_line = (
         f"- run_evaluation(filename[, target_delay]): Run the given Spire .py file "
@@ -780,8 +804,7 @@ Tip: If necessary, check the generated Verilog wire widths to verify element siz
 - You may split logic across multiple `.py` files — your working directory is on the Python path, so plain imports work: `from helper import build_adder`.
 - IMPORTANT: Use Python features creatively — recursion, loops, helper functions, classes, optimization routines, debug prints, in-code analysis to pick the best variant, etc. are all fair game when constructing the hardware logic.
 {target_delay_note}
-{_DELAY_OPTIMIZATION_TIPS}
-
+{_delay_tips(abc_optimize)}
 {_build_optimization_guidance(abc_optimize, flowy_optimize, arith_autoconfig, dont_touch_main_arith, fsm_optimize)}
 
 {_REFERENCES_HEADER}
@@ -814,8 +837,9 @@ def build_amaranth_system_prompt(description: str, cost_metric_name: str, extra:
                                   target_delay_is_settable: bool = False,
                                   max_steps: int = 20, cost_metric_note: str = "") -> str:
     references_block = _build_references_block(AMARANTH_REFERENCES)
-    cost_note_block = (f"\n\n**Cost metric `{cost_metric_name}`:** {cost_metric_note}"
-                       if cost_metric_note else "")
+    cost_note_block = (f"\n\n**Cost metric `{cost_metric_name}`:** {cost_metric_note} "
+                       f"{COST_SCOPE_NOTE}" if cost_metric_note else
+                       f"\n\n**Cost metric `{cost_metric_name}`:** {COST_SCOPE_NOTE}")
 
     run_eval_line = (
         f"- run_evaluation(filename[, target_delay]): Run the given Amaranth .py file "

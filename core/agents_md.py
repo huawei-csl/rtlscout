@@ -106,7 +106,9 @@ def _demote_headings(md: str) -> str:
 
 def _objective(req: "BackendRequest", metric_name: str, cfg: dict) -> str:
     note = getattr(req.cost_metric, "metric_note", "") if req.cost_metric else ""
-    note_line = f"\n\n**Cost metric `{metric_name}`:** {note}" if note else ""
+    from core.prompts import COST_SCOPE_NOTE
+    note_line = (f"\n\n**Cost metric `{metric_name}`:** {note} {COST_SCOPE_NOTE}" if note
+                 else f"\n\n**Cost metric `{metric_name}`:** {COST_SCOPE_NOTE}")
     return (
         f"# Task — optimize a {cfg['hdl']} design\n\n"
         f"## Specification\n{req.benchmark.description}\n\n"

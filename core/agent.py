@@ -715,6 +715,16 @@ class RTLAgent:
             total_usage = total_usage + response.usage
             self._last_step_usage = response.usage
 
+            # Guard against degenerate responses carrying an unbounded
+            # tool_calls array (observed: 2,835 identical calls in one GLM
+            # response, executed for hours). Truncate BEFORE the message
+            # enters history so tool results stay consistent.
+            MAX_TOOL_CALLS_PER_STEP = 8
+            if response.tool_calls and len(response.tool_calls) > MAX_TOOL_CALLS_PER_STEP:
+                print(f"\n  WARNING: {len(response.tool_calls)} tool calls in "
+                      f"one response; executing the first {MAX_TOOL_CALLS_PER_STEP}")
+                response.tool_calls = response.tool_calls[:MAX_TOOL_CALLS_PER_STEP]
+
             # Build message dict for history
             msg_dict: Dict[str, Any] = {
                 "role": "assistant",
