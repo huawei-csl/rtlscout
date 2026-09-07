@@ -4,6 +4,10 @@ import re
 from pathlib import Path
 from typing import List
 
+# Hard cap enforced by the agent loop (core/agent.py) and stated in the
+# system prompt; extra calls in a response are not executed.
+MAX_TOOL_CALLS_PER_STEP = 8
+
 from tech_eval.ppa_extract.core.template import target_delay_time_unit
 from core.evaluation import SPIREHDL_VERILOG_OUTPUT, AMARANTH_VERILOG_OUTPUT
 
@@ -282,7 +286,7 @@ _CREATIVITY_AND_EVAL_BLOCK = (
 # Use str.format(max_steps=...) when embedding.
 _IMPORTANT_COMMON = (
     "- Always call a tool in every response.\n"
-    "- You have a maximum of **{max_steps} steps** (tool calls / LLM turns). Budget them wisely: get a correct design first, then optimise.\n"
+    f"- You have a maximum of **{{max_steps}} steps** (LLM turns). Budget them wisely: get a correct design first, then optimise. You may batch tool calls in one response --- at most {MAX_TOOL_CALLS_PER_STEP}, and only one `run_evaluation`.\n"
     "- The best result is the one with lowest cost among designs that pass 100% of testbench checks.\n"
     "- Use different filenames for different design variants so you can retrieve them later.\n"
     "- If context files (e.g. component source files) are in your workspace, you can modify them directly "
