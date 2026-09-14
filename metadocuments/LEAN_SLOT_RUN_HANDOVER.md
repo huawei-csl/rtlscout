@@ -19,6 +19,13 @@ Design documents: `spire-hdl-autoproof/metadocs/LEAN_GATE_PLAN.md`, `LEAN_GATE_T
 
 Host facts: no Docker, no Node, no API key on this machine; `sudo` needs a password; 192 cores.
 
+### Which Spire to use
+
+Everything here runs against the **sibling checkout** `/scratch/farnold/spire/spire-hdl-autoproof` on
+branch **`lean-gated-design-db`** (remote: `https://github.com/huawei-csl/spire-hdl`), put first on
+`PYTHONPATH` below — *not* against RTLScout's submodule `deps/spire-hdl`, which is still pinned at
+`cdd252a` and has no Lean tier.
+
 Standard environment for every command below (run from the RTLScout clone):
 
 ```bash
