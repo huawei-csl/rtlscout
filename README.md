@@ -292,6 +292,26 @@ recompiled with forced (`pin=`-style) selections and measured for real (`--all-d
 to all admitted designs). An example report (sat_mac4_par, GLM-5.2) is checked in at
 [artifacts/db_run_visualizations/sat_mac4_par_glm-5.2_visualization.html](artifacts/db_run_visualizations/sat_mac4_par_glm-5.2_visualization.html).
 
+### Slot-first agent run (`rtlscout_cli.py agent-slot`)
+
+Run one OpenCode agent **directly on a design-DB slot** — no benchmark folder, no
+`./evaluate_design`. The slot itself is the task: its `golden.v`, `spec.json`, `starting_point.py`
+and frozen oracle are the agent's only inputs, `spire db verify` its only feedback,
+`spire db insert` its only write path (`AGENTS.md` is rendered from the slot; the design-DB skills
+are provisioned, including `design-db-lean-proof` / `design-db-lean-spec` for Lean-gated slots).
+
+```bash
+python rtlscout_cli.py agent-slot --slot mmac --model openrouter:z-ai/glm-5.2 \
+    --db /path/to/design_db --wall-clock-min 20 [--source agent:rtl-slot] [--work-root runs/x]
+```
+
+When the wall clock ends, every design admitted during the run is **re-checked against the slot's
+frozen oracle in a fresh gate call** (`slot_run_report.json`: `admitted`, `audit`). This is the
+slot-flow analogue of `reeval`: the agent has a shell and a writable DB, so recorded admissions are
+audited, never trusted. On a Lean-gated slot the audit re-runs `lake build` + the axiom check on the
+stored proof. Single-container mode only for now; the provider key comes from the environment or
+`.env`.
+
 ### Non-agentic tools (campaign filler & scorer)
 
 | Command | What it does |

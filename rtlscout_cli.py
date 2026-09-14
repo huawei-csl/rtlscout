@@ -17,6 +17,7 @@ devcontainer.local_folder label.
 """
 import argparse
 import json
+from pathlib import Path
 import sys
 
 from core.containers import LABEL_SESSION, cleanup, list_managed
@@ -44,6 +45,16 @@ def main(argv=None) -> int:
     f.add_argument("--language", default="verilog")
     f.add_argument("--module-name", default=None)
     f.add_argument("--keep-runs", action="store_true", help="keep the campaign artifacts")
+
+    a = sub.add_parser("agent-slot", help="slot-first OpenCode run: one agent optimizes one design-DB slot "
+                                          "(no benchmark, no ./evaluate_design); admitted designs are re-audited")
+    a.add_argument("--slot", required=True, help="spec_key (or unique prefix) or manifest name")
+    a.add_argument("--model", required=True, help="provider:model, e.g. openrouter:z-ai/glm-5.2")
+    a.add_argument("--db", default=None, help="design-DB root (default: resolve)")
+    a.add_argument("--wall-clock-min", type=float, default=10.0)
+    a.add_argument("--source", default="agent:rtl-slot", help="provenance tag the agent must insert with")
+    a.add_argument("--work-root", default=None, help="run directory (default: runs/slot_<key>_<time>)")
+    a.add_argument("--opencode", default="opencode", help="opencode executable")
 
     s = sub.add_parser("db-score", help="measure per-technology PPA on stored designs and "
                                         "annotate the DB (or --dry-run to just print numbers)")
@@ -80,6 +91,27 @@ def main(argv=None) -> int:
             return 1
         print(json.dumps(report.to_dict(), indent=2))
         return 0 if (report.admitted or report.deduped or report.seeded) else 1
+
+    if args.cmd == "agent-slot":
+        from spire.design_db import DesignDB, DesignDBError
+        from core.design_db_slot_run import run_slot_agent
+        try:
+            d = DesignDB.open(args.db, create=False)
+            manifest = d.read_json(d.manifest_path, {"slots": {}}).get("slots", {})
+            key = manifest.get(args.slot, {}).get("spec_key")
+            if key is None:
+                hits = [p.name for p in d.v1.iterdir() if p.is_dir() and p.name.startswith(args.slot)] if d.v1.is_dir() else []
+                key = hits[0] if len(hits) == 1 else None
+            if key is None:
+                raise DesignDBError(f"unknown or ambiguous slot {args.slot!r}")
+            report = run_slot_agent(key, model=args.model, db=args.db, wall_clock_min=args.wall_clock_min,
+                                    source=args.source, work_root=Path(args.work_root) if args.work_root else None,
+                                    opencode_bin=args.opencode)
+        except DesignDBError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        print(json.dumps(report.to_dict(), indent=2))
+        return 0 if report.ok else 1
 
     if args.cmd == "db-score":
         from core.design_db_score import score_designs

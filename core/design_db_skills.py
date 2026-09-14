@@ -21,7 +21,8 @@ SKILLS_SRC = Path(__file__).resolve().parent / "skills"
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 SKILL_NAMES = ("design-db-inspect", "design-db-insert", "design-db-eval",
-               "design-db-dv-prep", "design-db-dispatch", "design-db-score")
+               "design-db-dv-prep", "design-db-dispatch", "design-db-score",
+               "design-db-lean-proof", "design-db-lean-spec")
 
 
 def provision_design_db_skills(workspace: Path) -> Path:
@@ -63,6 +64,10 @@ When it passes, submit through the gate:
 (your python source is stored with the design automatically). Only admitted designs count.
 Submit several structurally different correct designs if you can — selection keeps the whole
 Pareto set, and a design another agent already admitted simply dedups (no harm).
+
+Lean-gated slot (verification method `lean`): follow the `design-db-lean-proof` skill — get the
+workspace with `spire db verify … --workspace <workdir>/ws`, write the named `D<hash>_Proof.lean`,
+`lake build`, then `spire db insert … --proof <workdir>/ws/D<hash>_Proof.lean`.
 
 Rules: work only inside your assigned workdir (create it). Slot files are read-only; never
 write into the DB directory by hand — `spire db insert` is the only write path and it verifies
@@ -121,7 +126,8 @@ subcircuits worth optimizing separately, load the `design-db-*` skills: `design-
 (slots, designs, Pareto — also how to judge results), `design-db-dispatch` (delegate one slot to
 the `rtl-subcircuit` subagent via the task tool), `design-db-dv-prep` (unverified sequential
 slots), `design-db-insert` / `design-db-eval` (submit / check candidates yourself, spire-first),
-`design-db-score` (technology PPA, on demand). Typical loop: inspect → (dv-prep if needed) →
+`design-db-score` (technology PPA, on demand), `design-db-lean-proof` / `design-db-lean-spec`
+(Lean-gated slots: every insert carries a kernel-checked proof; layers make proofs easier). Typical loop: inspect → (dv-prep if needed) →
 dispatch per slot → inspect again to see what changed → for spire designs re-run
 `./evaluate_design` (it fires the `@from_design_db` decorators, so the score reflects the new
 selections) — after each fill, not just at the end. **Delegate slot implementation via
