@@ -292,31 +292,32 @@ recompiled with forced (`pin=`-style) selections and measured for real (`--all-d
 to all admitted designs). An example report (sat_mac4_par, GLM-5.2) is checked in at
 [artifacts/db_run_visualizations/sat_mac4_par_glm-5.2_visualization.html](artifacts/db_run_visualizations/sat_mac4_par_glm-5.2_visualization.html).
 
-### Slot-first agent run (`rtlscout_cli.py agent-slot`)
+### Filling a slot (`rtlscout_cli.py fill-slot`)
 
-Run one OpenCode agent **directly on a design-DB slot** — no benchmark folder, no
-`./evaluate_design`. The slot itself is the task: its `golden.v`, `spec.json`, `starting_point.py`
-and frozen oracle are the agent's only inputs, `spire db verify` its only feedback,
-`spire db insert` its only write path (`AGENTS.md` is rendered from the slot; the design-DB skills
-are provisioned, including `design-db-lean-proof` / `design-db-lean-spec` for Lean-gated slots).
+One command fills **one slot** with verified candidates; two axes select how:
+
+| | `--flow eval` | `--flow direct` |
+|---|---|---|
+| `--agent-backend react` (default) | slot → ephemeral benchmark → `run_multirun(reeval=True)` → every passing candidate through Spire's gate. Today's behaviour (this command was called `fill-db`; candidates default to `--language spirehdl` now). | – (the react agent has no shell for `spire db`) |
+| `--agent-backend opencode` | not implemented yet | **slot-first**: the agent works on the slot itself — `AGENTS.md` rendered from `golden.v` / `spec.json` / `starting_point.py` / the frozen oracle, the design-DB skills provisioned (incl. `design-db-lean-proof` / `design-db-lean-spec` for Lean-gated slots), `spire db verify` its only feedback, `spire db insert` its only write path, no `./evaluate_design`. Default flow for opencode. |
 
 ```bash
-python rtlscout_cli.py agent-slot --slot mmac --model openrouter:z-ai/glm-5.2 \
-    --db /path/to/design_db --wall-clock-min 20 [--source agent:rtl-slot] [--work-root runs/x]
+python rtlscout_cli.py fill-slot --slot mmac --model openrouter:z-ai/glm-5.2                       # react, eval
+python rtlscout_cli.py fill-slot --slot mmac --model openrouter:z-ai/glm-5.2 \
+    --agent-backend opencode --wall-clock-min 20 [--source agent:rtl-slot] [--work-root runs/x]    # opencode, direct
 ```
 
-When the wall clock ends, every design admitted during the run is **re-checked against the slot's
-frozen oracle in a fresh gate call** (`slot_run_report.json`: `admitted`, `audit`). This is the
-slot-flow analogue of `reeval`: the agent has a shell and a writable DB, so recorded admissions are
-audited, never trusted. On a Lean-gated slot the audit re-runs `lake build` + the axiom check on the
-stored proof. Single-container mode only for now; the provider key comes from the environment or
-`.env`.
+In the direct flow, when the wall clock ends every design admitted during the run is **re-checked
+against the slot's frozen oracle in a fresh gate call** (`audit` in the report and in
+`<work-root>/slot_run_report.json`). This is the slot-flow analogue of `reeval`: a shell agent with a
+writable DB could bypass the gate, so recorded admissions are audited, never trusted. On a Lean-gated
+slot the audit re-runs `lake build` and the axiom check on the stored proof. Single-container only for
+now; the provider key comes from the environment or `.env`.
 
-### Non-agentic tools (campaign filler & scorer)
+### Non-agentic tools (scorer)
 
 | Command | What it does |
 |---|---|
-| `python rtlscout_cli.py fill-db --slot <key> --model <provider:model>` | Campaign filler: slot → ephemeral benchmark → `run_multirun(reeval=True)` → every passing candidate through Spire's gate (the slot's own golden is seeded first as the baseline/floor). |
 | `python rtlscout_cli.py db-score [--slot K --design ID --technology asap7 --dry-run]` | Measures per-technology PPA on stored designs and annotates the DB (enables `metric="asap7"` selection); `--design` scopes to one design, `--dry-run` measures without writing. Backs the `design-db-score` skill. |
 
 The decorator's generate-on-miss hook is `core.design_db_fill.rtlscout_fill`

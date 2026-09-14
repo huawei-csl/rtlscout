@@ -18,7 +18,7 @@ sandboxed campaigns.
 | `--reeval` | flag | off | force the authoritative re-score on the **react** path too (always on for opencode) |
 | `--wall-clock-min` | minutes | `10` | hard per-run budget for the **opencode** agent (`0` = no limit) |
 | `--design-db-skills` | flag | off | **opencode** only: add the design-DB skills layer (skills + subagents + DB handover) — [main README](README.md#skill-based-flow---agent-backend-opencode---design-db-skills) |
-| `rtlscout_cli.py agent-slot` | command | – | slot-first OpenCode run on one design-DB slot (no benchmark, no `./evaluate_design`); admitted designs re-audited against the frozen oracle — [main README](README.md#slot-first-agent-run-rtlscout_clipy-agent-slot) |
+| `rtlscout_cli.py fill-slot --agent-backend opencode --flow direct` | command | – | slot-first OpenCode run on one design-DB slot (no benchmark, no `./evaluate_design`); admitted designs re-audited against the frozen oracle — [main README](README.md#filling-a-slot-rtlscout_clipy-fill-slot) |
 | `--design-db-path` | path | auto | design-DB root when the layer is on (multirun defaults to a shared `<runs-root>/design_db` campaign DB; identity-mounted rw into orchestrated agent containers) |
 
 ```bash

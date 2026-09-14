@@ -1,4 +1,4 @@
-"""Slot-first OpenCode run (`rtlscout_cli.py agent-slot`) on a Lean-gated slot — offline.
+"""Slot-first OpenCode run (`rtlscout_cli.py fill-slot --agent-backend opencode --flow direct`) on a Lean-gated slot — offline.
 
 A stand-in `opencode` executable plays the agent: it does exactly what the skills instruct
 (verify --workspace → write D<hash>_Proof.lean → insert --proof). Requires `lake` on PATH.
@@ -105,3 +105,23 @@ def test_audit_catches_a_design_written_around_the_gate(lean_slot):
     (rogue / "design.v").write_text((rogue / "design.v").read_text().replace("a_0_0", "a_0_1", 1))   # tampered logic, no proof
     audit = audit_admitted(lean_slot["key"], int(time.time()), db=lean_slot["db"])
     assert audit["agent:rogue:0000000000"]["verdict"] == "FAIL"
+
+
+def test_fill_slot_flow_validation(capsys):
+    """Flag combinations are validated before any DB is touched."""
+    from rtlscout_cli import main
+    assert main(["fill-slot", "--slot", "x", "--model", "a:b", "--agent-backend", "react", "--flow", "direct"]) == 1
+    assert "needs --agent-backend opencode" in capsys.readouterr().err
+    assert main(["fill-slot", "--slot", "x", "--model", "a:b", "--agent-backend", "opencode", "--flow", "eval"]) == 1
+    assert "not implemented yet" in capsys.readouterr().err
+
+
+def test_fill_slot_direct_maps_to_fill_report(lean_slot, tmp_path):
+    """`fill_slot(backend='opencode', flow='direct')` returns the unified FillReport with the audit."""
+    from core.design_db_fill import fill_slot
+    fake = _fake_opencode(tmp_path)
+    os.environ["PATH"] = f"{Path(sys.executable).parent}{os.pathsep}{os.environ['PATH']}"
+    rep = fill_slot(lean_slot["key"], model="openrouter:fake/model", db=lean_slot["db"], backend="opencode", flow="direct",
+                    wall_clock_min=5, work_root=tmp_path / "run", opencode_bin=str(fake))
+    assert rep.flow == "direct" and rep.backend == "opencode" and rep.ok
+    assert rep.admitted and set(rep.audit) == set(rep.admitted) and rep.runs_root == str(tmp_path / "run")

@@ -36,7 +36,7 @@ def _adder_slot():
 def test_fill_slot_offline_fake(db):
     key = _adder_slot()
     report = fill_slot(key, model="fake:simple_adder_pass", total_runs=1, max_steps=8,
-                       n_advisory_vectors=32)
+                       n_advisory_vectors=32, language="verilog")     # the fake script writes design.sv
     assert report.seeded and report.seeded.startswith("original:")
     assert report.attempted >= 1
     assert report.admitted or report.deduped >= 1        # fake adder may dedup vs the original
@@ -56,12 +56,12 @@ def test_fill_refuses_unverified_slot(db):
     out <<= q
     key = register_slot(m)
     with pytest.raises(DesignDBError, match="frozen verification"):
-        fill_slot(key, model="fake:simple_adder_pass")
+        fill_slot(key, model="fake:simple_adder_pass", language="verilog")
 
 
 def test_rtlscout_fill_hook(db, monkeypatch):
     key = _adder_slot()
-    fill = make_rtlscout_fill(model="fake:simple_adder_pass", total_runs=1, max_steps=8,
+    fill = make_rtlscout_fill(model="fake:simple_adder_pass", total_runs=1, max_steps=8, language="verilog",
                               n_advisory_vectors=32)
     fill(key, db_root=db, objective="area", metric=None)
     index = json.loads((db / VERSION_DIR / key / "index.json").read_text())
@@ -86,7 +86,7 @@ def test_decorator_fill_hook_composed(db, tmp_path, monkeypatch):
     from spire.component import Netlist
     from spire.design_db import from_design_db
 
-    fill = make_rtlscout_fill(model="fake:adder8_y_pass", total_runs=1, max_steps=8,
+    fill = make_rtlscout_fill(model="fake:adder8_y_pass", total_runs=1, max_steps=8, language="verilog",
                               n_advisory_vectors=32, module_name="adder")
 
     @from_design_db(objective="area", fill=fill)

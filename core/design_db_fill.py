@@ -51,9 +51,18 @@ class FillReport:
     rejected: int = 0
     errors: List[str] = field(default_factory=list)
     runs_root: Optional[str] = None
+    backend: str = "react"
+    flow: str = "eval"
+    audit: Dict[str, Dict[str, str]] = field(default_factory=dict)   # direct flow: post-run re-check per admitted design
 
     def to_dict(self) -> Dict[str, Any]:
         return dict(self.__dict__)
+
+    @property
+    def ok(self) -> bool:
+        if self.flow == "direct":
+            return bool(self.admitted) and all(a["verdict"] == "PASS" for a in self.audit.values())
+        return bool(self.admitted or self.deduped or self.seeded)
 
 
 def _load_slot(db: Optional[Any], spec_key: str):
@@ -149,10 +158,12 @@ def _harvest_candidates(runs_root: Path) -> List[Path]:
     return files
 
 
-def fill_slot(spec_key: str, *, model: str, db: Optional[Any] = None,
+def fill_slot(spec_key: str, *, model: str, db: Optional[Any] = None, backend: str = "react", flow: str = "eval",
+              wall_clock_min: float = 10.0, source: str = "agent:rtl-slot", work_root: Optional[Path] = None,
+              opencode_bin: str = "opencode",
               objective: str = "area", cost_metric: Optional[str] = None,
               module_name: Optional[str] = None, total_runs: int = 1, max_steps: int = 12,
-              max_concurrent: int = 1, language: str = "verilog",
+              max_concurrent: int = 1, language: str = "spirehdl",
               n_advisory_vectors: int = 64, sim_budget_s: float = 300.0,
               keep_runs: bool = False, seed_baseline: bool = True) -> FillReport:
     """Run an RTLScout campaign against one slot and admit every passing candidate.
@@ -160,6 +171,14 @@ def fill_slot(spec_key: str, *, model: str, db: Optional[Any] = None,
     Raises ``DesignDBError`` for unusable slots (unknown / unverified — freeze a verification
     first: ``spire db set-verification --slot <key> …``).
     """
+    if flow == "direct":
+        if backend != "opencode":
+            raise DesignDBError("flow 'direct' needs backend 'opencode' (the react agent has no shell for spire db)")
+        return _fill_slot_direct(spec_key, model=model, db=db, wall_clock_min=wall_clock_min, source=source,
+                                 work_root=work_root, opencode_bin=opencode_bin)
+    if backend != "react":
+        raise DesignDBError("backend 'opencode' with flow 'eval' is not implemented yet; use flow 'direct'")
+
     d, slot, spec = _load_slot(db, spec_key)
     verification = d.read_json(slot / "verification.json", None)
     if verification is None:
@@ -239,3 +258,17 @@ def rtlscout_fill(spec_key: str, db_root: Optional[Any] = None, objective: str =
 
 
 # --- db score: per-technology PPA enrichment ---------------------------------------------------
+
+
+def _fill_slot_direct(spec_key: str, *, model: str, db: Optional[Any], wall_clock_min: float, source: str,
+                      work_root: Optional[Path], opencode_bin: str) -> FillReport:
+    """`--flow direct`: one OpenCode agent works on the slot itself (no benchmark, no ./evaluate_design);
+    it inserts through the gate during the run, and every admission is re-audited afterwards."""
+    from core.design_db_slot_run import run_slot_agent
+    r = run_slot_agent(spec_key, model=model, db=db, wall_clock_min=wall_clock_min, source=source,
+                       work_root=work_root, opencode_bin=opencode_bin)
+    errors = [] if r.returncode in (0, 124) else [f"opencode exited {r.returncode}"]
+    if r.timed_out:
+        errors.append("wall clock reached (agent terminated; admissions kept)")
+    return FillReport(spec_key=spec_key, admitted=list(r.admitted), attempted=len(r.admitted), errors=errors,
+                      runs_root=r.workdir, backend="opencode", flow="direct", audit=dict(r.audit))
