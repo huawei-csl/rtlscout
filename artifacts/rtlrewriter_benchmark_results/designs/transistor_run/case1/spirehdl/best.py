@@ -1,23 +1,29 @@
-"""Most aggressive: XOR all 9 inputs, register, then pass through to output reg."""
-from spirehdl.spirehdl_module import Module
-from spirehdl.spirehdl import UInt, Register
+"""Optimized: 2-register pipeline with reset."""
+from spire import Component, IORecord, Input, Output, UInt, Register
 
-m = Module("example", with_clock=True, with_reset=False)
 
-inputs = {}
-for nm in "abcdefghi":
-    inputs[nm] = m.input(UInt(1), f"in_{nm}")
-sum_out = m.output(UInt(1), "sum")
+class Example(Component):
+    def __init__(self):
+        self.io = IORecord(
+            **{f"in_{nm}": Input(UInt(1)) for nm in "abcdefghi"},
+            sum=Output(UInt(1)),
+        )
+        self.elaborate()
 
-# Stage 1: XOR all 9 inputs, register
-parity = inputs["a"] ^ inputs["b"] ^ inputs["c"] ^ inputs["d"] ^ inputs["e"] ^ inputs["f"] ^ inputs["g"] ^ inputs["h"] ^ inputs["i"]
+    def elaborate(self):
+        inputs = [getattr(self.io, f"in_{nm}") for nm in "abcdefghi"]
 
-r1 = Register(UInt(1), name="r1")
-r1 <<= parity
+        xor_val = inputs[0]
+        for inp in inputs[1:]:
+            xor_val = xor_val ^ inp
 
-# Stage 2: Just pass through
-sum_reg = Register(UInt(1), name="sum_reg")
-sum_reg <<= r1
-sum_out <<= sum_reg
+        stage1 = Register(UInt(1), name="stage1", init=0)
+        stage1 <<= xor_val
 
-m.to_verilog_file("design.v")
+        stage2 = Register(UInt(1), name="stage2", init=0)
+        stage2 <<= stage1
+
+        self.io.sum <<= stage2
+
+
+Example().to_verilog_file("design.v", name="example", with_clock=True, with_reset=True)

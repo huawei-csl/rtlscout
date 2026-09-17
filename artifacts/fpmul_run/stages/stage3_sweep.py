@@ -10,6 +10,7 @@ import datetime
 import json
 import os
 import subprocess
+import shutil
 import sys
 from pathlib import Path
 
@@ -166,8 +167,12 @@ def _normalize_top_module(front: Path) -> None:
 def extract() -> None:
     # cwd=SWEEP_DIR so any cwd-relative worker paths in the results resolve.
     common.ensure_fresh(cfg.FRONT_SWEEP_DEDUP)
+    # sweep.dedup_max_points caps the p3->p4 handoff (and hence phase-4
+    # compute, which is n_designs x refine_runs).
+    cap = (["-n", str(cfg.SWEEP_DEDUP_MAX_POINTS)]
+           if cfg.SWEEP_DEDUP_MAX_POINTS else [])
     common.sh(common.py(cfg.REPO / "extract_sweep_pareto.py", cfg.SWEEP_RESULTS,
-                        "-o", cfg.FRONT_SWEEP_DEDUP, "--separate-dirs"),
+                        "-o", cfg.FRONT_SWEEP_DEDUP, "--separate-dirs", *cap),
               "stage3_extract_dedup", cwd=cfg.SWEEP_DIR)
     _normalize_top_module(cfg.FRONT_SWEEP_DEDUP)
     common.record("stage3", cfg.FRONT_SWEEP_DEDUP, "post-sweep Pareto (dedup, feeds Phase 4)")
@@ -177,6 +182,29 @@ def extract() -> None:
               "stage3_extract_full", cwd=cfg.SWEEP_DIR)
     _normalize_top_module(cfg.FRONT_SWEEP_FULL)
     common.record("stage3", cfg.FRONT_SWEEP_FULL, "post-sweep Pareto (no dedup)")
+
+
+def _drop_sweep_scratch() -> None:
+    """Delete the per-config synthesis scratch (sweep/worker_*).
+
+    Safe only HERE: extract() and the Stage-V gate both read design.v out of
+    those dirs via the results' worker_path, so the sweep cannot clean up at its
+    own source. The 61-config x N-design grid builds a full Verilated model per
+    point -- 248 GB had accumulated across six runs before this was added, while
+    the results it produces (sweep/results/) are a few MB. Set
+    RTLSCOUT_KEEP_SWEEP_SCRATCH=1 to inspect a sweep instead.
+    """
+    if os.environ.get("RTLSCOUT_KEEP_SWEEP_SCRATCH"):
+        common.log("keeping sweep scratch (RTLSCOUT_KEEP_SWEEP_SCRATCH set)")
+        return
+    workers = sorted(cfg.SWEEP_DIR.glob("worker_*"))
+    if not workers:
+        return
+    freed = sum(f.stat().st_size for w in workers for f in w.rglob("*") if f.is_file())
+    for w in workers:
+        shutil.rmtree(w, ignore_errors=True)
+    common.log(f"removed {len(workers)} sweep worker dirs "
+               f"({freed / 2**30:.1f} GiB); sweep/results kept")
 
 
 def run() -> None:
@@ -189,6 +217,7 @@ def run() -> None:
             "stage 3: every post-sweep design failed verification — that is a "
             "pipeline defect (or a broken extraction), not a QoR outcome; see "
             f"{cfg.FRONT_SWEEP_DEDUP / 'verification_results.md'}")
+    _drop_sweep_scratch()
     common.mark_done("stage3")
 
 

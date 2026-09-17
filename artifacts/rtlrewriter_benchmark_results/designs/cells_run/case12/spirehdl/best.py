@@ -1,69 +1,59 @@
-"""Split optimization into separate ABC calls per output."""
-from spirehdl.spirehdl_module import Module
-from spirehdl.spirehdl import UInt
-from spirehdl.optimize import abc_optimized, arithmetic_optimized
+"""Try @arithmetic_optimized (area) + ABC: simple resyn2 as 3rd pass after balanced+resyn2."""
+from spire import Component, IORecord, Input, Output, UInt
+from spire.optimize import abc_optimized, arithmetic_optimized, ABC_RECIPES
 
 
-# Shared primitives
-@abc_optimized(abc_script="strash; &get -n; &deepsyn -T 20; &put")
+@abc_optimized(abc_script="strash; balance; rewrite -l; refactor -l; balance; rewrite -l; rewrite -lz; balance; refactor -lz; rewrite -lz; balance")
+@abc_optimized(abc_script="strash; balance; rewrite -l; refactor -l; balance; rewrite -l; rewrite -lz; balance; refactor -lz; rewrite -lz; balance")
+@abc_optimized(abc_script=ABC_RECIPES["balanced"])
 @arithmetic_optimized(objective="area")
-def mul32(a, b):
-    return a * b
+def datapath(X, Y, Z, P, Q, R, S, T):
+    xy = X * Y
+    pz = P + Z
+    qr = Q - R
+    xpy = X + Y
+
+    o1 = xy + pz
+    o2 = pz * qr
+    o3 = xpy + S + T
+    o4 = (xy + Q) * (P + X)
+    o5 = xy - R - X
+    o6 = (xpy + P) * qr
+
+    return o1, o2, o3, o4, o5, o6
 
 
-@abc_optimized(abc_script="strash; &get -n; &deepsyn -T 20; &put")
-@arithmetic_optimized(objective="area")
-def add32(a, b):
-    return a + b
+class Example(Component):
+    def __init__(self):
+        self.io = IORecord(
+            X=Input(UInt(32)),
+            Y=Input(UInt(32)),
+            Z=Input(UInt(32)),
+            P=Input(UInt(32)),
+            Q=Input(UInt(32)),
+            R=Input(UInt(32)),
+            S=Input(UInt(32)),
+            T=Input(UInt(32)),
+            output1=Output(UInt(32)),
+            output2=Output(UInt(32)),
+            output3=Output(UInt(32)),
+            output4=Output(UInt(32)),
+            output5=Output(UInt(32)),
+            output6=Output(UInt(32)),
+        )
+        self.elaborate()
+
+    def elaborate(self):
+        o1, o2, o3, o4, o5, o6 = datapath(
+            self.io.X, self.io.Y, self.io.Z, self.io.P,
+            self.io.Q, self.io.R, self.io.S, self.io.T,
+        )
+        self.io.output1 <<= o1
+        self.io.output2 <<= o2
+        self.io.output3 <<= o3
+        self.io.output4 <<= o4
+        self.io.output5 <<= o5
+        self.io.output6 <<= o6
 
 
-@abc_optimized(abc_script="strash; &get -n; &deepsyn -T 20; &put")
-@arithmetic_optimized(objective="area")
-def sub32(a, b):
-    return a - b
-
-
-@abc_optimized(abc_script="strash; &get -n; &deepsyn -T 20; &put")
-@arithmetic_optimized(objective="area")
-def add3_32(a, b, c):
-    return a + b + c
-
-
-@abc_optimized(abc_script="strash; &get -n; &deepsyn -T 20; &put")
-@arithmetic_optimized(objective="area")
-def add4_32(a, b, c, d):
-    return a + b + c + d
-
-
-m = Module("example", with_clock=False, with_reset=False)
-X = m.input(UInt(32), "X")
-Y = m.input(UInt(32), "Y")
-Z = m.input(UInt(32), "Z")
-P = m.input(UInt(32), "P")
-Q = m.input(UInt(32), "Q")
-R = m.input(UInt(32), "R")
-S = m.input(UInt(32), "S")
-T = m.input(UInt(32), "T")
-o1 = m.output(UInt(32), "output1")
-o2 = m.output(UInt(32), "output2")
-o3 = m.output(UInt(32), "output3")
-o4 = m.output(UInt(32), "output4")
-o5 = m.output(UInt(32), "output5")
-o6 = m.output(UInt(32), "output6")
-
-XY = mul32(X, Y)
-PZ = add32(P, Z)
-QR = sub32(Q, R)
-PX = add32(P, X)
-RX = add32(R, X)
-PXY = add32(PX, Y)
-XYQ = add32(XY, Q)
-
-o1 <<= add32(XY, PZ)
-o2 <<= mul32(PZ, QR)
-o3 <<= add4_32(Y, S, X, T)
-o4 <<= mul32(XYQ, PX)
-o5 <<= sub32(XY, RX)
-o6 <<= mul32(PXY, QR)
-
-m.to_verilog_file("design.v")
+Example().to_verilog_file("design.v", name="example")

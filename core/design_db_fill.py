@@ -193,7 +193,7 @@ def fill_slot(spec_key: str, *, model: str, db: Optional[Any] = None,
             benchmark_name=module, model=model, total_runs=total_runs,
             max_concurrent=max_concurrent, max_steps=max_steps, cost_metric=cost,
             language=language, benchmarks_root=bench_root, runs_root=root / "runs",
-            run_cec=(verification.get("method") == "cec"),
+            skip_cec=(verification.get("method") != "cec"),
             backend_cfg=BackendConfig(name="react", reeval=True))
 
         for cand in _harvest_candidates(root / "runs"):

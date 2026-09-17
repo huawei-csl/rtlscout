@@ -1,3 +1,7 @@
-module mux_tree(input sel, input a, output y);
-    assign y = sel | a;
+module mux_tree(
+    input  wire sel,
+    input  wire a,
+    output wire y
+);
+    assign y = sel ? 1'b1 : a;
 endmodule

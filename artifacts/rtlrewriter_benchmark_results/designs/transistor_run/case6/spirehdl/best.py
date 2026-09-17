@@ -1,19 +1,26 @@
-"""Use @arithmetic_optimized to detect 4-input add chain."""
-from spirehdl.spirehdl_module import Module
-from spirehdl.spirehdl import UInt
-from spirehdl.optimize import arithmetic_optimized
+"""Arithmetic-optimized with balanced tree pairing (a+b)+(c+d)."""
+from spire import Component, IORecord, Input, Output, UInt
+from spire.optimize import arithmetic_optimized
+
 
 @arithmetic_optimized(objective="area")
-def add4(a, b, c, d):
-    return a + b + c + d
+def chain_sum(a, b, c, d):
+    return (a + b) + (c + d)
 
-m = Module("example", with_clock=False, with_reset=False)
-a = m.input(UInt(8), "a")
-b = m.input(UInt(8), "b")
-c = m.input(UInt(8), "c")
-d = m.input(UInt(8), "d")
-sum_out = m.output(UInt(10), "sum")
 
-sum_out <<= add4(a, b, c, d)
+class Example(Component):
+    def __init__(self):
+        self.io = IORecord(
+            a=Input(UInt(8)),
+            b=Input(UInt(8)),
+            c=Input(UInt(8)),
+            d=Input(UInt(8)),
+            sum=Output(UInt(10)),
+        )
+        self.elaborate()
 
-m.to_verilog_file("design.v")
+    def elaborate(self):
+        self.io.sum <<= chain_sum(self.io.a, self.io.b, self.io.c, self.io.d)
+
+
+Example().to_verilog_file("design.v", name="example")

@@ -105,6 +105,12 @@ def _xz_dontcare_hits(source: Path) -> List[str]:
             hits.append(f"line {num}: {line.strip()}")
     return hits
 
+# Gate-level netlists simulate ~10x slower than RTL and ABC-derived ones are
+# also slow to LINT, so both steps need a generous default. Override per run
+# with RTLSCOUT_SIM_TIMEOUT.
+SIM_TIMEOUT = int(os.environ.get("RTLSCOUT_SIM_TIMEOUT", "900"))
+
+
 
 def lint(sources: List[Path], workdir: Path) -> SimResult:
     xz_report = []
@@ -125,18 +131,20 @@ def lint(sources: List[Path], workdir: Path) -> SimResult:
     if shutil.which("verilator") is None:
         return SimResult(False, "", "verilator not found", 127)
     args = ["verilator", "--lint-only", "--timing", "--sv"] + verilator_common_flags + [str(s.resolve()) for s in sources]
-    return _run(args, workdir.resolve())
+    # ABC-derived netlists can take minutes to lint (measured 158 s), so lint
+    # shares the generous verification budget rather than _run's 30 s default.
+    return _run(args, workdir.resolve(), timeout=SIM_TIMEOUT)
 
 
-# Gate-level netlists simulate ~10x slower than RTL, so large directed
-# testbenches need a generous default. Override per run with RTLSCOUT_SIM_TIMEOUT.
-SIM_TIMEOUT = int(os.environ.get("RTLSCOUT_SIM_TIMEOUT", "900"))
-
-
-def simulate(sources: List[Path], top_module: str, workdir: Path, build_timeout: int = 180,
+def simulate(sources: List[Path], top_module: str, workdir: Path, build_timeout: int = None,
              sim_timeout: int = None) -> SimResult:
+    # Build, lint and sim all share SIM_TIMEOUT: verilator is slow on ABC-derived
+    # gate-level netlists at every stage, and a build cut short is reported as a
+    # correctness failure, indistinguishable from a genuinely broken design.
     if sim_timeout is None:
         sim_timeout = SIM_TIMEOUT
+    if build_timeout is None:
+        build_timeout = SIM_TIMEOUT
     if shutil.which("verilator") is None:
         return SimResult(False, "", "verilator not found", 127)
     abs_workdir = workdir.resolve()

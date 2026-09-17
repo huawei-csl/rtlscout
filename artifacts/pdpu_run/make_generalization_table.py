@@ -37,13 +37,18 @@ ROWS = [
     "Phase 2 (+decorators)",
     "Phase 4 (deepsyn refine)",
     "From scratch, equal compute",
-    "From scratch, 2x effort",
+    # "From scratch, 2x effort",   # dropped 2026-08-25 (user): only the comb
+    #                              # benchmark ever ran a 2x arm, so the row was
+    #                              # "-- / values / --"; restore when all three have it
 ]
 # run_all writes the 2x row with a unicode multiplication sign in some runs
 ROW_ALIASES = {"From scratch, 2x effort": ["From scratch, 2× effort"]}
 
 # Display names (the keys above must stay as run_all writes them in table.json).
-ROW_LABELS = {"Phase 4 (deepsyn refine)": "RTLScout: Phase 4 (deepsyn refine)"}
+ROW_LABELS = {"Phase 2 (+decorators)": "+Phase 2 (agent+synth+arith)",
+              "Phase 4 (deepsyn refine)": "RTLScout: +Phase 4 (Deepsyn refine)",
+              "From scratch, equal compute": "Deepsyn only, equal compute",
+              "From scratch, 2x effort": "Deepsyn only, 2$\\times$ effort"}
 # A rule is drawn immediately BELOW this row, splitting the pipeline's own
 # results from the from-scratch baselines it is compared against.
 RULE_AFTER = "Phase 4 (deepsyn refine)"

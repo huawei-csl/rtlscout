@@ -143,6 +143,21 @@ MAX_STEPS = _P["agent"]["max_steps"]
 ELITE_SIZE = _P["agent"]["elite_size"]
 AGENT_TARGET_DELAY = _P["agent"]["target_delay"]
 LANGUAGE = "spirehdl"
+# Phase 2 = seeded search + @abc_optimized. Setting this false keeps the
+# seeded search and withholds the decorator, isolating what the decorator
+# itself buys (the existing FRONT_NO_ABC is phase-1-only, a different
+# ablation). Defaults true so every pre-existing profile is unaffected.
+P2_ABC_OPTIMIZE = bool(_P.get("p2_abc_optimize", True))
+# Front-construction knobs, for arms that must match an EARLIER run's handoff
+# sizes rather than the current pipeline's defaults. All default to today's
+# behaviour so existing profiles are unaffected.
+_F = _P.get("fronts") or {}
+# Pool the area_delay_product campaigns into the phase-1/2 fronts. The glm52
+# paper run predates ADP pooling and used area+delay only; an arm compared
+# against it must do the same or it draws from a strictly larger pool.
+FRONT_INCLUDE_ADP = bool(_F.get("include_adp", True))
+# Cap on phase-1/2 front size (the p2->p3 handoff). None = no cap.
+FRONT_MAX_POINTS = _F.get("max_points")
 
 
 def _campaigns(entries):
@@ -181,6 +196,11 @@ RUNS_P2_ADP = _runs_root(CAMPAIGNS_P2, "area_delay_product")
 
 # ---------------------------------------------------------------- stages 3/4
 SWEEP_SINGLE_POINT = bool(_P["sweep"]["single_point"])
+# Cap on the post-sweep dedup front (the p3->p4 handoff). None = no cap.
+# Stage 4's trajectory count is n_designs x refine_runs, so this also fixes
+# phase-4 compute — an uncapped arm gets more of it than the run it is
+# compared against.
+SWEEP_DEDUP_MAX_POINTS = _P["sweep"].get("dedup_max_points")
 DEEPSYN_TIME_BUDGET = _P["deepsyn"]["time_budget"]
 DEEPSYN_REFINE_RUNS = _P["deepsyn"]["refine_runs"]
 EQUAL_COMPUTE_RUNS = _P["deepsyn"]["equal_compute_runs"]   # None = full 650

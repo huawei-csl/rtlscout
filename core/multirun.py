@@ -370,13 +370,15 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
     arith_autoconfig = task.get("arith_autoconfig", False)
     dont_touch_main_arith = task.get("dont_touch_main_arith", False)
     fsm_optimize = task.get("fsm_optimize", False)
-    run_cec = task.get("run_cec", True)
+    run_cec = not task.get("skip_cec", False)
     technology = task.get("technology", "asap7")
+    skip_netlist_sim = task.get("skip_netlist_sim", False)
     cfg: BackendConfig = task.get("backend_cfg") or BackendConfig()
 
     provider, model = parse_model_spec(model_spec)
     cost_metric = make_cost_metric(cost_metric_name, target_delay=target_delay,
-                                   technology=technology)
+                                   technology=technology,
+                                   run_netlist_sim=not skip_netlist_sim)
     bench = load_benchmark(benchmark_root)
 
     # Augment context dir with seed files if provided
@@ -501,7 +503,8 @@ def run_multirun(
     arith_autoconfig: bool = False,
     dont_touch_main_arith: bool = False,
     fsm_optimize: bool = False,
-    run_cec: bool = True,
+    skip_cec: bool = False,
+    skip_netlist_sim: bool = False,
     backend_cfg: Optional[BackendConfig] = None,
 ) -> Dict[str, Any]:
     """Run the async elite-pool multi-run optimization.
@@ -622,7 +625,8 @@ def run_multirun(
         "arith_autoconfig": arith_autoconfig,
         "dont_touch_main_arith": dont_touch_main_arith,
         "fsm_optimize": fsm_optimize,
-        "run_cec": run_cec,
+        "skip_cec": skip_cec,
+        "skip_netlist_sim": skip_netlist_sim,
         "design_db_skills": cfg.design_db_skills,
         "design_db_path": str(cfg.design_db_path) if cfg.design_db_path else None,
     }
@@ -686,7 +690,8 @@ def run_multirun(
             "arith_autoconfig": arith_autoconfig,
             "dont_touch_main_arith": dont_touch_main_arith,
             "fsm_optimize": fsm_optimize,
-            "run_cec": run_cec,
+            "skip_cec": skip_cec,
+        "skip_netlist_sim": skip_netlist_sim,
             "backend_cfg": cfg,
         }
 

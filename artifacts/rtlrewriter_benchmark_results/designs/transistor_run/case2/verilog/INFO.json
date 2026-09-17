@@ -6,7 +6,7 @@
   "type": "combinational",
   "metric": "transistors",
   "best_phase": "phase1",
-  "metric_value": 84386,
+  "metric_value": 75418,
   "cec_status": "EQUIVALENT",
   "cec_method": "sim-1M",
   "cec_detail": "1,000,000 random vectors, 0 mismatches (simulation; formal CEC intractable \u2014 32-bit multipliers)",

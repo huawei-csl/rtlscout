@@ -1,20 +1,32 @@
-"""XOR first, then 2 register stages."""
-from spirehdl.spirehdl_module import Module
-from spirehdl.spirehdl import UInt, Register
+from spire import Component, IORecord, Input, Output, UInt
+from spire.expr import Register
 
-m = Module("example", with_clock=True, with_reset=False)
 
-ins = [m.input(UInt(1), f"in_{nm}") for nm in "abcdefghi"]
-sum_out = m.output(UInt(1), "sum")
+class Example(Component):
+    def __init__(self):
+        self.io = IORecord(
+            **{f"in_{nm}": Input(UInt(1)) for nm in "abcdefghi"},
+            sum=Output(UInt(1)),
+        )
+        self.elaborate()
 
-parity = ins[0]
-for s in ins[1:]:
-    parity = parity ^ s
+    def elaborate(self):
+        inputs = [getattr(self.io, f"in_{nm}") for nm in "abcdefghi"]
+        sum_out = self.io.sum
 
-r1 = Register(UInt(1), name="r1")
-r1 <<= parity
-r2 = Register(UInt(1), name="r2")
-r2 <<= r1
-sum_out <<= r2
+        # Compute parity of all 9 inputs combinationally
+        parity = inputs[0]
+        for x in inputs[1:]:
+            parity = parity ^ x
 
-m.to_verilog_file("design.v")
+        # Two-stage pipeline: register parity, then register again
+        # This gives sum at T+2 = parity of inputs at T
+        parity_reg = Register(UInt(1), name="parity_reg")
+        parity_reg <<= parity
+
+        sum_reg = Register(UInt(1), name="sum_reg")
+        sum_reg <<= parity_reg
+        sum_out <<= sum_reg
+
+
+Example().to_verilog_file("design.v", name="example", with_clock=True)

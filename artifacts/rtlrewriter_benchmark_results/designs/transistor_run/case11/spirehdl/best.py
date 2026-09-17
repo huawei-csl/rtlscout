@@ -1,30 +1,24 @@
-"""Try OAI21 decomposition per bit:
-f = ~((x | NOR(a,b)) & NAND(a,b))
-= ~((x | ~(a|b)) & ~(a&b))
+from spire import Component, IORecord, Input, Output, UInt
+from spire.expr import mux
 
-This should use NOR + NAND + OAI21 = 4+4+6 = 14 transistors per bit
-Total: 8 * 14 = 112 transistors
-"""
-from spirehdl.spirehdl import UInt, Bool, Const, mux, cat
-from spirehdl.spirehdl_module import Module
 
-m = Module("example", with_clock=False, with_reset=False)
-x      = m.input(UInt(1), "x")
-sel    = m.input(UInt(1), "sel")
-a      = m.input(UInt(8), "a")
-b      = m.input(UInt(8), "b")
-result = m.output(UInt(8), "result")
+class Example(Component):
+    def __init__(self):
+        self.io = IORecord(
+            x=Input(UInt(1)),
+            sel=Input(UInt(1)),
+            a=Input(UInt(8)),
+            b=Input(UInt(8)),
+            result=Output(UInt(8)),
+        )
+        self.elaborate()
 
-# Per bit: f = ~((x | ~(a|b)) & ~(a&b))
-bits = []
-for i in range(8):
-    ai = a[i]
-    bi = b[i]
-    nor_ab = ~(ai | bi)     # NOR
-    nand_ab = ~(ai & bi)    # NAND
-    oai = ~((x | nor_ab) & nand_ab)  # OAI21
-    bits.append(oai)
+    def elaborate(self):
+        x = self.io.x
+        a = self.io.a
+        b = self.io.b
+        # x=1 → a & b; x=0 → a | b. Dead branches (add/sub/alu) never execute.
+        self.io.result <<= mux(x, a & b, a | b)
 
-result <<= cat(*bits)
 
-m.to_verilog_file("design.v")
+Example().to_verilog_file("design.v", name="example")

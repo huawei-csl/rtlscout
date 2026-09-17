@@ -95,7 +95,7 @@ class EvaluationResult:
             lines.append(f"Correctness: {'PASS' if self.correctness.passed else 'FAIL'}")
             lines.append(f"  Lint: {'OK' if self.correctness.lint_ok else 'FAIL'}")
             lines.append(f"  Sim:  {'OK' if self.correctness.sim_ok else 'FAIL'}")
-            lines.append(f"  Checks (ok/tot): {self.correctness.passed_checks}/{self.correctness.total_checks}")
+            lines.append(f"  Checks (fails/tot): {self.correctness.total_checks - self.correctness.passed_checks}/{self.correctness.total_checks}")
             if not self.correctness.lint_ok:
                 lines.append(f"  Lint errors: {_truncate(self.correctness.lint_stderr, limit)}")
             if not self.correctness.sim_ok:

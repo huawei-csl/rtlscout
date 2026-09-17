@@ -25,5 +25,7 @@
     "local_modifications": "Upstream declares `output [8:0] sum` (implicit wire) but procedurally assigns to it inside `always @(a or b)`. Verilator rejects this as PROCASSWIRE; the shipped baseline changes the declaration to `output reg [8:0] sum`. Yosys synth output is unchanged (43 wires / 49 cells before and after)."
   },
   "tb_module": "tb",
-  "tb_mode": "comb"
+  "tb_mode": "comb",
+  "golden_reference": "context/starting_point.v",
+  "golden_reference_language": "verilog"
 }

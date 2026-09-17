@@ -80,3 +80,5 @@ artifacts/fpmul_run/STATUS.md
 artifacts/rtlrewriter_run/STATUS.md
 artifacts/pdpu_run/STATUS.md
 !deps/tech_eval/src/tech_eval/ppa_extract/data/
+artifacts/fpmul_run/analysis/
+artifacts/pdpu_run/analysis/

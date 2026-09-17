@@ -224,6 +224,56 @@ def _reset_port(reference: Path) -> Tuple[Optional[str], int]:
     return None, 1
 
 
+_VLOG_KEYWORDS = {"input", "output", "inout", "wire", "reg", "logic", "signed"}
+
+
+def _header_ports(src: Path, top: str) -> Optional[List[str]]:
+    """Port names from `module <top> (...)`; None if the header isn't found."""
+    m = re.search(r"module\s+" + re.escape(top) + r"\s*\(([^)]*)\)\s*;",
+                  src.read_text(), re.S)
+    if not m:
+        return None
+    names = []
+    for chunk in m.group(1).split(","):
+        ids = [t for t in re.findall(r"[A-Za-z_]\w*", chunk)
+               if t not in _VLOG_KEYWORDS]
+        if ids:
+            names.append(ids[-1])
+    return names
+
+
+def _tie_gate_only_reset(gold: Path, gate: Path, top: str
+                         ) -> Tuple[Path, Optional[str]]:
+    """If the gate has exactly one extra port vs the gold and it looks like a
+    reset, emit a sibling netlist with that port removed and tied to its
+    inactive level (the level the in-loop tb effectively applied). Returns
+    (gate-to-verify, note). Anything else stays as-is and will surface as a
+    port-match ERROR in yosys."""
+    gp, kp = _header_ports(gold, top), _header_ports(gate, top)
+    if not gp or not kp:
+        return gate, None
+    extra = [n for n in kp if n not in gp]
+    if len(extra) != 1 or [n for n in gp if n not in kp]:
+        return gate, None
+    port = extra[0]
+    active = next((lvl for pat, lvl in _RESET_PATTERNS if pat.fullmatch(port)),
+                  None)
+    if active is None:
+        return gate, None
+    inactive = 1 - active
+    src = gate.read_text()
+    txt = re.sub(r"(module\s+" + re.escape(top) + r"\s*\([^)]*?)(,\s*\b"
+                 + re.escape(port) + r"\b|\b" + re.escape(port) + r"\b\s*,)",
+                 r"\1", src, count=1)
+    txt, n = re.subn(r"^\s*input\s+(?:wire\s+)?" + re.escape(port) + r"\s*;\s*$",
+                     f"  wire {port} = 1'b{inactive};", txt, count=1, flags=re.M)
+    if n != 1:
+        return gate, None
+    tied = gate.with_name(gate.stem + ".cec_rst_tied.v")
+    tied.write_text(txt)
+    return tied, f"gate-only reset `{port}' tied to 1'b{inactive} for CEC"
+
+
 def _common_prologue(gold: Path, gate: Path, top: str) -> str:
     return f"""
 read_verilog -sv {gold}
@@ -484,6 +534,10 @@ def _prepare_row(case_id: str, language: str, rec: Dict[str, Any],
                           f"file={best.get('design_file')})")
         return row, None
     row["gate"] = str(gate)
+    gate, tie_note = _tie_gate_only_reset(gold, gate, top)
+    if tie_note:
+        row["gate_tied"] = str(gate)
+        row["tie_note"] = tie_note
     reset_port, reset_active = _reset_port(gold) if seq else (None, 1)
     return row, {"gold": gold, "gate": gate, "top": top, "seq": seq,
                  "reset_port": reset_port, "reset_active": reset_active,
@@ -529,6 +583,8 @@ def run_table(summary: Dict[str, Any], metric: str, yosys: str,
             res = cec_one(yosys, a["gold"], a["gate"], a["top"], a["seq"],
                           a["reset_port"], a["reset_active"])
         row.update(res)
+        if row.get("tie_note"):
+            row["detail"] = (row.get("detail", "") + " · " + row["tie_note"]).strip(" ·")
         return row
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, workers)) as ex:

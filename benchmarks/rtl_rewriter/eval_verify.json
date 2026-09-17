@@ -25,7 +25,7 @@
     "expected_wires": 11646,
     "expected_cells": 11824,
     "error": "",
-    "transistors": 88804
+    "transistors": 78258
   },
   {
     "case": "case3",
@@ -39,7 +39,7 @@
     "expected_wires": 1136,
     "expected_cells": 1220,
     "error": "",
-    "transistors": 9586
+    "transistors": 7872
   },
   {
     "case": "case4",
@@ -53,7 +53,7 @@
     "expected_wires": 1376,
     "expected_cells": 1462,
     "error": "",
-    "transistors": 11248
+    "transistors": 8742
   },
   {
     "case": "case5",
@@ -67,7 +67,7 @@
     "expected_wires": 43,
     "expected_cells": 49,
     "error": "Upstream baseline declares `output [8:0] sum` (wire) but procedurally assigns it; the shipped `context/starting_point.v` changes the declaration to `output reg [8:0] sum` so verilator accepts it. Synth output is unchanged.",
-    "transistors": 360
+    "transistors": 268
   },
   {
     "case": "case6",
@@ -81,7 +81,7 @@
     "expected_wires": 125,
     "expected_cells": 129,
     "error": "%Warning-WIDTHTRUNC: /tmp/rtlrw_verify_case6_iu5j58ay/design.v:25:16: Operator ASSIGNW expects 10 bits on the Assign RHS, but Assign RHS's VARREF 'sum_abcd' generates 11 bits.\n                        ",
-    "transistors": 1016
+    "transistors": 882
   },
   {
     "case": "case7",
@@ -95,7 +95,7 @@
     "expected_wires": 402,
     "expected_cells": 403,
     "error": "%Warning-LATCH: /tmp/rtlrw_verify_case7_jg7d5xvf/design.v:26:1: Latch inferred for signal 'tb.dut.sum' (not all control paths of combinational always assign a value)\n                                  ",
-    "transistors": 2830
+    "transistors": 2304
   },
   {
     "case": "case8",
@@ -109,7 +109,7 @@
     "expected_wires": 360,
     "expected_cells": 370,
     "error": "",
-    "transistors": 2880
+    "transistors": 2538
   },
   {
     "case": "case9",
@@ -123,7 +123,7 @@
     "expected_wires": null,
     "expected_cells": null,
     "error": "%Warning-CASEINCOMPLETE: /tmp/rtlrw_verify_case9_8pjgprvv/design.v:55:17: Case values incompletely covered (example pattern 0x2)\n   55 |             S1: case (input_signal)\n      |                 ^~~",
-    "transistors": 196
+    "transistors": 160
   },
   {
     "case": "case10",
@@ -137,7 +137,7 @@
     "expected_wires": null,
     "expected_cells": null,
     "error": "",
-    "transistors": 324
+    "transistors": 110
   },
   {
     "case": "case11",
@@ -151,7 +151,7 @@
     "expected_wires": 13,
     "expected_cells": 24,
     "error": "%Warning-IMPLICIT: upstream baseline declares `sum_resullt` (typo) and uses `sum_result`, so verilator/yosys auto-create an implicit `sum_result` net. Harmless \u2014 functional behavior and synthesized netlist are unchanged.",
-    "transistors": 96
+    "transistors": 192
   },
   {
     "case": "case12",
@@ -165,7 +165,7 @@
     "expected_wires": 14782,
     "expected_cells": 14960,
     "error": "",
-    "transistors": 112290
+    "transistors": 101572
   },
   {
     "case": "case13",
@@ -179,7 +179,7 @@
     "expected_wires": 7,
     "expected_cells": 1,
     "error": "",
-    "transistors": 0
+    "transistors": 12
   },
   {
     "case": "case14",
@@ -193,6 +193,6 @@
     "expected_wires": 20,
     "expected_cells": 3,
     "error": "",
-    "transistors": 0
+    "transistors": 36
   }
 ]

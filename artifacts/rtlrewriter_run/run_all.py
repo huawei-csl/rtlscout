@@ -59,11 +59,9 @@ def stage0() -> None:
     for tree, (root, _) in cfg.BENCH_TREES.items():
         for c in cfg.CASES:
             assert (root / f"case{c}").exists(), f"missing {root}/case{c}"
-    # No in-run CEC: benchmarks must NOT declare a golden_reference.
-    for tree, (root, _) in cfg.BENCH_TREES.items():
-        for meta in root.glob("case*/metadata.json"):
-            assert "golden_reference" not in json.loads(meta.read_text()), \
-                f"{meta}: golden_reference set — in-run CEC gating is deliberately OFF"
+    # In-run CEC is per-case (metadata golden_reference on the tractable
+    # combinational cases) and per-campaign (profile skip_cec reproduces the
+    # pre-hardening campaigns without it).
     common.log("preconditions ok; augmenting stimuli (all cases, both trees)")
     augment_vectors.run()        # idempotent; validates every golden afterwards
     common.record("stage0", cfg.BENCH_TREES["verilog"][0],
@@ -179,6 +177,10 @@ def campaign(name: str) -> None:
                         "--cases", *cfg.CASES)
         if scfg.get("fsm_optimize"):
             cmd += ["--fsm-optimize"]  # Appendix B: state-encoding API access
+        if scfg.get("skip_netlist_sim"):
+            cmd += ["--skip-netlist-sim"]   # reproduce pre-gate campaigns as-run
+        if scfg.get("skip_cec"):
+            cmd += ["--skip-cec"]           # reproduce pre-gate campaigns as-run
         common.sh(cmd, f"{name}_runner_rep{i}")
     summary = runs_root / "summary.json"
     merge_reps(rep_summaries, summary)

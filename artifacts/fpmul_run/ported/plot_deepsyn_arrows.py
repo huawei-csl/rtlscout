@@ -111,7 +111,7 @@ def plot_arrows(datasets: list, output_dir: Path,
                 ylim: tuple[float, float] | None = None,
                 front_only_labels: set | None = None,
                 front_with_originals: set | None = None,
-                originals_label: str = "Pareto Phases 1\u20133",
+                originals_label: str = "Phases 1\u20133 Pareto",
                 narrow: bool = False) -> Path:
     """Plot arrows from original to optimized for each dataset.
 
@@ -297,7 +297,7 @@ def main():
                              "Entries must have 'area' and 'delay' fields.")
     parser.add_argument("--narrow", action="store_true",
                         help="render at half text width (paper subfigure)")
-    parser.add_argument("--originals-label", default="Pareto Phases 1\u20133",
+    parser.add_argument("--originals-label", default="Phases 1\u20133 Pareto",
                         help="legend label for the originals (pre-deepsyn) front")
     parser.add_argument("--commercial", action="store_true",
                         help="Overlay commercial reference data (Cadence Genus on ASAP7)")

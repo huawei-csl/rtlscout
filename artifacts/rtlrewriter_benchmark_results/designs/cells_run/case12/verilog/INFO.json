@@ -6,7 +6,7 @@
   "type": "combinational",
   "metric": "cells",
   "best_phase": "phase1",
-  "metric_value": 14448,
+  "metric_value": 14454,
   "cec_status": "EQUIVALENT",
   "cec_method": "sim-1M",
   "cec_detail": "1,000,000 random vectors, 0 mismatches (simulation; formal CEC intractable \u2014 32-bit multipliers)",
@@ -14,6 +14,6 @@
     "starting_point": "starting_point.v",
     "tb.sv": "tb.sv",
     "vectors.dat": "vectors.dat",
-    "best_netlist": "best.v"
+    "best_netlist": "best.sv"
   }
 }

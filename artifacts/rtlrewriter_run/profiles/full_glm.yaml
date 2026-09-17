@@ -25,8 +25,10 @@ elite_size: 5
 # the same run dir and continues at transistors. Setup (stage0) always runs
 # first and self-skips when done.
 campaigns:
-  cells:       {cost_metric: yosys_cells,       max_steps: 30, fsm_optimize: true, enabled: true}
-  transistors: {cost_metric: yosys_transistors, max_steps: 30, fsm_optimize: true, enabled: false}  # Appendix B: state-encoding API access
+  # In-loop eval: CEC and netlist re-sim skipped, RTL sim still runs.
+  # The post-hoc verification gate (formal CEC / 1M-vector sim) stays active.
+  cells:       {cost_metric: yosys_cells,       max_steps: 30, fsm_optimize: true, enabled: true, skip_netlist_sim: true, skip_cec: true}
+  transistors: {cost_metric: yosys_transistors, max_steps: 30, fsm_optimize: true, enabled: false, skip_netlist_sim: true, skip_cec: true}  # Appendix B: state-encoding API access
 
 vectors:
   target_total: 10000         # per case; existing ~2000 kept, rest appended

@@ -6,7 +6,7 @@
   "type": "combinational",
   "metric": "cells",
   "best_phase": "phase2",
-  "metric_value": 8702,
+  "metric_value": 8499,
   "cec_status": "EQUIVALENT",
   "cec_method": "sim-1M",
   "cec_detail": "1,000,000 random vectors, 0 mismatches (simulation; formal CEC intractable \u2014 32-bit multipliers)",

@@ -145,14 +145,47 @@ def campaign(lang: str, ph: int, camp: dict) -> None:
     common.mark_done(name)
 
 
+def _parallel_campaigns(lang: str, ph: int, camps: list) -> None:
+    """Run one phase's objectives concurrently and re-raise any failure.
+
+    The objectives (area / delay / adp) share no state -- each has its own
+    runs-root and its own elite pool -- so running them together only changes
+    wall time, not results."""
+    if len(camps) < 2:
+        for camp in camps:
+            campaign(lang, ph, camp)
+        return
+    errors = {}
+
+    def wrap(camp):
+        try:
+            campaign(lang, ph, camp)
+        except BaseException as e:                 # noqa: BLE001 — re-raised below
+            errors[camp["name"]] = e
+            common.log(f"p{ph}_{lang}_{camp['name']} FAILED: {e}")
+
+    common.log(f"phase {ph} ({lang}): {len(camps)} objectives in parallel "
+               f"({', '.join(c['name'] for c in camps)})")
+    threads = [threading.Thread(target=wrap, args=(c,), name=f"p{ph}_{lang}_{c['name']}")
+               for c in camps]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join()
+    if errors:
+        raise RuntimeError(f"phase {ph} ({lang}) failed for {sorted(errors)}: "
+                           f"{'; '.join(str(e) for e in errors.values())}")
+
+
 def agent_phases(lang: str) -> None:
     """Every agent campaign for one language, plus its per-phase fronts.
 
-    Phase 2 seeds from the matching phase-1 campaign, so phases stay ordered
-    within a language; the two languages are independent until phase 4."""
+    Objectives within a phase run CONCURRENTLY; the phase boundary stays a
+    barrier because phase 2 seeds from the matching phase-1 campaign. The two
+    languages are independent until phase 4, so peak agent concurrency is
+    languages x objectives x each campaign's `concurrent`."""
     for ph in sorted(cfg.CAMPAIGNS):
-        for camp in cfg.CAMPAIGNS[ph]:
-            campaign(lang, ph, camp)
+        _parallel_campaigns(lang, ph, cfg.CAMPAIGNS[ph])
         front_phase(lang, ph)
         report()
 
@@ -202,8 +235,14 @@ def _dedup_front(src: Path, dst: Path) -> int:
     if dst.exists():
         shutil.rmtree(dst)
     dst.mkdir(parents=True, exist_ok=True)
-    seen, kept, total = {}, 0, 0
+    # Entries are positional in the source manifest (design_000 -> entry 0), so
+    # carry the survivors across; _trim_front needs (area, delay) per design.
+    src_manifest = src / "pareto_front.json"
+    entries = (json.loads(src_manifest.read_text())
+               if src_manifest.exists() else [])
+    seen, kept, total, out_entries = {}, 0, 0, []
     for d in sorted(src.glob("design_*")):
+        idx = total
         total += 1
         files = sorted(p for p in d.iterdir()
                        if p.suffix in (".py", ".v", ".sv"))
@@ -215,9 +254,52 @@ def _dedup_front(src: Path, dst: Path) -> int:
             continue
         seen[h] = d.name
         shutil.copytree(d, dst / f"design_{kept:03d}")
+        if idx < len(entries):
+            out_entries.append(entries[idx])
         kept += 1
+    if out_entries:
+        (dst / "pareto_front.json").write_text(json.dumps(out_entries, indent=2))
     common.log(f"dedup: {kept} of {total} designs kept")
     return kept
+
+
+def _trim_front(front: Path, n: int) -> int:
+    """Cut a materialised front to *n* points, pinning both extremes and the
+    minimum-product point and filling by spread — the same policy as
+    ``extract_pareto.py -n`` (that module's ``_select_top_n`` is reused)."""
+    manifest = front / "pareto_front.json"
+    dirs = sorted(d for d in front.glob("design_*") if d.is_dir())
+    if not manifest.exists():
+        common.log(f"trim: {front.name} has no manifest — leaving {len(dirs)} points")
+        return len(dirs)
+    entries = json.loads(manifest.read_text())
+    if len(entries) != len(dirs):
+        raise RuntimeError(
+            f"trim: {front.name} manifest has {len(entries)} entries but "
+            f"{len(dirs)} design dirs — refusing to guess the mapping")
+    if n is None or len(entries) <= n:
+        common.log(f"trim: {front.name} has {len(entries)} <= {n} points — no cut")
+        return len(entries)
+    sys.path.insert(0, str(cfg.REPO))
+    from extract_pareto import pareto_front, _select_top_n
+    for i, e in enumerate(entries):
+        e["_idx"] = i
+    keep = {e["_idx"] for e in _select_top_n(entries, pareto_front(entries), n)}
+    dropped = [dirs[i].name for i in range(len(dirs)) if i not in keep]
+    common.log(f"trim: {front.name} {len(entries)} -> {n} points, dropped {dropped}")
+    staged = front.parent / f".{front.name}_trim"
+    if staged.exists():
+        shutil.rmtree(staged)
+    staged.mkdir(parents=True)
+    out = []
+    for j, i in enumerate(sorted(keep)):
+        shutil.copytree(dirs[i], staged / f"design_{j:03d}")
+        e = dict(entries[i]); e.pop("_idx", None)
+        out.append(e)
+    (staged / "pareto_front.json").write_text(json.dumps(out, indent=2))
+    shutil.rmtree(front)
+    staged.rename(front)
+    return len(out)
 
 
 def _batch_eval(design_root: Path, lang: str, log_name: str,
@@ -261,10 +343,45 @@ def front_agent(lang: str) -> Path:
         return dedup
     roots = [_campaign_dir(lang, ph, c["name"])
              for ph in sorted(cfg.CAMPAIGNS) for c in cfg.CAMPAIGNS[ph]]
+    # front.cap_after_dedup: dedup drops content-identical designs, so capping
+    # BEFORE it makes the phase-4 seed count (and hence phase-4 compute, which is
+    # n_points x refine_runs in both arms) depend on how many duplicates this run
+    # happened to produce. Capping after guarantees the handoff size.
+    cap_first = None if cfg.FRONT_CAP_AFTER_DEDUP else cfg.FRONT_N_POINTS
     _extract_front(full, [r for r in roots if r.exists()], f"{name}_extract",
-                   n_points=cfg.FRONT_N_POINTS)
+                   n_points=cap_first)
     _emit_netlists(full, lang)
-    _dedup_front(full, dedup)
+    kept = _dedup_front(full, dedup)
+    if cfg.FRONT_CAP_AFTER_DEDUP:
+        want = cfg.FRONT_N_POINTS
+        # If dedup left fewer UNIQUE designs than n_points, optionally pad by
+        # re-extracting with a larger -n (extract_pareto appends the best-scored
+        # non-Pareto evals beyond the front), then re-dedup. Bounded retries:
+        # each pass widens by the observed duplicate count + the shortfall.
+        tries = 0
+        while (cfg.FRONT_PAD_TO_N and want and kept < want and tries < 3):
+            have = len(list(full.glob("design_*")))
+            n_req = have + (want - kept) + tries   # widen a little more each try
+            common.log(f"{name}: dedup left {kept} < {want} unique designs — "
+                       f"padding from the eval pool (re-extract -n {n_req})")
+            # wipe before re-extracting: leftover pass-1 files (emitted .v) in
+            # the design dirs corrupt the content hashes and let previously
+            # detected duplicates slip through dedup.
+            shutil.rmtree(full, ignore_errors=True)
+            _extract_front(full, [r for r in roots if r.exists()],
+                           f"{name}_extract_pad{tries}", n_points=n_req)
+            _emit_netlists(full, lang)
+            new_kept = _dedup_front(full, dedup)
+            if new_kept <= kept and len(list(full.glob("design_*"))) <= have:
+                common.log(f"{name}: eval pool exhausted at {new_kept} unique "
+                           f"designs — proceeding short")
+                kept = new_kept
+                break
+            kept = new_kept
+            tries += 1
+        kept = _trim_front(dedup, want)
+    common.log(f"{name}: {kept} designs -> phase 4 "
+               f"(cap {'after' if cfg.FRONT_CAP_AFTER_DEDUP else 'before'} dedup)")
     common.record(name, dedup, f"agent front feeding phase 4 ({lang})")
     common.mark_done(name)
     return dedup
@@ -383,7 +500,10 @@ def from_scratch(lang: str, n_points: int, double: bool) -> None:
 def phase4(lang: str) -> None:
     seeds = front_agent(lang)
     n = refine(lang, seeds)
-    from_scratch(lang, n, double=False)
+    if cfg.DEEPSYN_FROM_SCRATCH:
+        from_scratch(lang, n, double=False)
+    else:
+        common.log(f"p4 ({lang}): from-scratch arm SKIPPED (run_from_scratch: false)")
     if cfg.DEEPSYN_DOUBLE_EFFORT:
         from_scratch(lang, n, double=True)
 

@@ -3,20 +3,19 @@ module example(
     output [31:0] output1, output2, output3, output4, output5, output6
 );
 
-// Common subexpressions  
-wire [31:0] xy   = X * Y;
-wire [31:0] pz   = P + Z;
-wire [31:0] qr   = Q - R;
-wire [31:0] px   = P + X;
+wire [31:0] xy     = X * Y;
+wire [31:0] pz     = P + Z;
+wire [31:0] qmr    = Q - R;
+wire [31:0] xpy    = X + Y;
 
 assign output1 = xy + pz;
-assign output2 = pz * qr;
-assign output3 = (X + S) + (Y + T);
-assign output4 = (xy + Q) * px;
-
-// output5: try (xy - R) - X to see if reordering subtraction matters
-assign output5 = (xy - R) - X;
-
-assign output6 = (px + Y) * qr;
+assign output2 = pz * qmr;
+assign output3 = xpy + (S + T);
+wire [31:0] xyq  = Q + xy;
+wire [31:0] rpx  = X + R;
+assign output4 = xyq * (X + P);
+assign output5 = xy - rpx;
+wire [31:0] xyp6 = P + xpy;
+assign output6 = xyp6 * qmr;
 
 endmodule

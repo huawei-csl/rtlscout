@@ -6,10 +6,10 @@
   "type": "sequential",
   "metric": "transistors",
   "best_phase": "phase1",
-  "metric_value": 128,
+  "metric_value": 96,
   "cec_status": "EQUIVALENT",
   "cec_method": "equiv_induct",
-  "cec_detail": "equiv flow: all 1 $equiv cells proven",
+  "cec_detail": "equiv flow: all 1 $equiv cells proven \u00b7 gate-only reset `rst' tied to 1'b0 for CEC",
   "files": {
     "starting_point": "starting_point.v",
     "starting_point_source": "starting_point.py",

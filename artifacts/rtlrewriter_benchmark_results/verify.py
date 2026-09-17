@@ -52,8 +52,15 @@ def _check(folder: Path, info: Dict[str, Any], yosys: str, verilator: str,
         return {"status": "ERROR", "detail": "missing starting_point/best file"}
     if "sim" in method:
         return cec.sim_equiv(yosys, verilator, gold, gate, top, sim_vectors)
+    # A gate-only reset port (Spire-emitted rst) is tied to its inactive level
+    # before checking, mirroring the campaign pipeline's _prepare_row.
+    if hasattr(cec, "_tie_gate_only_reset"):
+        gate, note = cec._tie_gate_only_reset(gold, gate, top)
     rp, ra = cec._reset_port(gold) if seq else (None, 1)
-    return cec.cec_one(yosys, gold, gate, top, seq, rp, ra)
+    res = cec.cec_one(yosys, gold, gate, top, seq, rp, ra)
+    if hasattr(cec, "_tie_gate_only_reset") and note:
+        res["detail"] = (res.get("detail", "") + " · " + note).strip(" ·")
+    return res
 
 
 def main() -> int:

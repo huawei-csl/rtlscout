@@ -8,8 +8,8 @@
   "best_phase": "phase1",
   "metric_value": 24,
   "cec_status": "EQUIVALENT",
-  "cec_method": "equiv_induct",
-  "cec_detail": "equiv flow: all 24 $equiv cells proven",
+  "cec_method": "miter+SAT",
+  "cec_detail": "miter+SAT UNSAT \u2014 no input distinguishes the designs",
   "files": {
     "starting_point": "starting_point.v",
     "starting_point_source": "starting_point.py",

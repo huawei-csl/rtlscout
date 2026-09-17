@@ -246,6 +246,8 @@ def _run_one(task: Dict[str, Any]) -> Dict[str, Any]:
         max_steps=task["max_steps"],
         elite_size=task["elite_size"],
         cost_metric=task["cost_metric"],
+        skip_cec=task.get("skip_cec", False),
+        skip_netlist_sim=task.get("skip_netlist_sim", False),
         language=language,
     )
 
@@ -397,6 +399,14 @@ def main():
                         help="1 = single multirun phase, 2 = two phases "
                              "(phase 2 seeds from phase 1)")
     parser.add_argument("--model", default="anthropic:claude-opus-4-6")
+    parser.add_argument("--skip-cec", action="store_true",
+                        help="do not gate evals on in-run equivalence against the "
+                             "benchmark's golden_reference; matches the pre-2026-09 "
+                             "campaigns")
+    parser.add_argument("--skip-netlist-sim", action="store_true",
+                        help="do not gate evals on the post-synth netlist "
+                             "(conflicting drivers / testbench re-sim); matches "
+                             "the pre-2026-09 campaigns")
     parser.add_argument("--cost-metric", default="yosys_cells",
                         choices=sorted(COST_METRICS))
     parser.add_argument("--total-runs", type=int, default=6,
@@ -453,6 +463,8 @@ def main():
             "phases": args.phases,
             "model": args.model,
             "cost_metric": args.cost_metric,
+            "skip_cec": args.skip_cec,
+            "skip_netlist_sim": args.skip_netlist_sim,
             "total_runs": args.total_runs,
             "max_concurrent": args.max_concurrent,
             "max_steps": args.max_steps,
@@ -512,6 +524,8 @@ def main():
         "timestamp": ts,
         "model": args.model,
         "cost_metric": args.cost_metric,
+        "skip_cec": args.skip_cec,
+            "skip_netlist_sim": args.skip_netlist_sim,
         "phases": args.phases,
         "total_runs_per_phase": args.total_runs,
         "max_concurrent": args.max_concurrent,

@@ -1,12 +1,23 @@
-from spirehdl.spirehdl_module import Module
-from spirehdl.spirehdl import UInt, mux
+from spire import Component, IORecord, Input, Output, UInt
+from spire.expr import mux
 
-m = Module("mux_tree", with_clock=False, with_reset=False)
-sel = m.input(UInt(1), "sel")
-a   = m.input(UInt(1), "a")
-y   = m.output(UInt(1), "y")
 
-# mux2to1(in0=a, in1=1, sel=sel) => sel ? 1 : a
-y <<= mux(sel, 1, a)
+class MuxTree(Component):
+    def __init__(self):
+        self.io = IORecord(
+            sel=Input(UInt(1)),
+            a=Input(UInt(1)),
+            y=Output(UInt(1)),
+        )
+        self.elaborate()
 
-m.to_verilog_file("design.v")
+    def elaborate(self):
+        sel = self.io.sel
+        a   = self.io.a
+        y   = self.io.y
+
+        # mux2to1(in0=a, in1=1, sel=sel) ⇒ sel ? 1 : a
+        y <<= mux(sel, 1, a)
+
+
+MuxTree().to_verilog_file("design.v", name="mux_tree")

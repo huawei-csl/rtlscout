@@ -26,5 +26,7 @@
   "language": "spirehdl",
   "starting_point": "context/starting_point.py",
   "tb_module": "tb",
-  "tb_mode": "comb"
+  "tb_mode": "comb",
+  "golden_reference": "context/design.v",
+  "golden_reference_language": "verilog"
 }

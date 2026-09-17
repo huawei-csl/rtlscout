@@ -64,6 +64,16 @@ CAMPAIGNS = {1: _P["campaigns_p1"], 2: _P["campaigns_p2"]}
 # Phase-4 seed-set size: truncates (pinning both extremes) or pads with
 # best-scoring non-Pareto designs. Feeds extract_pareto.py -n.
 FRONT_N_POINTS = _P.get("front", {}).get("n_points")
+# Cap the phase-4 seed front AFTER dedup rather than before. Defaults false =
+# existing behaviour; true makes the p2->p4 handoff size independent of how many
+# duplicate designs a run produced (see run_all.front_agent).
+FRONT_CAP_AFTER_DEDUP = bool(_P.get("front", {}).get("cap_after_dedup", False))
+# Pad the phase-4 seed set back up to n_points when content-dedup leaves fewer
+# unique designs than n_points (a tight Pareto front can hold the same RTL at
+# two target delays). Padding promotes the best-scored NON-Pareto designs from
+# the eval pool, so seed COUNT (and hence phase-4 compute, n x refine_runs)
+# stays equal across arms. Default false = existing behaviour.
+FRONT_PAD_TO_N = bool(_P.get("front", {}).get("pad_to_n", False))
 
 DEEPSYN_T = int(_P["deepsyn"]["time_budget"])
 DEEPSYN_REFINE_RUNS = int(_P["deepsyn"]["refine_runs"])
@@ -71,6 +81,10 @@ DEEPSYN_WORKERS = int(_P["deepsyn"]["workers"])
 # Optional 2x-budget from-scratch arm (same trajectory count, 2x time each) —
 # the fpmul suite's "double effort" comparison baseline.
 DEEPSYN_DOUBLE_EFFORT = bool(_P["deepsyn"].get("double_effort", False))
+# Run the from-scratch equal-compute baseline arm. Default true = existing
+# behaviour; false skips it (refine only), e.g. for replication runs where the
+# baseline already exists at identical config.
+DEEPSYN_FROM_SCRATCH = bool(_P["deepsyn"].get("run_from_scratch", True))
 
 # Reporting operating points: every number in the table is measured here, so
 # rows stay comparable no matter what target the agent chose for itself.
@@ -80,9 +94,14 @@ EVAL_WORKERS = int(_P["eval"]["workers"])
 # RTLRewriter recipe (spire-only flags; verilog runs carry none): phase 1 is
 # decorator-free structural exploration, phase 2 polishes the P1 elite with
 # them — see experiments/rtl_rewriter_multirun.py:_phase_flags for the why.
+# p2_abc_optimize=false withholds ONLY --abc-optimize and keeps
+# --arith-autoconfig, isolating what the ABC decorator itself buys. Defaults
+# true so every pre-existing profile is unaffected.
+P2_ABC_OPTIMIZE = bool(_P.get("p2_abc_optimize", True))
+_P2_SPIRE = ["--arith-autoconfig"] + (["--abc-optimize"] if P2_ABC_OPTIMIZE else [])
 PHASE_FLAGS = {
     "spirehdl": {1: [],
-                 2: ["--arith-autoconfig", "--abc-optimize"]},
+                 2: _P2_SPIRE},
     "verilog": {1: [], 2: []},
 }
 

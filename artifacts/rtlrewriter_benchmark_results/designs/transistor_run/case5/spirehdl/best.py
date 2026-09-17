@@ -1,16 +1,24 @@
-from spirehdl.spirehdl_module import Module
-from spirehdl.spirehdl import UInt
-from spirehdl.optimize import arithmetic_optimized
+"""abc_optimized with resyn2 (best for adder per benchmarks)."""
+from spire import Component, IORecord, Input, Output, UInt
+from spire.optimize import abc_optimized, ABC_RECIPES
 
-@arithmetic_optimized(objective="area")
-def opt_add(a, b):
+
+@abc_optimized(abc_script="strash; balance; rewrite -l; refactor -l; balance; rewrite -l; rewrite -lz; balance; refactor -lz; rewrite -lz; balance")
+def add9(a, b):
     return a + b
 
-m = Module("example", with_clock=False, with_reset=False)
-a = m.input(UInt(8), "a")
-b = m.input(UInt(8), "b")
-sum_out = m.output(UInt(9), "sum")
 
-sum_out <<= opt_add(a, b)
+class Example(Component):
+    def __init__(self):
+        self.io = IORecord(
+            a=Input(UInt(8)),
+            b=Input(UInt(8)),
+            sum=Output(UInt(9)),
+        )
+        self.elaborate()
 
-m.to_verilog_file("design.v")
+    def elaborate(self):
+        self.io.sum <<= add9(self.io.a, self.io.b)
+
+
+Example().to_verilog_file("design.v", name="example")

@@ -1,22 +1,37 @@
-"""Optimized: use arithmetic_optimized for the 8x8 multiplier."""
-from spirehdl.spirehdl_module import Module
-from spirehdl.spirehdl import UInt, mux
-from spirehdl.optimize import arithmetic_optimized
+from spire import Component, IORecord, Input, Output, UInt, Wire
+from spire.expr import mux
+from spire.optimize import arithmetic_optimized, abc_optimized, ABC_RECIPES
 
+
+@abc_optimized(abc_script="strash; balance; rewrite -l; refactor -l; balance; rewrite -l; rewrite -lz; balance; refactor -lz; rewrite -lz; balance")
 @arithmetic_optimized(objective="area")
-def mul8(a, b):
-    return a * b
+def datapath(a, b, c, d, sel):
+    op1 = mux(sel, a, c)
+    op2 = mux(sel, b, d)
+    prod = op1 * op2
+    return prod[0:16]
 
-m = Module("inefficient_multiplier", with_clock=False, with_reset=False)
-A = m.input(UInt(8), "multiplicandA")
-B = m.input(UInt(8), "multiplierB")
-C = m.input(UInt(8), "multiplicandC")
-D = m.input(UInt(8), "multiplierD")
-sel = m.input(UInt(1), "sel")
-product = m.output(UInt(16), "product")
 
-a = mux(sel, A, C)
-b = mux(sel, B, D)
-product <<= mul8(a, b)
+class InefficientMultiplier(Component):
+    def __init__(self):
+        self.io = IORecord(
+            multiplicandA=Input(UInt(8)),
+            multiplierB=Input(UInt(8)),
+            multiplicandC=Input(UInt(8)),
+            multiplierD=Input(UInt(8)),
+            sel=Input(UInt(1)),
+            product=Output(UInt(16)),
+        )
+        self.elaborate()
 
-m.to_verilog_file("design.v")
+    def elaborate(self):
+        self.io.product <<= datapath(
+            self.io.multiplicandA,
+            self.io.multiplierB,
+            self.io.multiplicandC,
+            self.io.multiplierD,
+            self.io.sel,
+        )
+
+
+InefficientMultiplier().to_verilog_file("design.v", name="inefficient_multiplier")

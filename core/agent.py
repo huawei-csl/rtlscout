@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional
 from core.cost import CostMetric, YosysTransistorCost
 from core.evaluation import evaluate
 from core.llm_client import LLMClient, TokenUsage
-from core.prompts import build_amaranth_system_prompt, build_spirehdl_system_prompt, build_system_prompt
+from core.prompts import MAX_TOOL_CALLS_PER_STEP, build_amaranth_system_prompt, build_spirehdl_system_prompt, build_system_prompt
 from tech_eval.ppa_extract.core.template import target_delay_time_unit
 
 # Default read_file cap: a no-argument read returns at most this many characters, for every file
@@ -715,6 +715,15 @@ class RTLAgent:
             total_usage = total_usage + response.usage
             self._last_step_usage = response.usage
 
+            # Guard against degenerate responses carrying an unbounded
+            # tool_calls array (observed: 2,835 identical calls in one GLM
+            # response, executed for hours). Truncate BEFORE the message
+            # enters history so tool results stay consistent.
+            if response.tool_calls and len(response.tool_calls) > MAX_TOOL_CALLS_PER_STEP:
+                print(f"\n  WARNING: {len(response.tool_calls)} tool calls in "
+                      f"one response; executing the first {MAX_TOOL_CALLS_PER_STEP}")
+                response.tool_calls = response.tool_calls[:MAX_TOOL_CALLS_PER_STEP]
+
             # Build message dict for history
             msg_dict: Dict[str, Any] = {
                 "role": "assistant",
@@ -748,6 +757,7 @@ class RTLAgent:
                 continue
 
             # Execute tool calls
+            eval_done_this_step = False
             for tool_call in response.tool_calls:
                 tool_name = tool_call.name
                 try:
@@ -759,7 +769,16 @@ class RTLAgent:
                     f"{k}={repr(v)[:80]}" for k, v in arguments.items()
                 )
                 print(f"  [{step}] {tool_name}({_arg_str})")
-                result = self._execute_tool(tool_name, arguments)
+                # One evaluation per step: further run_evaluation calls in the
+                # same response are answered with a notice, not executed.
+                if tool_name == "run_evaluation" and eval_done_this_step:
+                    result = ("Only one evaluation is allowed per step; this "
+                              "call was not executed. Re-issue it in the next "
+                              "step.")
+                else:
+                    result = self._execute_tool(tool_name, arguments)
+                    if tool_name == "run_evaluation":
+                        eval_done_this_step = True
                 # Truncate very long results to avoid context overflow, but skip
                 # tools whose output is already length-managed internally:
                 #  - read_file: self-limits (default read capped at READ_FILE_DEFAULT_MAX_CHARS

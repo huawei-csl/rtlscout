@@ -286,8 +286,9 @@ def test_cost_note_injected_into_prompt():
                                       cost_metric_note=AreaRuntimeProductCost.cost_description)
     assert "**Cost metric `area_runtime_product`:**" in sp
     assert "NOT the classic area×delay product" in sp
-    # Omitted entirely when there's no note (existing benchmarks unaffected).
-    assert "Cost metric `transistors`" not in build_system_prompt("SPEC", "transistors")
+    # Without a metric note only the generic scope note follows the header.
+    from core.prompts import COST_SCOPE_NOTE
+    assert f"**Cost metric `transistors`:** {COST_SCOPE_NOTE}" in build_system_prompt("SPEC", "transistors")
 
 
 # ── Integration: starting point end-to-end ───────────────────────────────────
