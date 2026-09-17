@@ -534,31 +534,33 @@ def _render_best_table_latex(summary: Dict[str, Any], metric: str) -> str:
             r"RTLR column is omitted and $\Delta_\text{vs B}$ takes the "
             r"place of the cell table's $\Delta_\text{vs R}$. "
             r"Negative $=$ reduction; \textbf{bold} $=$ strict row minimum, "
-            r"\underline{underline} $=$ tied for minimum. "
-            r"$\Sigma$: column totals; $\Delta\Sigma$: $\Delta$ between the "
-            r"totals; $\mu\Delta$: mean of the per-case $\Delta$."
+            r"\underline{underline} $=$ tied for minimum."
         )
     else:
         cap = (
-            r"Best per-phase Yosys " + metric + r" count on the 14 RTLRewriter cases. "
+            r"Best per-phase Yosys " + metric.rstrip("s") + r" count on the 14 RTLRewriter cases. "
             r"\textbf{Base}: shipped baseline; \textbf{RTLR}: paper target; "
             r"\textbf{P1} is decorator-free structural exploration, \textbf{P2} enables "
             r"\texttt{@arithmetic\_optimized}/\texttt{@abc\_optimized} and seeds from P1. "
             r"$\Delta_{1\!\to\!2}$ within-language P1$\to$P2; $\Delta_\text{vs R}$ vs.\ RTLR; "
             r"$\Delta_\text{S/V}$ Spire P2 vs.\ Verilog P2 (cross-language, same pipeline). "
             r"Negative $=$ reduction; \textbf{bold} $=$ strict row minimum, "
-            r"\underline{underline} $=$ tied for minimum. "
-            r"$\Sigma$: column totals; $\Delta\Sigma$: $\Delta$ between the "
-            r"totals; $\mu\Delta$: mean of the per-case $\Delta$."
+            r"\underline{underline} $=$ tied for minimum."
         )
     n_runs = max((len(_phase_run_values(results[c].get(l, {}), p, metric))
                   for c in results for l in ("verilog", "spirehdl")
                   for p in ("phase1", "phase2")), default=0)
+    # Order: cell formatting (incl. the agent-cell mean+-std), footer rows,
+    # then the one rule that covers every percentage in the table.
     if n_runs >= 2:
         cap += (r" Agent cells additionally show mean$\pm$std of the "
                 r"per-repetition bests across $n{=}" + str(n_runs) +
-                r"$ repetitions; the leading number is the best repetition, "
-                r"all $\Delta$ columns compare per-repetition means.")
+                r"$ repetitions; the leading number is the best repetition.")
+    cap += (r" $\Sigma$: column totals; $\Delta\Sigma$: $\Delta$ between the "
+            r"totals; $\mu\Delta$: mean of the per-case $\Delta$.")
+    if n_runs >= 2:
+        cap += (r" All percentages are computed from the means of the "
+                r"per-repetition bests.")
     out.append(r"\caption{" + cap + r"}")
     out.append(r"\label{tab:best-" + metric + "}")
     out.append(r"\resizebox{\textwidth}{!}{%")
