@@ -4,7 +4,7 @@ import os
 
 from enum import Enum
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Union
 
 
 class Technology(str, Enum):
@@ -180,9 +180,14 @@ def make_vcd_flags(vcd_path: str):
         return []
     return list(verilator_vcd_flag) + [f"-D{verilator_vcd_define}={vcd_path}"]
 
-def get_fa_ha_inference_cmds(use_fa_ha_inference: bool, cfg: Optional[TechConfig] = None) -> str:
+# use_fa_ha_inference value -> extract_fa cell-type flag (True = both)
+_EXTRACT_FA_FLAGS = {True: "", "fa": " -fa", "ha": " -ha"}
+
+def get_fa_ha_inference_cmds(use_fa_ha_inference: Union[bool, str], cfg: Optional[TechConfig] = None) -> str:
     if not use_fa_ha_inference:
         return "# FA/HA inference disabled"
+    if use_fa_ha_inference not in _EXTRACT_FA_FLAGS:
+        raise ValueError(f"use_fa_ha_inference must be False, True, 'fa' or 'ha', got {use_fa_ha_inference!r}")
 
     adder_map = cfg.adder_map_file if cfg else ADDER_MAP_FILE
     if not adder_map:
@@ -191,7 +196,8 @@ def get_fa_ha_inference_cmds(use_fa_ha_inference: bool, cfg: Optional[TechConfig
     return "\n".join(
         [
             "# Optional HA/FA inference + mapping",
-            "extract_fa",
+            f"extract_fa{_EXTRACT_FA_FLAGS[use_fa_ha_inference]}",
+            "opt_clean -purge",  # drop unread $fa cells now; as mapped lib cells yosys can no longer prune them
             f"techmap -map {adder_map}",
             "techmap",
             "opt -fast -purge",

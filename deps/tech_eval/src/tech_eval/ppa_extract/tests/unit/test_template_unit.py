@@ -38,3 +38,12 @@ def test_get_fa_ha_inference_cmds_raises_without_map(
     with pytest.raises(ValueError, match="ADDER_MAP_FILE"):
         template.get_fa_ha_inference_cmds(True)
 
+
+def test_get_fa_ha_inference_cmds_modes(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(template, "ADDER_MAP_FILE", "map.v")
+    assert "extract_fa\nopt_clean -purge\ntechmap -map map.v" in template.get_fa_ha_inference_cmds(True)
+    assert "extract_fa -fa\n" in template.get_fa_ha_inference_cmds("fa")
+    assert "extract_fa -ha\n" in template.get_fa_ha_inference_cmds("ha")
+    with pytest.raises(ValueError, match="use_fa_ha_inference"):
+        template.get_fa_ha_inference_cmds("full")
+

@@ -323,7 +323,7 @@ def get_ppa(
     tb_name: Optional[str] = None,
     save_vcd: bool = False,
     use_vcd_for_power: bool = False,
-    use_fa_ha_inference: bool = False,
+    use_fa_ha_inference: Union[bool, str] = False,  # False | True (FA+HA) | "fa" | "ha"
     output_parser: Optional[Any] = None,
     data_files: Optional[Sequence[Union[str, "os.PathLike[str]"]]] = None,
     run_in_worker_path: bool = False,
