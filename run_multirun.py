@@ -134,7 +134,7 @@ def main():
         arith_autoconfig=args.arith_autoconfig,
         dont_touch_main_arith=args.dont_touch_main_arith,
         fsm_optimize=args.fsm_optimize,
-        run_cec=not args.skip_cec,
+        skip_cec=args.skip_cec,
         backend_cfg=backend_cfg,
     )
 

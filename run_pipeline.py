@@ -212,7 +212,7 @@ def main():
             runs_root=c["runs_root"],
             seed_from=c["seed_from"],
             dont_touch_main_arith=args.dont_touch_main_arith,
-            run_cec=not args.skip_cec,
+            skip_cec=args.skip_cec,
             **c["flags"],
         )
         if c["fresh"]:
