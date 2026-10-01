@@ -57,6 +57,8 @@ metadocuments/
 /internal/
 # Nested paper repo (mirrors an Overleaf project) — never tracked here
 /paper/
+# Nested benchmarks-site repo (github.com/plex1/rtlscout_benchmark) — never tracked here
+/website/
 inputs/
 input/
 .cache/
