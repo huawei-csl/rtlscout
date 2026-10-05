@@ -38,7 +38,7 @@ def provision_design_db_skills(workspace: Path) -> Path:
         "#!/usr/bin/env bash\n"
         "# Technology-PPA scoring for stored slot designs (annotates unless --dry-run).\n"
         f'cd "{_REPO_ROOT}" >/dev/null 2>&1\n'
-        f'exec "{sys.executable}" rtlscout_cli.py db-score "$@"\n'
+        f'exec "{sys.executable}" -m rtlscout.containers db-score "$@"\n'
     )
     wrapper.chmod(0o755)
     return dest

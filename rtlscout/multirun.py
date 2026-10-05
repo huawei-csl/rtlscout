@@ -541,7 +541,7 @@ def run_multirun(
     cfg = replace(cfg, design_db_path=design_db_path, session_id=uuid.uuid4().hex)
     if cfg.deploy_mode == "orchestrated":
         print(f"[ORCHESTRATED] session={cfg.session_id}  agent+judge containers carry "
-              f"rtlscout.session={cfg.session_id}; clean up with: python rtlscout_cli.py "
+              f"rtlscout.session={cfg.session_id}; clean up with: python -m rtlscout.containers "
               f"cleanup --session {cfg.session_id}", flush=True)
 
     # Load benchmark

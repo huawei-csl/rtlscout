@@ -28,7 +28,7 @@ scripts/db-score --slot <name|key> --design <id|prefix> --technology asap7 --dry
 ```
 
 (`scripts/db-score` is this skill's wrapper; the equivalent raw command is
-`python rtlscout_cli.py db-score …` from the RTLScout repo root.)
+`python -m rtlscout.containers db-score …`.)
 
 ## Trust rule (why the atomic command matters)
 

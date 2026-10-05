@@ -3,7 +3,7 @@
 ``score_designs`` measures area/delay/… on admitted designs via the existing cost metrics
 (tech_eval/OpenROAD) and — unless ``dry_run`` — hands the values to spire's ``annotate`` gate,
 unlocking ``pick_design(..., metric="asap7")``. This backs the ``design-db-score`` skill in
-the OpenCode skills flow (via ``rtlscout_cli.py db-score``); the non-agentic campaign filler
+the OpenCode skills flow (via ``python -m rtlscout.containers db-score``); the non-agentic campaign filler
 lives separately in ``rtlscout.design_db_fill``.
 
 Direction note: RTLScout imports Spire (this module imports ``spire.design_db``); Spire never
