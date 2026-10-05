@@ -1,20 +1,47 @@
 [project]
-name = "rtl-scout"
-version = "0.1.0"
-requires-python = ">=3.10"
+name = "rtlscout"
+version = "0.2.0"
+description = "RTL design agent: LLM-driven generation and optimization of Verilog, Spire HDL and Amaranth designs"
+readme = "README.md"
+license = "BSD-3-Clause-Clear"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
 dependencies = [
+    "spire-hdl>=0.4.0",
     "openai>=1.0.0",
     "anthropic>=0.40.0",
     "python-dotenv>=1.0.0",
     "matplotlib>=3.5.0",
+    "amaranth",
+    "numpy",
+    "pandas",
 ]
 
 [project.optional-dependencies]
 test = ["pytest>=7.0"]
 
+[project.urls]
+Repository = "https://github.com/huawei-csl/rtlscout"
+Issues = "https://github.com/huawei-csl/rtlscout/issues"
+Paper = "https://arxiv.org/abs/2606.06530"
+
+[tool.setuptools.packages.find]
+include = ["rtlscout*", "core"]    # core: compatibility alias of rtlscout, removed in the next release
+
+[tool.setuptools.package-data]
+rtlscout = [
+    "spirehdl_readme.md",
+    "skills/**/*",
+    "tech_eval/**/*.md",
+    "tech_eval/ppa_extract/data/*.v",
+    "tech_eval/ppa_extract/tests/files/*",
+    "tech_eval/ppa_extract/sweeps/fpmul/metadata.json",
+    "tech_eval/ppa_extract/sweeps/fpmul/new_design_promt.txt",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
 [build-system]
-requires = ["setuptools>=68.0"]
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
