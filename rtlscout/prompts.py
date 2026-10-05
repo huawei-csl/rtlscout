@@ -8,7 +8,7 @@ from typing import List
 # system prompt; extra calls in a response are not executed.
 MAX_TOOL_CALLS_PER_STEP = 8
 
-from tech_eval.ppa_extract.core.template import target_delay_time_unit
+from rtlscout.tech_eval.ppa_extract.core.template import target_delay_time_unit
 from rtlscout.evaluation import SPIREHDL_VERILOG_OUTPUT, AMARANTH_VERILOG_OUTPUT
 
 # ---------------------------------------------------------------------------

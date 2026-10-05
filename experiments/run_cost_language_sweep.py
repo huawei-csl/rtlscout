@@ -27,7 +27,7 @@ from rtlscout.runner import (
     parse_model_spec,
     run_agent_on_benchmark,
 )
-from tech_eval.ppa_extract.core.template import target_delay_time_unit
+from rtlscout.tech_eval.ppa_extract.core.template import target_delay_time_unit
 
 # ── configuration ────────────────────────────────────────────────────────
 

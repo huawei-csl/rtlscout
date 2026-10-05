@@ -199,7 +199,7 @@ All round-2 best designs live under `runs/turbo_rtl_30/<benchmark>/claude-opus-4
 
 ## Round 3 — area-only and delay-only metrics (encoder_8b10b, gda_adder_n8m8p2)
 
-To check whether the language gap that shows up under `sky130_adp` is specific to that flow or also present under area-only and delay-only optimization targets, we ran a focused round on the two simpler combinational benchmarks (encoder_8b10b and gda_adder_n8m8p2) with `--cost-metric area` and `--cost-metric delay` — both metrics use the **OpenROAD STA flow against ASAP7** via `tech_eval`, completely separate from the `yosys-abc stime` flow that powers `sky130_adp`. Same agent settings as round 2 (Opus 4.6, 30 steps), 8 campaigns total (2 benchmarks × 2 metrics × 2 languages), all in parallel under `runs/turbo_rtl_30_pp/`.
+To check whether the language gap that shows up under `sky130_adp` is specific to that flow or also present under area-only and delay-only optimization targets, we ran a focused round on the two simpler combinational benchmarks (encoder_8b10b and gda_adder_n8m8p2) with `--cost-metric area` and `--cost-metric delay` — both metrics use the **OpenROAD STA flow against ASAP7** via `rtlscout.tech_eval`, completely separate from the `yosys-abc stime` flow that powers `sky130_adp`. Same agent settings as round 2 (Opus 4.6, 30 steps), 8 campaigns total (2 benchmarks × 2 metrics × 2 languages), all in parallel under `runs/turbo_rtl_30_pp/`.
 
 ```bash
 for bench in encoder_8b10b gda_adder_n8m8p2; do
@@ -225,7 +225,7 @@ done; wait
 | `encoder_8b10b`    | 3.0 | 84.89 |   2.0 |   2.0 | 83.45 | **83.15** |
 | `gda_adder_n8m8p2` | 4.0 | 89.15 |   4.0 |   4.0 | 89.15 | 89.15 |
 
-> **Caveat — area numbers were being rounded to integers by OpenROAD.** We later discovered that OpenROAD's `report_design_area` Tcl proc formats the area with `%.0f` (see `/prog/OpenROAD-flow-scripts/tools/OpenROAD/src/rsz/src/Resizer.tcl:396`), so every `area` value at the metric's granularity was quantized to whole µm². For these small benchmarks that was catastrophic resolution loss — agent improvements of ~0.1 µm² were invisible, and a genuine 10% improvement could look identical to "tie at 2.0". We patched the tech_eval STA template to additionally emit `rsz::design_area` (a Tcl double in square meters → µm² with full precision) and the parser to prefer that value, then **re-evaluated the saved best designs from all 8 round-3 campaigns against the precise metric** (without rerunning the agent). The table below has the real numbers.
+> **Caveat — area numbers were being rounded to integers by OpenROAD.** We later discovered that OpenROAD's `report_design_area` Tcl proc formats the area with `%.0f` (see `/prog/OpenROAD-flow-scripts/tools/OpenROAD/src/rsz/src/Resizer.tcl:396`), so every `area` value at the metric's granularity was quantized to whole µm². For these small benchmarks that was catastrophic resolution loss — agent improvements of ~0.1 µm² were invisible, and a genuine 10% improvement could look identical to "tie at 2.0". We patched the rtlscout.tech_eval STA template to additionally emit `rsz::design_area` (a Tcl double in square meters → µm² with full precision) and the parser to prefer that value, then **re-evaluated the saved best designs from all 8 round-3 campaigns against the precise metric** (without rerunning the agent). The table below has the real numbers.
 
 **Re-evaluated numbers with precise `design_area_precise` (same designs, higher-resolution readout):**
 
@@ -268,7 +268,7 @@ A few specific notes (using precise area):
 
 The `sky130_adp` flow is `yosys synth → write_blif → yosys-abc strash; dch -f; map; topo; upsize; dnsize; stime`. It maps the **input BLIF as given**, doing local rewrites within the AIG nodes. Spire's emit pollutes the AIG with explicit alias buffer nodes (Cause 1 above), named cut-wires from `_maybe_share` (Cause 2), and explicit slice-truncation nodes (Cause 3) — all of which `dch -f` respects as boundaries.
 
-The `area` / `delay` flow goes through `tech_eval`'s OpenROAD pipeline:
+The `area` / `delay` flow goes through `rtlscout.tech_eval`'s OpenROAD pipeline:
 
 ```
 yosys: read; synth -top; abc -D <target_delay> -constr <…> -liberty <asap7_lib>; write

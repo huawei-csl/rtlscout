@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar, Dict, List, Optional
 
-from tech_eval.ppa_extract.core.template import target_delay_time_unit
+from rtlscout.tech_eval.ppa_extract.core.template import target_delay_time_unit
 
 
 @dataclass
@@ -1160,7 +1160,7 @@ class AigDepthResyn2Cost(_AigResyn2Cost):
 
 
 # ---------------------------------------------------------------------------
-# PPA cost metrics via tech_eval (Yosys + OpenROAD STA)
+# PPA cost metrics via rtlscout.tech_eval (Yosys + OpenROAD STA)
 # ---------------------------------------------------------------------------
 
 def _tb_output_parser(output: str) -> None:
@@ -1185,7 +1185,7 @@ def _ppa_worker(rtl_paths, target_delay, worker_path, top_module, result_queue,
     except OSError:
         pass
     try:
-        from tech_eval.ppa_extract.core.ppa_extraction import get_ppa
+        from rtlscout.tech_eval.ppa_extract.core.ppa_extraction import get_ppa
         ppa = get_ppa(
             rtl_path=rtl_paths,
             target_delay=target_delay,

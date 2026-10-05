@@ -1,4 +1,4 @@
-# tech_eval
+# rtlscout.tech_eval
 
 PPA (Power, Performance, Area) evaluation workflows for arithmetic blocks and MMAC cores, built on top of `spire-hdl`, `yosys`, `openroad`, and `verilator`.
 
@@ -97,8 +97,8 @@ The typical flow is:
 4. Call `get_ppa` to run synthesis + STA + optional power.
 
 ```python
-from tech_eval.int_tb_sim import TwInputArit, generate_vectors, run_component_with_vectors
-from tech_eval.ppa_extract.core.ppa_extraction import get_ppa
+from rtlscout.tech_eval.int_tb_sim import TwInputArit, generate_vectors, run_component_with_vectors
+from rtlscout.tech_eval.ppa_extract.core.ppa_extraction import get_ppa
 
 from spirehdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
     Encoding, FSAOption, PPAOption, PPGOption, TwoInputAritEncodings, MultiplierTestVectors,
@@ -155,7 +155,7 @@ If you already have a Verilog/SystemVerilog file and just need PPA, skip the vec
 `rtl_path` accepts either a single path string or a **list of paths** for multi-file designs.
 
 ```python
-from tech_eval.ppa_extract.core.ppa_extraction import get_ppa
+from rtlscout.tech_eval.ppa_extract.core.ppa_extraction import get_ppa
 
 ppa = get_ppa(
     rtl_path="path/to/my_design.sv",   # or a list of paths
@@ -174,7 +174,7 @@ Static RTL files for quick tests are in `src/tech_eval/ppa_extract/tests/files/`
 A complete example that first runs a spire-hdl multiplier and then evaluates a static `.sv` file in the same script is in:
 
 ```bash
-python -m tech_eval.ppa_extract.tests.ppa_extraction_test_verilog_file
+python -m rtlscout.tech_eval.ppa_extract.tests.ppa_extraction_test_verilog_file
 ```
 
 ---
@@ -193,7 +193,7 @@ The script `src/tech_eval/ppa_extract/tests/ppa_extraction_test_elau_mul16.py` s
 **Prerequisite:** clone ELAU to `/prog/ELAU` (or change `ELAU_ROOT` in the script).
 
 ```bash
-python -m tech_eval.ppa_extract.tests.ppa_extraction_test_elau_mul16
+python -m rtlscout.tech_eval.ppa_extract.tests.ppa_extraction_test_elau_mul16
 ```
 
 ---
@@ -214,7 +214,7 @@ All scripts under `src/tech_eval/ppa_extract/tests/` can be run as modules from 
 Run any of them with:
 
 ```bash
-python -m tech_eval.ppa_extract.tests.<script_name>
+python -m rtlscout.tech_eval.ppa_extract.tests.<script_name>
 ```
 
 The `tests/unit/` subdirectory contains lightweight unit tests (`pytest`) that do not require EDA tools.
@@ -228,7 +228,7 @@ The `tests/unit/` subdirectory contains lightweight unit tests (`pytest`) that d
 **Script:** `src/tech_eval/ppa_extract/sweeps/mmac/mmac_cores_mp.py`
 
 ```bash
-python -m tech_eval.ppa_extract.sweeps.mmac.mmac_cores_mp
+python -m rtlscout.tech_eval.ppa_extract.sweeps.mmac.mmac_cores_mp
 ```
 
 Sweeps four MMAC core families across multiple architecture options and target delays using multiprocessing:
@@ -252,7 +252,7 @@ Sweeps four MMAC core families across multiple architecture options and target d
 **Optimised variant** (uses optimised multiplier blocks):
 
 ```bash
-python -m tech_eval.ppa_extract.sweeps.mmac.mmac_cores_mp_optim
+python -m rtlscout.tech_eval.ppa_extract.sweeps.mmac.mmac_cores_mp_optim
 ```
 
 ---
@@ -262,7 +262,7 @@ python -m tech_eval.ppa_extract.sweeps.mmac.mmac_cores_mp_optim
 **Script:** `src/tech_eval/ppa_extract/sweeps/multipliers/mul_add_sweep_mp.py`
 
 ```bash
-python -m tech_eval.ppa_extract.sweeps.multipliers.mul_add_sweep_mp
+python -m rtlscout.tech_eval.ppa_extract.sweeps.multipliers.mul_add_sweep_mp
 ```
 
 Sweeps standalone adder and multiplier configurations across delay targets.
@@ -284,7 +284,7 @@ These sweeps vary the input distribution spread (σ) to study how power changes 
 Run the current main sigma sweep:
 
 ```bash
-python -m tech_eval.ppa_extract.sweeps.multipliers.sigma_sweep_all_multipliers_encoders2_mp
+python -m rtlscout.tech_eval.ppa_extract.sweeps.multipliers.sigma_sweep_all_multipliers_encoders2_mp
 ```
 
 Outputs (written to `worker_sigma/`):
@@ -299,7 +299,7 @@ Outputs (written to `worker_sigma/`):
 All sweeps that save JSON results can be re-plotted or filtered without re-running the sweep:
 
 ```bash
-python -m tech_eval.ppa_extract.sweeps.plot_saved_results \
+python -m rtlscout.tech_eval.ppa_extract.sweeps.plot_saved_results \
   --results results/ppa/MMAC_m4_a4_results.json
 ```
 

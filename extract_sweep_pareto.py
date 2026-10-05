@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Extract Pareto-optimal designs from a tech_eval sweep results JSON.
+"""Extract Pareto-optimal designs from a rtlscout.tech_eval sweep results JSON.
 
 Reads a *_results.json file (from fpmul_sweep_mp.py or similar), computes the
 area-vs-delay Pareto front across all cases, and writes the standard
@@ -205,7 +205,7 @@ def extract_sweep_pareto(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Extract Pareto designs from a tech_eval sweep results JSON")
+        description="Extract Pareto designs from a rtlscout.tech_eval sweep results JSON")
     parser.add_argument("json_file", type=Path,
                         help="Sweep results JSON (e.g. FpMul_e5f10_results.json)")
     parser.add_argument("-o", "--output", type=Path, required=True,

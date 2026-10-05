@@ -90,7 +90,7 @@ the next iteration. Grows as designs land; current state below.
 
 10. **Nangate45 PPA sweep** — added
     [`benchmarks/dr_rtl/scripts/dr_rtl_nangate45_ppa.py`](../../benchmarks/dr_rtl/scripts/dr_rtl_nangate45_ppa.py)
-    on top of the existing `tech_eval.get_ppa(..., technology="nangate45")`
+    on top of the existing `rtlscout.tech_eval.get_ppa(..., technology="nangate45")`
     API. Default `--target-delay-ps 100` (= 0.1 ns, matches the paper's
     constraint). 17/20 designs characterize cleanly; one design (`pcie`)
     needs a fallback yosys path with `synth -flatten` + a netlist

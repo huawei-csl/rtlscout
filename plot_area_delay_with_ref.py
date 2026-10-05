@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Plot area (x) vs delay (y) overlaying agent sweep results and tech_eval reference data.
+"""Plot area (x) vs delay (y) overlaying agent sweep results and rtlscout.tech_eval reference data.
 
 The agent records come from a runs directory (same formats as plot_area_delay.py).
-The reference records come from one or more tech_eval PPA JSON files whose
+The reference records come from one or more rtlscout.tech_eval PPA JSON files whose
 ``case_results`` contain per-architecture, per-target-delay measurements.
 
 Visual convention
@@ -41,7 +41,7 @@ import matplotlib.pyplot as plt
 
 # Re-use the agent-side loader from the sibling script.
 from plot_area_delay import load_results, _COLORS, _short_model
-from tech_eval.ppa_extract.core.ppa_extraction import PPA_REPORT_TIME_UNIT
+from rtlscout.tech_eval.ppa_extract.core.ppa_extraction import PPA_REPORT_TIME_UNIT
 
 
 # ── Pareto helpers (ported from tech_eval/src/…/plotting2.py) ─────────────────
@@ -99,7 +99,7 @@ _AGENT_PARETO_COLOR = "#111111"   # near-black
 _REF_PARETO_COLOR   = "#cc2222"   # dark red
 
 
-# ── tech_eval loader ───────────────────────────────────────────────────────────
+# ── rtlscout.tech_eval loader ───────────────────────────────────────────────────────────
 
 def load_tech_eval_records(
     path: Path,
@@ -107,12 +107,12 @@ def load_tech_eval_records(
     group_by: str = "fsa_cls_name",
     case_filter: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
-    """Parse a tech_eval ``*_results.json`` file into flat records.
+    """Parse a rtlscout.tech_eval ``*_results.json`` file into flat records.
 
     Parameters
     ----------
     path:
-        Path to the tech_eval JSON file.
+        Path to the rtlscout.tech_eval JSON file.
     benchmark_override:
         When given, every case in ``case_results`` is placed under this
         benchmark label (useful for aligning with an agent benchmark name,
@@ -132,7 +132,7 @@ def load_tech_eval_records(
     target_delay, case, source="ref".
 
     Exact duplicates — same (case, group_by value, area, delay) — are
-    removed; the tech_eval files contain two identical runs per point.
+    removed; the rtlscout.tech_eval files contain two identical runs per point.
     """
     try:
         data = json.loads(path.read_text())
@@ -456,7 +456,7 @@ def plot_area_delay_with_ref(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Scatter-plot area vs delay combining agent sweeps and tech_eval reference data",
+        description="Scatter-plot area vs delay combining agent sweeps and rtlscout.tech_eval reference data",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
@@ -467,13 +467,13 @@ def main() -> None:
     )
     parser.add_argument(
         "--ref", metavar="PATH", action="append", default=[],
-        help="tech_eval PPA JSON file to overlay as reference data (may be repeated)",
+        help="rtlscout.tech_eval PPA JSON file to overlay as reference data (may be repeated)",
     )
     parser.add_argument(
         "--ref-benchmark", metavar="NAME", action="append", default=[],
         help=(
             "Agent benchmark name to associate with the preceding --ref file "
-            "(e.g. 'add16').  When omitted the tech_eval case name is used as-is. "
+            "(e.g. 'add16').  When omitted the rtlscout.tech_eval case name is used as-is. "
             "Repeat once per --ref in the same order."
         ),
     )

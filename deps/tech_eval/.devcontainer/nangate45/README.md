@@ -16,7 +16,7 @@ into the image instead of cloning a now-missing repo — removing the external d
 ## How it's used
 
 - The Dockerfile copies it to `/app/nangate/sim/cells.v`.
-- `tech_eval`'s `ppa_extract/core/template.py` references it from the `NANGATE45` technology config:
+- `rtlscout.tech_eval`'s `ppa_extract/core/template.py` references it from the `NANGATE45` technology config:
   `verilator_netlist_flags=["/app/nangate/sim/cells.v"]`.
 
 Note this file is required **only** for nangate45 *netlist* simulation. nangate45 PPA (synthesis,

@@ -622,7 +622,7 @@ spirehdl feature — out of scope for this iteration.
 **yosys's FSM extraction pass** (`fsm_detect` + `fsm_extract` +
 `fsm_opt` + `fsm_recode` + `fsm_map`), which is part of `synth`'s
 default coarse-opt phase (run unless `-nofsm` is given — which the
-`tech_eval` template doesn't pass). Both spirehdl and verilog therefore
+`rtlscout.tech_eval` template doesn't pass). Both spirehdl and verilog therefore
 hit `synth -top control_unit` with the FSM passes attempting to run;
 the difference is whether **`fsm_detect` finds anything to extract**.
 

@@ -23,7 +23,7 @@ jobs:
 
       # The integration tests (tests/test_integration.py) are gated on Yosys + Verilator
       # (see tests/conftest.py); without them they skip. Install the stock apt builds so the
-      # tests actually run. tech_eval is vendored under deps/tech_eval; spire-hdl is the submodule.
+      # tests actually run. rtlscout.tech_eval is vendored under deps/tech_eval; spire-hdl is the submodule.
       - name: Install EDA tools (Yosys + Verilator)
         run: |
           sudo apt-get update

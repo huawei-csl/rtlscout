@@ -23,7 +23,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CACHE_FLAG=""
 [ "${NO_CACHE:-0}" = "1" ] && CACHE_FLAG="--no-cache"
 
-# ---- Step 1: Build base image from tech_eval (skip if already exists, unless NO_CACHE=1) ----
+# ---- Step 1: Build base image from rtlscout.tech_eval (skip if already exists, unless NO_CACHE=1) ----
 BASE_IMAGE="rtlscout_base:latest"
 if [ "${BUILD_SLIM:-0}" = "1" ]; then
     BASE_DOCKERFILE="$REPO_ROOT/deps/tech_eval/.devcontainer/Dockerfile.slim"

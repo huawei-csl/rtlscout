@@ -104,7 +104,7 @@ def patchability_gate() -> None:
             f"reported, Stage-V-verified front; only Phase 3 skips it):\n"
             f"{fail_dirs}\n"
             f"  (b) or extend the converter/matcher in "
-            f"deps/tech_eval/src/tech_eval/ppa_extract/sweeps/fpmul/"
+            f"rtlscout/tech_eval/ppa_extract/sweeps/fpmul/"
             f"script_to_component.py (fpadd-style loosening, handover Stage 3) "
             f"and record the change in STATUS.md.\n"
             f"Then RERUN the same command (run_all.py --profile {cfg.PROFILE}) "
@@ -121,7 +121,7 @@ def run_sweep() -> None:
         backup = cfg.SWEEP_RESULTS.with_suffix(f".pre_{cfg.TAG}_{ts}.json")
         cfg.SWEEP_RESULTS.rename(backup)
         common.log(f"existing sweep results moved aside: {backup}")
-    cmd = [cfg.VENV_PYTHON, "-m", "tech_eval.ppa_extract.sweeps.fpmul.fpmul_sweep_mp",
+    cmd = [cfg.VENV_PYTHON, "-m", "rtlscout.tech_eval.ppa_extract.sweeps.fpmul.fpmul_sweep_mp",
            "--references-dir", cfg.FRONTS,
            "--target-delays", *[str(t) for t in cfg.SWEEP_TARGET_DELAYS]]
     if cfg.SWEEP_SINGLE_POINT:

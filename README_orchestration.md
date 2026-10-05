@@ -293,14 +293,14 @@ flowchart TD
 - **single-container:** the harness runs the agent + judge **in its own process**, so launch
   it **inside a container that already has the toolchain + deps** (`rtlscout` /
   `rtlscout-opencode`), or any environment with them installed. It can't run on the bare host
-  (it imports `tech_eval`/`spirehdl`).
+  (it imports `rtlscout.tech_eval`/`spirehdl`).
 - **orchestrated:** the harness launches the agent + judge as **sibling containers on a real
   docker daemon**, so it needs that daemon's socket plus paths that resolve on it. This is
   **docker-*out*-of-docker** (siblings on the host daemon) — **not** a nested daemon
   (docker-in-docker), which is deliberately avoided. So run the harness either:
   - **on the host** — works too, but it's **more setup**: you first have to install the Python
     deps into a host environment (`pip install -e deps/spire-hdl -e deps/tech_eval -r
-    requirements.txt`) because the harness imports `tech_eval`/`spirehdl`. (Only the Python
+    requirements.txt`) because the harness imports `rtlscout.tech_eval`/`spirehdl`. (Only the Python
     deps + docker are needed on the host — **not** the EDA toolchain, since `evaluate()` runs
     inside the judge *containers*. The container option below bundles all of that, which is why
     it's the easier, validated path.) **or**
@@ -362,7 +362,7 @@ python rtlscout_cli.py cleanup --session <id-printed-at-start>
   aborts). The backend handles this; if you customise `opencode.json`, keep it `allow`/`deny`.
 - **Launch:** opencode `--agent` must be started via a shell wrapper (handled by the backend).
 - **Identity mounts** are required for orchestrated docker-in-docker; the harness can't run
-  on the bare host (it imports `tech_eval`/`spirehdl`), so run it inside an
+  on the bare host (it imports `rtlscout.tech_eval`/`spirehdl`), so run it inside an
   `rtlscout-opencode` container.
 - **Agent egress** is the default `bridge` (broad). Restricting it to the model provider only
   is a hardening lever (handover §4.7/Phase 4).

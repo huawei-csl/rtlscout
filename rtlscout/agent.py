@@ -18,7 +18,7 @@ from rtlscout.cost import CostMetric, YosysTransistorCost
 from rtlscout.evaluation import evaluate
 from rtlscout.llm_client import LLMClient, TokenUsage
 from rtlscout.prompts import MAX_TOOL_CALLS_PER_STEP, build_amaranth_system_prompt, build_spirehdl_system_prompt, build_system_prompt
-from tech_eval.ppa_extract.core.template import target_delay_time_unit
+from rtlscout.tech_eval.ppa_extract.core.template import target_delay_time_unit
 
 # Default read_file cap: a no-argument read returns at most this many characters, for every file
 # type alike (a whole-file default would let e.g. a 300 KB vectors.dat flood the context).

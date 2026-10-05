@@ -76,7 +76,7 @@ def _compile_spirehdl(starting_point: Path, workdir: Path) -> Path:
 
 
 def _run_one(case: str, target_delay_ps: int) -> dict:
-    from tech_eval.ppa_extract.core.ppa_extraction import get_ppa
+    from rtlscout.tech_eval.ppa_extract.core.ppa_extraction import get_ppa
 
     case_dir = BENCH_ROOT / case
     md = json.loads((case_dir / "metadata.json").read_text())

@@ -9,7 +9,7 @@ Default `target_delay = 100 ps` (= 0.1 ns). Units:
   - `delay` field in the returned dict is therefore always **picoseconds**.
 
 Two-pass flow:
-  1. Primary: `tech_eval.get_ppa(..., technology="nangate45")` — works for most
+  1. Primary: `rtlscout.tech_eval.get_ppa(..., technology="nangate45")` — works for most
      designs. Uses yosys `synth` (no flatten) + `dfflibmap` + `abc` + OpenROAD STA.
   2. Fallback (only if primary STA returns a syntax error): re-run yosys with
      `synth -flatten` + `clean -purge` + `write_verilog -noattr -simple-lhs`,
@@ -141,7 +141,7 @@ write_verilog -noattr -simple-lhs {worker}/netlist.v
 
 
 def _run_one(case: str, target_delay_ps: int) -> dict:
-    from tech_eval.ppa_extract.core.ppa_extraction import get_ppa
+    from rtlscout.tech_eval.ppa_extract.core.ppa_extraction import get_ppa
 
     case_dir = BENCH_ROOT / case
     md = json.loads((case_dir / "metadata.json").read_text())
