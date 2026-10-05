@@ -1,16 +1,16 @@
 """Advisory eval + snapshot shim (handover doc §5.2) and the shared snapshot helpers.
 
 ``run_eval_and_store`` is the **agent-side advisory** eval command: it runs the same
-``core.evaluation.evaluate`` the react loop uses, then emits the *exact* on-disk tree
+``rtlscout.evaluation.evaluate`` the react loop uses, then emits the *exact* on-disk tree
 the loop produces today (``agent_evals.jsonl``, ``eval_{i}/``, ``best_design/`` +
 ``_best_meta.json``) so every downstream consumer (multirun pool/seeding, Pareto) is
 untouched. It is **advisory**: scored against the agent's own (writable) copy of the
-inputs. The authoritative score is re-derived later by ``core.reeval.reeval_run``
+inputs. The authoritative score is re-derived later by ``rtlscout.reeval.reeval_run``
 against the benchmark's own inputs.
 
 The OpenCode backend (Phase 2) wires this in as the agent's ``eval_cmd`` (run as
-``python -m core.eval_store``). The snapshot helpers here are also reused by
-``core.reeval`` so advisory and authoritative passes write identical trees.
+``python -m rtlscout.eval_store``). The snapshot helpers here are also reused by
+``rtlscout.reeval`` so advisory and authoritative passes write identical trees.
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 # Names that are never the agent's *design source* — the benchmark owns these, and the
-# authoritative re-eval lays down its own copies. Used by core.reeval when extracting
+# authoritative re-eval lays down its own copies. Used by rtlscout.reeval when extracting
 # design source from a stored eval workspace.
 SNAPSHOT_SKIP = {"obj_dir", "_cec"}
 
@@ -137,7 +137,7 @@ def run_eval_and_store(
     files in ``run_root`` (``agent_evals.jsonl`` + ``eval_{i}/``), so the OpenCode agent
     can invoke this as a fresh subprocess each time. Returns the eval dict.
     """
-    from core.evaluation import evaluate
+    from rtlscout.evaluation import evaluate
 
     workspace = Path(workspace)
     run_root = Path(run_root) if run_root is not None else workspace.parent
@@ -193,7 +193,7 @@ def run_eval_and_store(
 
 
 # --------------------------------------------------------------------------------------
-# CLI: the OpenCode agent runs this as `python -m core.eval_store [design_file]`.
+# CLI: the OpenCode agent runs this as `python -m rtlscout.eval_store [design_file]`.
 # Run config (top module, cost metric, language, golden ref, budget) is read from
 # `<run_root>/_eval_config.json`, written once by the OpenCode backend at provision time.
 # --------------------------------------------------------------------------------------
@@ -209,7 +209,7 @@ def load_eval_config(run_root: Path) -> Dict[str, Any]:
 
 def main(argv: Optional[List[str]] = None) -> int:
     import argparse
-    from core.cost import make_cost_metric
+    from rtlscout.cost import make_cost_metric
 
     parser = argparse.ArgumentParser(description="Advisory eval + snapshot shim (OpenCode eval_cmd).")
     parser.add_argument("design_file", nargs="?", default=None,

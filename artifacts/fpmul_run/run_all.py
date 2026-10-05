@@ -33,7 +33,7 @@ os.environ["RTLSCOUT_RERUN_PROFILE"] = _profile
 if _pre_args.new_run:
     os.environ["RTLSCOUT_RERUN_NEW"] = "1"   # rerun_config mints + pins the run
 
-# Spire compile budget (core/evaluation.py defaults to 60 s). A design using
+# Spire compile budget (rtlscout/evaluation.py defaults to 60 s). A design using
 # @abc_optimized runs a full ABC recipe inside this window, and the recipes are
 # sized to ~120 s (&deepsyn -T 120/110), so 60 s kills them mid-optimization and
 # the harness records a correctness failure rather than a timeout. Matches

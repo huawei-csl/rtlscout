@@ -3,7 +3,7 @@
 import json
 from typing import Any, Dict, List, Optional
 
-from core.llm_client import ChatResponse, LLMClient, TokenUsage, ToolCall
+from rtlscout.llm_client import ChatResponse, LLMClient, TokenUsage, ToolCall
 
 _SCRIPT_REGISTRY: Dict[str, List[ChatResponse]] = {}
 

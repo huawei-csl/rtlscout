@@ -40,8 +40,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-from core.cost import COST_METRICS, make_cost_metric
-from core.evaluation import COMPILE_TIMEOUT, evaluate
+from rtlscout.cost import COST_METRICS, make_cost_metric
+from rtlscout.evaluation import COMPILE_TIMEOUT, evaluate
 
 
 def _infer_top_module(workdir: Path) -> str | None:
@@ -121,7 +121,7 @@ def _prepare_aig_input(args, design_path: Path, workdir: Path) -> tuple:
     """
     aig_top = args.top_module
     if aig_top is None and args.benchmark:
-        from core.benchmarks import load_benchmark
+        from rtlscout.benchmarks import load_benchmark
         aig_top = load_benchmark(Path(args.benchmark).resolve()).module_name
     if not aig_top:                          # fall back to the AIG file stem
         aig_top = re.sub(r"\W", "_", design_path.stem) or "top"
@@ -134,7 +134,7 @@ def _prepare_aig_input(args, design_path: Path, workdir: Path) -> tuple:
 
 
 # Sandbox provisioning: junk is never copied; everything else comes along, including a pre-existing .spire_cache
-# (read-shared like core/runner.py's context copy — the temp dir is deleted at exit, so it is never written back).
+# (read-shared like rtlscout/runner.py's context copy — the temp dir is deleted at exit, so it is never written back).
 _SANDBOX_SKIP = ("obj_dir", "__pycache__")
 _SANDBOX_SIZE_CAP = 100 * 1024 * 1024  # refuse to silently copy huge dirs
 
@@ -271,7 +271,7 @@ def main():
     else:
         language = args.language
 
-    # Copy testbench + ALL *.dat files from the benchmark dir (mirrors core/runner.py's workspace provisioning).
+    # Copy testbench + ALL *.dat files from the benchmark dir (mirrors rtlscout/runner.py's workspace provisioning).
     if args.benchmark:
         bench_dir = Path(args.benchmark).resolve()
         if not bench_dir.is_dir():
@@ -300,7 +300,7 @@ def main():
     top_module = args.top_module
     if top_module is None and args.benchmark:
         try:
-            from core.benchmarks import load_benchmark
+            from rtlscout.benchmarks import load_benchmark
             top_module = load_benchmark(Path(args.benchmark).resolve()).module_name
         except Exception:
             top_module = None
@@ -342,8 +342,8 @@ def main():
     # unrecoverable, so CEC vs the golden would be meaningless — skip it there.
     cec_reference = None
     if not args.skip_cec and not force_cost_only and args.benchmark:
-        from core.benchmarks import load_benchmark
-        from core.equivalence import resolve_golden_reference
+        from rtlscout.benchmarks import load_benchmark
+        from rtlscout.equivalence import resolve_golden_reference
         bench = load_benchmark(Path(args.benchmark).resolve())
         golden_dir = workdir / "_golden"
         golden_preexisting = golden_dir.exists()

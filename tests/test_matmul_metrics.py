@@ -24,20 +24,20 @@ MATMUL_ROOT = BENCHMARKS_ROOT / "matmul" / "16x16x16_1r1w"
 # ── Unit: TB_CYCLES parsing ──────────────────────────────────────────────────
 
 def test_parse_sim_stats_cycles():
-    from core.correctness import parse_sim_stats
+    from rtlscout.correctness import parse_sim_stats
     out = "TB_CYCLES total=87815\nTB_SUMMARY total=1813 errors=0\nPASS\n"
     assert parse_sim_stats(out, "") == {"cycles": 87815}
 
 
 def test_parse_sim_stats_absent_is_empty():
     """Benchmarks that don't print TB_CYCLES must be unaffected (empty dict)."""
-    from core.correctness import parse_sim_stats
+    from rtlscout.correctness import parse_sim_stats
     assert parse_sim_stats("TB_SUMMARY total=5 errors=0\nPASS\n", "") == {}
     assert parse_sim_stats("", "") == {}
 
 
 def test_correctness_result_has_sim_stats_default():
-    from core.correctness import CorrectnessResult
+    from rtlscout.correctness import CorrectnessResult
     r = CorrectnessResult(
         passed=True, lint_ok=True, sim_ok=True,
         lint_stdout="", lint_stderr="", sim_stdout="", sim_stderr="",
@@ -49,7 +49,7 @@ def test_correctness_result_has_sim_stats_default():
 # ── Unit: CyclesCost ─────────────────────────────────────────────────────────
 
 def test_cycles_cost_math():
-    from core.cost import CyclesCost
+    from rtlscout.cost import CyclesCost
     r = CyclesCost().evaluate(Path("."), "matmul_core", sim_stats={"cycles": 8192})
     assert r.ok
     assert r.value == 8192.0
@@ -58,7 +58,7 @@ def test_cycles_cost_math():
 
 @pytest.mark.parametrize("sim_stats", [None, {}, {"foo": 1}])
 def test_cycles_cost_fails_without_cycles(sim_stats):
-    from core.cost import CyclesCost
+    from rtlscout.cost import CyclesCost
     r = CyclesCost().evaluate(Path("."), "matmul_core", sim_stats=sim_stats)
     assert not r.ok
     assert r.value is None
@@ -70,7 +70,7 @@ def test_cycles_cost_fails_without_cycles(sim_stats):
 @pytest.fixture
 def stub_ppa(monkeypatch):
     """Stub the synthesis/STA layer so metric math is tested in isolation."""
-    from core.cost import PPACost, CostResult
+    from rtlscout.cost import PPACost, CostResult
 
     def fake(self, workdir, top_module=None, design_file=None, sim_stats=None):
         return CostResult(ok=True, value=50.0,
@@ -80,7 +80,7 @@ def stub_ppa(monkeypatch):
 
 
 def test_runtime_cost_math(stub_ppa):
-    from core.cost import RuntimeCost
+    from rtlscout.cost import RuntimeCost
     r = RuntimeCost().evaluate(Path("."), "matmul_core", sim_stats={"cycles": 8192})
     assert r.ok
     assert r.value == pytest.approx(50.0 * 8192)
@@ -90,7 +90,7 @@ def test_runtime_cost_math(stub_ppa):
 
 
 def test_area_runtime_product_cost_math(stub_ppa):
-    from core.cost import AreaRuntimeProductCost
+    from rtlscout.cost import AreaRuntimeProductCost
     r = AreaRuntimeProductCost().evaluate(Path("."), "matmul_core", sim_stats={"cycles": 8192})
     assert r.ok
     assert r.value == pytest.approx(100.0 * 50.0 * 8192)
@@ -99,7 +99,7 @@ def test_area_runtime_product_cost_math(stub_ppa):
 
 
 def test_runtime_arp_fail_without_cycles(stub_ppa):
-    from core.cost import RuntimeCost, AreaRuntimeProductCost
+    from rtlscout.cost import RuntimeCost, AreaRuntimeProductCost
     assert not RuntimeCost().evaluate(Path("."), "matmul_core", sim_stats={}).ok
     assert not AreaRuntimeProductCost().evaluate(Path("."), "matmul_core").ok
 
@@ -107,14 +107,14 @@ def test_runtime_arp_fail_without_cycles(stub_ppa):
 # ── Unit: registry / factory wiring ──────────────────────────────────────────
 
 def test_new_metrics_registered():
-    from core.cost import COST_METRICS, CyclesCost, RuntimeCost, AreaRuntimeProductCost
+    from rtlscout.cost import COST_METRICS, CyclesCost, RuntimeCost, AreaRuntimeProductCost
     assert COST_METRICS["cycles"] is CyclesCost
     assert COST_METRICS["runtime"] is RuntimeCost
     assert COST_METRICS["area_runtime_product"] is AreaRuntimeProductCost
 
 
 def test_make_cost_metric_new():
-    from core.cost import make_cost_metric, CyclesCost, RuntimeCost, AreaRuntimeProductCost
+    from rtlscout.cost import make_cost_metric, CyclesCost, RuntimeCost, AreaRuntimeProductCost
     c = make_cost_metric("cycles")
     assert isinstance(c, CyclesCost) and c.primary_key == "cycles"
     r = make_cost_metric("runtime", target_delay=500)
@@ -127,7 +127,7 @@ def test_make_cost_metric_new():
 # ── Unit: energy / access (data-movement) metrics ────────────────────────────
 
 def test_parse_sim_stats_reads_writes():
-    from core.correctness import parse_sim_stats
+    from rtlscout.correctness import parse_sim_stats
     out = ("TB_CYCLES total=87815\nTB_READS total=4352\nTB_WRITES total=256\n"
            "TB_SUMMARY total=5 errors=0\n")
     assert parse_sim_stats(out, "") == {"cycles": 87815, "reads": 4352, "writes": 256}
@@ -136,7 +136,7 @@ def test_parse_sim_stats_reads_writes():
 
 
 def test_access_cost_math():
-    from core.cost import AccessCost
+    from rtlscout.cost import AccessCost
     r = AccessCost().evaluate(Path("."), "matmul_core", sim_stats={"reads": 4352, "writes": 256})
     assert r.ok and r.value == 4608.0
     assert r.stats == {"accesses": 4608.0, "reads": 4352.0, "writes": 256.0}
@@ -144,13 +144,13 @@ def test_access_cost_math():
 
 @pytest.mark.parametrize("sim_stats", [None, {}, {"reads": 10}, {"cycles": 1}])
 def test_access_cost_fails_without_counts(sim_stats):
-    from core.cost import AccessCost
+    from rtlscout.cost import AccessCost
     r = AccessCost().evaluate(Path("."), "matmul_core", sim_stats=sim_stats)
     assert not r.ok and "TB_READS" in r.error
 
 
 def test_ppa_energy_cost_math(stub_ppa):
-    from core.cost import PPAEnergyCost
+    from rtlscout.cost import PPAEnergyCost
     r = PPAEnergyCost().evaluate(Path("."), "matmul_core", sim_stats={"cycles": 1000})
     assert r.ok
     runtime = 1000 * 50.0
@@ -161,7 +161,7 @@ def test_ppa_energy_cost_math(stub_ppa):
 
 
 def test_aarp_cost_math(stub_ppa):
-    from core.cost import AccessAreaRuntimeProductCost
+    from rtlscout.cost import AccessAreaRuntimeProductCost
     ss = {"reads": 4352, "writes": 256, "cycles": 1000}  # accesses=4608, runtime=1000*50=50000
     r = AccessAreaRuntimeProductCost().evaluate(Path("."), "matmul_core", sim_stats=ss)
     assert r.ok
@@ -172,7 +172,7 @@ def test_aarp_cost_math(stub_ppa):
 
 
 def test_aarp_energy_exp_knob(stub_ppa):
-    from core.cost import AccessAreaRuntimeProductCost, make_cost_metric
+    from rtlscout.cost import AccessAreaRuntimeProductCost, make_cost_metric
     ss = {"reads": 4352, "writes": 256, "cycles": 1000}  # accesses=4608, runtime=50000, area=100
     # k=2 weights accesses harder: aarp = accesses**2 * runtime * area
     r2 = AccessAreaRuntimeProductCost(energy_exp=2.0).evaluate(Path("."), "matmul_core", sim_stats=ss)
@@ -185,7 +185,7 @@ def test_aarp_energy_exp_knob(stub_ppa):
 
 
 def test_aarp_fails_without_counts(stub_ppa):
-    from core.cost import AccessAreaRuntimeProductCost
+    from rtlscout.cost import AccessAreaRuntimeProductCost
     # missing reads/writes
     assert not AccessAreaRuntimeProductCost().evaluate(Path("."), "matmul_core", sim_stats={"cycles": 1}).ok
     # missing cycles
@@ -193,7 +193,7 @@ def test_aarp_fails_without_counts(stub_ppa):
 
 
 def test_earp_cost_math(stub_ppa):
-    from core.cost import EnergyAreaRuntimeProductCost
+    from rtlscout.cost import EnergyAreaRuntimeProductCost
     r = EnergyAreaRuntimeProductCost().evaluate(Path("."), "matmul_core", sim_stats={"cycles": 1000})
     assert r.ok
     runtime = 1000 * 50.0
@@ -205,7 +205,7 @@ def test_earp_cost_math(stub_ppa):
 
 
 def test_earp_fails_without_cycles_or_power(stub_ppa):
-    from core.cost import CostResult, EnergyAreaRuntimeProductCost, PPACost
+    from rtlscout.cost import CostResult, EnergyAreaRuntimeProductCost, PPACost
     assert not EnergyAreaRuntimeProductCost().evaluate(Path("."), "matmul_core", sim_stats={}).ok
 
     def no_power(self, workdir, top_module=None, design_file=None, sim_stats=None):
@@ -216,7 +216,7 @@ def test_earp_fails_without_cycles_or_power(stub_ppa):
 
 
 def test_energy_metrics_registered():
-    from core.cost import (COST_METRICS, AccessAreaRuntimeProductCost,
+    from rtlscout.cost import (COST_METRICS, AccessAreaRuntimeProductCost,
                            EnergyAreaRuntimeProductCost)
     assert COST_METRICS["access_area_runtime_product"] is AccessAreaRuntimeProductCost
     assert COST_METRICS["energy_area_runtime_product"] is EnergyAreaRuntimeProductCost
@@ -226,7 +226,7 @@ def test_energy_metrics_registered():
 
 
 def test_energy_aarp_registered():
-    from core.cost import (COST_METRICS, make_cost_metric, AccessCost, PPAEnergyCost,
+    from rtlscout.cost import (COST_METRICS, make_cost_metric, AccessCost, PPAEnergyCost,
                            AccessAreaRuntimeProductCost)
     assert COST_METRICS["accesses"] is AccessCost
     assert COST_METRICS["energy"] is PPAEnergyCost
@@ -241,7 +241,7 @@ def test_energy_aarp_registered():
 # ── Unit: run_netlist_sim toggle ─────────────────────────────────────────────
 
 def test_run_netlist_sim_default_and_toggle():
-    from core.cost import make_cost_metric
+    from rtlscout.cost import make_cost_metric
     # PPA metrics default to running the netlist sim; --skip-netlist-sim turns it off.
     for name in ("area", "delay", "runtime", "area_runtime_product", "area_delay_product"):
         assert make_cost_metric(name).run_netlist_sim is True, name
@@ -250,7 +250,7 @@ def test_run_netlist_sim_default_and_toggle():
 
 def test_skip_netlist_sim_drops_tb_path(tmp_path):
     """With run_netlist_sim=False, PPACost must not pass tb.sv to get_ppa."""
-    from core.cost import AreaRuntimeProductCost, CostResult
+    from rtlscout.cost import AreaRuntimeProductCost, CostResult
     (tmp_path / "tb.sv").write_text("// tb\n")
     (tmp_path / "design.v").write_text("module matmul_core(); endmodule\n")
     captured = {}
@@ -271,7 +271,7 @@ def test_skip_netlist_sim_drops_tb_path(tmp_path):
 # ── Unit: cost_description note in the system prompt ──────────────────────────
 
 def test_cost_description_present():
-    from core.cost import AreaRuntimeProductCost, RuntimeCost, CyclesCost, PPAAreaDelayProductCost
+    from rtlscout.cost import AreaRuntimeProductCost, RuntimeCost, CyclesCost, PPAAreaDelayProductCost
     assert "NOT the classic" in AreaRuntimeProductCost.cost_description
     assert "critical-path delay" in RuntimeCost.cost_description
     assert CyclesCost.cost_description
@@ -280,14 +280,14 @@ def test_cost_description_present():
 
 
 def test_cost_note_injected_into_prompt():
-    from core.prompts import build_spirehdl_system_prompt, build_system_prompt
-    from core.cost import AreaRuntimeProductCost
+    from rtlscout.prompts import build_spirehdl_system_prompt, build_system_prompt
+    from rtlscout.cost import AreaRuntimeProductCost
     sp = build_spirehdl_system_prompt("SPEC", "area_runtime_product",
                                       cost_metric_note=AreaRuntimeProductCost.cost_description)
     assert "**Cost metric `area_runtime_product`:**" in sp
     assert "NOT the classic area×delay product" in sp
     # Without a metric note only the generic scope note follows the header.
-    from core.prompts import COST_SCOPE_NOTE
+    from rtlscout.prompts import COST_SCOPE_NOTE
     assert f"**Cost metric `transistors`:** {COST_SCOPE_NOTE}" in build_system_prompt("SPEC", "transistors")
 
 
@@ -316,8 +316,8 @@ def _stage_matmul_workspace(tmp_path: Path) -> Path:
 @requires_spirehdl
 def test_run_eval_matmul_cycles(tmp_path):
     """Starting point is correct and the cycles metric reports a sane count."""
-    from core.evaluation import evaluate
-    from core.cost import make_cost_metric
+    from rtlscout.evaluation import evaluate
+    from rtlscout.cost import make_cost_metric
 
     workdir = _stage_matmul_workspace(tmp_path)
     result = evaluate(
@@ -345,8 +345,8 @@ def test_run_eval_matmul_cycles(tmp_path):
 @requires_spirehdl
 def test_run_eval_matmul_runtime(tmp_path):
     """runtime == cycles x achieved delay, with area/delay/cycles all present."""
-    from core.evaluation import evaluate
-    from core.cost import make_cost_metric
+    from rtlscout.evaluation import evaluate
+    from rtlscout.cost import make_cost_metric
 
     workdir = _stage_matmul_workspace(tmp_path)
     result = evaluate(

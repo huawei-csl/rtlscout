@@ -2,11 +2,11 @@
 
 Two backends share this seam (handover doc §3, §4.1, §5.1):
 
-  - ``PythonReactBackend`` — the in-process ReAct loop (``core.agent.RTLAgent``).
+  - ``PythonReactBackend`` — the in-process ReAct loop (``rtlscout.agent.RTLAgent``).
     This is the **default** and the only backend that keeps the offline ``fake:``
     smoke test working (OpenCode cannot replay a canned fake).
   - ``OpenCodeBackend`` — external ``opencode run`` with a real shell (added in Phase 2,
-    ``core.opencode_backend``).
+    ``rtlscout.opencode_backend``).
 
 INVARIANT (handover doc §4.2): **one run == one fresh agent session == one fresh
 context window.** A backend MUST NOT carry conversational state between ``run()``
@@ -14,10 +14,10 @@ calls. The only cross-run channels are seed *files* staged into the workspace an
 seed/lessons *text* in ``system_prompt_extra`` — never session state.
 
 Note on the return type: both backends return the existing rich
-``core.agent.AgentResult`` rather than the slimmer ``AgentRunResult`` sketched in
+``rtlscout.agent.AgentResult`` rather than the slimmer ``AgentRunResult`` sketched in
 the handover doc §5.1. ``AgentResult`` already carries a superset of those fields
 *plus* ``messages`` / ``best_eval`` / ``all_evals`` / ``num_steps`` that
-``chat_log.txt``, ``result.json`` and ``core.multirun.make_elite_entry`` all
+``chat_log.txt``, ``result.json`` and ``rtlscout.multirun.make_elite_entry`` all
 require — so returning it is what keeps the Phase-0 react path byte-identical.
 """
 from __future__ import annotations
@@ -27,10 +27,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Protocol
 
 if TYPE_CHECKING:  # type-only imports — keeps this module import-light and cycle-proof
-    from core.agent import AgentResult
-    from core.benchmarks import Benchmark
-    from core.cost import CostMetric
-    from core.sandbox import Sandbox
+    from rtlscout.agent import AgentResult
+    from rtlscout.benchmarks import Benchmark
+    from rtlscout.cost import CostMetric
+    from rtlscout.sandbox import Sandbox
 
 
 @dataclass
@@ -93,7 +93,7 @@ class BackendRequest:
     """Everything a backend needs to run one already-provisioned session.
 
     The workspace (``workdir/workspace``) has already been provisioned by
-    ``core.runner.provision_workspace`` with the benchmark's testbench, data files,
+    ``rtlscout.runner.provision_workspace`` with the benchmark's testbench, data files,
     context and (separately) the resolved golden reference (``cec_reference``).
     """
     benchmark: "Benchmark"
@@ -140,7 +140,7 @@ class AgentBackend(Protocol):
 
 
 class PythonReactBackend:
-    """Thin adapter over ``core.agent.RTLAgent`` — today's in-process ReAct loop.
+    """Thin adapter over ``rtlscout.agent.RTLAgent`` — today's in-process ReAct loop.
 
     Behaviour is byte-for-byte identical to the pre-seam ``run_agent_on_benchmark``
     flow: build the provider client, construct ``RTLAgent`` with the same arguments,
@@ -151,10 +151,10 @@ class PythonReactBackend:
     name = "react"
 
     def run(self, req: BackendRequest) -> "AgentResult":
-        # Lazy imports: avoids any import cycle (core.runner imports this module) and
+        # Lazy imports: avoids any import cycle (rtlscout.runner imports this module) and
         # keeps module import light.
-        from core.agent import RTLAgent
-        from core.runner import build_client
+        from rtlscout.agent import RTLAgent
+        from rtlscout.runner import build_client
 
         client = build_client(req.provider, req.model, req.api_key)
         agent = RTLAgent(
@@ -182,6 +182,6 @@ def make_backend(name: str) -> AgentBackend:
     if name == "react":
         return PythonReactBackend()
     if name == "opencode":
-        from core.opencode_backend import OpenCodeBackend  # added in Phase 2
+        from rtlscout.opencode_backend import OpenCodeBackend  # added in Phase 2
         return OpenCodeBackend()
     raise ValueError(f"Unknown agent backend: {name!r}. Use 'react' or 'opencode'.")

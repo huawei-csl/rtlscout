@@ -11,7 +11,7 @@ campaign's own numbers never decide admission. The slot's own golden is **seeded
 
 ``rtlscout_fill`` / ``make_rtlscout_fill`` adapt this as the decorator's ``fill=`` hook.
 The per-technology PPA scorer ("db-score", backing the ``design-db-score`` skill) lives in
-``core.design_db_score``.
+``rtlscout.design_db_score``.
 
 Direction note: RTLScout imports Spire (this module imports ``spire.design_db``); Spire never
 imports RTLScout back.
@@ -172,7 +172,7 @@ def fill_slot(spec_key: str, *, model: str, db: Optional[Any] = None,
         report.seeded = seed_original(spec_key, db=db).design_id
 
     module = module_name or _sanitize(spec.get("name", "design"))
-    from core.cost import COST_METRICS  # rtlscout-side import, deliberately local
+    from rtlscout.cost import COST_METRICS  # rtlscout-side import, deliberately local
     cost = cost_metric or OBJECTIVE_TO_COST.get(str(objective), "transistors")
     if cost not in COST_METRICS:
         cost = "transistors"
@@ -187,8 +187,8 @@ def fill_slot(spec_key: str, *, model: str, db: Optional[Any] = None,
         bench_root = root / "benchmarks"
         _materialize_benchmark(slot, spec, verification, bench_root / module, module,
                                n_advisory_vectors, sim_budget_s)
-        from core.agent_backend import BackendConfig
-        from core.multirun import run_multirun
+        from rtlscout.agent_backend import BackendConfig
+        from rtlscout.multirun import run_multirun
         run_multirun(
             benchmark_name=module, model=model, total_runs=total_runs,
             max_concurrent=max_concurrent, max_steps=max_steps, cost_metric=cost,

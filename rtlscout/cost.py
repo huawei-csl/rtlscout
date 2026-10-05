@@ -740,7 +740,7 @@ class _YosysStatCost(CostMetric):
         tb = workdir / "tb.sv"
         if not tb.exists():
             return None
-        from core.correctness import parse_testbench_checks, simulate
+        from rtlscout.correctness import parse_testbench_checks, simulate
         sim = simulate([netlist, tb], "tb", workdir)
         if not sim.ok:
             try:
@@ -1165,7 +1165,7 @@ class AigDepthResyn2Cost(_AigResyn2Cost):
 
 def _tb_output_parser(output: str) -> None:
     """Parse TB_SUMMARY output from our testbenches and raise on failure."""
-    from core.correctness import parse_testbench_checks
+    from rtlscout.correctness import parse_testbench_checks
     checks = parse_testbench_checks(output, "")  # raises ValueError if no TB_SUMMARY
     failed = sum(1 for c in checks if not c.get("passed"))
     if failed:

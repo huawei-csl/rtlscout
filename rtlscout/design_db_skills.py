@@ -1,6 +1,6 @@
 """Design-DB skills for the default OpenCode backend — the skill/subagent integration.
 
-Static SKILL.md content lives in ``core/skills/<name>/`` and is copied verbatim into each
+Static SKILL.md content lives in ``rtlscout/skills/<name>/`` and is copied verbatim into each
 provisioned workspace (``.opencode/skills/``), where opencode discovers it. The only generated
 artifact is the ``db-score`` wrapper (baked repo/python paths — the same pattern as
 ``evaluate_design``). The two subagent definitions (``rtl-subcircuit`` / ``rtl-dv-prep``,

@@ -27,7 +27,7 @@ import traceback
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.eval_store import read_evals, select_best_eval, snapshot_best
+from rtlscout.eval_store import read_evals, select_best_eval, snapshot_best
 
 # Agent-workspace entries that are NEVER taken as design source: the benchmark owns the
 # testbench + data (integrity), and these are housekeeping / caches / generated outputs.
@@ -72,9 +72,9 @@ def _reeval_one(eval_dir: Path, benchmark, judge_sandbox, cost_metric, language:
                 run_cec: bool, parent_tmp: Path) -> Dict[str, Any]:
     """Authoritatively re-score a single ``eval_{i}/``. Returns the new eval dict
     (also written over ``eval_dir/result.json``)."""
-    from core.evaluation import evaluate
-    from core.runner import provision_workspace
-    from core.sandbox import SandboxSpec
+    from rtlscout.evaluation import evaluate
+    from rtlscout.runner import provision_workspace
+    from rtlscout.sandbox import SandboxSpec
 
     advisory = {}
     adv_path = eval_dir / "result.json"
@@ -207,9 +207,9 @@ def reeval_run(run_dir: Path, benchmark, judge_sandbox, *, cost_metric, language
             shutil.rmtree(parent_tmp, ignore_errors=True)
     else:
         # Container judge (orchestrated): a fresh --rm judge container per candidate runs
-        # `python -m core.reeval` against the benchmark's own inputs and writes the
+        # `python -m rtlscout.reeval` against the benchmark's own inputs and writes the
         # authoritative result.json into the (bind-mounted) eval_dir.
-        from core.sandbox import SandboxSpec
+        from rtlscout.sandbox import SandboxSpec
         for eval_dir in eval_dirs:
             argv = _container_judge_argv(eval_dir, benchmark, cost_metric, language, run_cec)
             res = judge_sandbox.run_command(argv, SandboxSpec(workdir=run_dir, network="none"))
@@ -325,7 +325,7 @@ def _container_judge_argv(eval_dir: Path, benchmark, cost_metric, language: str,
     cd's into the repo so `core` is importable."""
     repo = Path(__file__).resolve().parent.parent
     py = "/home/vscode/pyenv_eda/bin/python"
-    parts = [py, "-m", "core.reeval",
+    parts = [py, "-m", "rtlscout.reeval",
              "--eval-dir", str(eval_dir),
              "--benchmark-root", str(benchmark.root),
              "--cost-metric", cost_metric.metric_name,
@@ -343,9 +343,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     Invoked inside a judge container by `reeval_run` (orchestrated mode), but also usable
     standalone. Runs the same in-process re-eval (`_reeval_one`) the local judge uses."""
     import argparse
-    from core.benchmarks import load_benchmark
-    from core.cost import make_cost_metric
-    from core.sandbox import LocalSandbox
+    from rtlscout.benchmarks import load_benchmark
+    from rtlscout.cost import make_cost_metric
+    from rtlscout.sandbox import LocalSandbox
 
     p = argparse.ArgumentParser(description="Authoritative re-eval of one eval_{i}/ directory.")
     p.add_argument("--eval-dir", required=True)

@@ -194,7 +194,7 @@ RUN git clone --depth 1 "${ASAP7_REPO}" /out/asap7sc7p5t_28
 # Slim variant of Dockerfile. Same builder stages, but the final image is FROM the CLEAN builder-base
 # (not build-openroad), so the ~15 GB ORFS build tree under /build is never inherited. We COPY in only
 # the built tool binaries + the small PDK/platform slices the PPA engine actually reads
-# (see src/tech_eval/ppa_extract/core/template.py and rtl_scout core/cost.py). TOOLS are identical to
+# (see src/tech_eval/ppa_extract/core/template.py and rtl_scout rtlscout/cost.py). TOOLS are identical to
 # the full image; only unused platform DATA is dropped (other ORFS platforms, the full ASAP7
 # LIB/GDS/CDL/Datasheet, the ORFS flow scripts). freepdk45 was already non-functional (no mflowgen).
 FROM builder-base AS base

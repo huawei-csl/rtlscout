@@ -5,8 +5,8 @@ import argparse
 import json
 from pathlib import Path
 
-from core.cost import COST_METRICS, make_cost_metric
-from core.runner import run_agent_across_models_and_benchmarks
+from rtlscout.cost import COST_METRICS, make_cost_metric
+from rtlscout.runner import run_agent_across_models_and_benchmarks
 
 
 DEFAULT_MODELS = [

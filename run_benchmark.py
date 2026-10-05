@@ -5,10 +5,10 @@ import argparse
 import sys
 from pathlib import Path
 
-from core.agent_backend import BackendConfig
-from core.benchmarks import load_benchmarks
-from core.cost import COST_METRICS, make_cost_metric
-from core.runner import default_benchmarks_roots, parse_model_spec, run_agent_on_benchmark
+from rtlscout.agent_backend import BackendConfig
+from rtlscout.benchmarks import load_benchmarks
+from rtlscout.cost import COST_METRICS, make_cost_metric
+from rtlscout.runner import default_benchmarks_roots, parse_model_spec, run_agent_on_benchmark
 
 
 def main():

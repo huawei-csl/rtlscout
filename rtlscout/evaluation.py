@@ -20,9 +20,9 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 # Override with SPIREHDL_TIMEOUT env var (e.g. for long flowy optimizations).
 COMPILE_TIMEOUT = int(os.environ.get("SPIREHDL_TIMEOUT", "60"))
 
-from core.correctness import CorrectnessResult, evaluate_correctness
-from core.cost import COST_METRICS, CostMetric, CostResult, YosysTransistorCost
-from core.equivalence import CECResult
+from rtlscout.correctness import CorrectnessResult, evaluate_correctness
+from rtlscout.cost import COST_METRICS, CostMetric, CostResult, YosysTransistorCost
+from rtlscout.equivalence import CECResult
 
 
 def _is_scalar(v: Any) -> bool:
@@ -394,7 +394,7 @@ def evaluate(
     sim_failed = correctness is not None and not correctness.passed
     cec_result = None
     if run_cec and cec_reference is not None and verilog_file is not None and not sim_failed:
-        from core.equivalence import run_cec as _run_cec
+        from rtlscout.equivalence import run_cec as _run_cec
         cec_result = _run_cec(
             design_file=Path(verilog_file),
             reference_file=Path(cec_reference),

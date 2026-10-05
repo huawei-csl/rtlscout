@@ -12,7 +12,7 @@ import uuid
 
 import pytest
 
-from core.containers import cleanup, list_managed
+from rtlscout.containers import cleanup, list_managed
 
 
 def _docker_ok() -> bool:

@@ -177,7 +177,7 @@ def resolve_golden_reference(benchmark, dest_dir: Path) -> Optional[Path]:
         raise ValueError(f"Unsupported golden_reference type: {gr}")
 
     # .py generator -> compile to Verilog.
-    from core.evaluation import (
+    from rtlscout.evaluation import (
         SPIREHDL_VERILOG_OUTPUT, _compile_amaranth, _compile_spirehdl,
     )
 

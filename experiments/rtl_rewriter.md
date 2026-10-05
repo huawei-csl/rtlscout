@@ -9,13 +9,13 @@ Four scripts that drive the `benchmarks/rtl_rewriter/` + `benchmarks/rtl_rewrite
 
 **Multi-run + two-phase pipeline** (see [Multirun pipeline](#multirun-pipeline) below):
 
-- [`rtl_rewriter_multirun.py`](rtl_rewriter_multirun.py) — drives `core.multirun.run_multirun` with an optional phase-2 pass seeded from phase 1.
+- [`rtl_rewriter_multirun.py`](rtl_rewriter_multirun.py) — drives `rtlscout.multirun.run_multirun` with an optional phase-2 pass seeded from phase 1.
 - [`table_rtl_rewriter_multirun.py`](table_rtl_rewriter_multirun.py) — renders two tables per metric: best per phase, then a distribution (min / max / mean / n) per phase.
 - [`plot_rtl_rewriter_multirun.py`](plot_rtl_rewriter_multirun.py) — grid of per-case subplots; both languages overlaid, each phase column shows all per-run costs with the best highlighted, language-coloured baseline and RTLR-target horizontal reference lines.
 
 ## `run_rtl_rewriter.py`
 
-Launches `core.runner.run_agent_on_benchmark` for each `(case × language)` combination in a `ProcessPoolExecutor`. Both the verilog sibling (`benchmarks/rtl_rewriter/case<N>/`) and the spirehdl sibling (`benchmarks/rtl_rewriter_spirehdl/case<N>/`) are run by default; use `--languages verilog` or `--languages spirehdl` to restrict to one.
+Launches `rtlscout.runner.run_agent_on_benchmark` for each `(case × language)` combination in a `ProcessPoolExecutor`. Both the verilog sibling (`benchmarks/rtl_rewriter/case<N>/`) and the spirehdl sibling (`benchmarks/rtl_rewriter_spirehdl/case<N>/`) are run by default; use `--languages verilog` or `--languages spirehdl` to restrict to one.
 
 ### Arguments
 
@@ -24,8 +24,8 @@ Launches `core.runner.run_agent_on_benchmark` for each `(case × language)` comb
 | `--cases N [N ...]` | all 10 | Integer case numbers, subset of `[1, 2, 3, 4, 6, 7, 9, 10, 11, 13]`. Rejects unknown numbers with an explicit message. |
 | `--languages {verilog,spirehdl}` | both | Which variants to run. |
 | `--workers N` | `8` | Max parallel workers in the process pool. |
-| `--model SPEC` | `anthropic:claude-opus-4-6` | Model spec as accepted by `core.runner.parse_model_spec`, e.g. `anthropic:claude-opus-4-6`, `deepinfra:moonshotai/Kimi-K2.5`. |
-| `--cost-metric NAME` | `yosys_cells` | Cost metric the agent is told to optimise. Any name registered in `core.cost.COST_METRICS` works (`yosys_cells`, `yosys_wires`, `area`, `delay`, `sky130_adp`, …). |
+| `--model SPEC` | `anthropic:claude-opus-4-6` | Model spec as accepted by `rtlscout.runner.parse_model_spec`, e.g. `anthropic:claude-opus-4-6`, `deepinfra:moonshotai/Kimi-K2.5`. |
+| `--cost-metric NAME` | `yosys_cells` | Cost metric the agent is told to optimise. Any name registered in `rtlscout.cost.COST_METRICS` works (`yosys_cells`, `yosys_wires`, `area`, `delay`, `sky130_adp`, …). |
 | `--max-steps N` | `20` | Agent budget per task. |
 | `--runs-root PATH` | `runs/rtl_rewriter_<timestamp>` | Output directory. |
 | `--summary-out PATH` | `<runs-root>/summary.json` | Where to write the summary JSON. |
@@ -162,7 +162,7 @@ The runner prints the exact `python experiments/table_rtl_rewriter.py <path>` in
 
 ## Multirun pipeline
 
-The multirun variant runs N agents per case per language (via `core.multirun.run_multirun`) and optionally chains two phases, where phase 2 seeds from phase 1's elite pool. For spirehdl only, the prompt-feature flags differ by phase:
+The multirun variant runs N agents per case per language (via `rtlscout.multirun.run_multirun`) and optionally chains two phases, where phase 2 seeds from phase 1's elite pool. For spirehdl only, the prompt-feature flags differ by phase:
 
 | Phase | `--arith-autoconfig` | `--flowy-optimize` | `--abc-optimize` |
 |:---|:-:|:-:|:-:|
@@ -171,7 +171,7 @@ The multirun variant runs N agents per case per language (via `core.multirun.run
 
 Verilog runs carry none of those spirehdl-only flags; for verilog, phase 2 is effectively "restart with phase-1's best designs seeded into the elite pool", which still often improves a bit.
 
-**Phase-2 is pure exploitation.** `rtl_rewriter_multirun.py` overrides `core.multirun`'s default fresh-agent schedule (`fresh_base=0.5 → fresh_min=0.1`) by pinning `fresh_base=0, fresh_min=0, fresh_first=0` on the phase-2 call, so every phase-2 agent seeds from the pool that was pre-populated from phase 1's summary. This is reflected in the summary's `phase_exploration` block. Phase 1 keeps the default schedule — exploration still matters when the pool is cold.
+**Phase-2 is pure exploitation.** `rtl_rewriter_multirun.py` overrides `rtlscout.multirun`'s default fresh-agent schedule (`fresh_base=0.5 → fresh_min=0.1`) by pinning `fresh_base=0, fresh_min=0, fresh_first=0` on the phase-2 call, so every phase-2 agent seeds from the pool that was pre-populated from phase 1's summary. This is reflected in the summary's `phase_exploration` block. Phase 1 keeps the default schedule — exploration still matters when the pool is cold.
 
 ### `rtl_rewriter_multirun.py` arguments
 

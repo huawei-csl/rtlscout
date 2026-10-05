@@ -4,7 +4,7 @@ once per optimization run, in its own (single-container or orchestrated) sandbox
 Lifecycle:
   1. The workspace is already provisioned (``provision_workspace``) with the full
      benchmark (tb + data + context + reference — O9 keeps nothing withheld).
-  2. Render ``AGENTS.md`` (from ``core.prompts`` + the opencode execution section) and
+  2. Render ``AGENTS.md`` (from ``rtlscout.prompts`` + the opencode execution section) and
      ``opencode.json`` into the workspace; write ``_eval_config.json`` (for the eval
      shim) into the run root and an ``evaluate_design`` wrapper into the workspace.
   3. Launch a FRESH ``opencode run`` (no ``-c``/``--session``/``--attach`` — one run ==
@@ -14,7 +14,7 @@ Lifecycle:
      session (prompts + responses) is saved via ``opencode export`` to ``opencode_session.json``.
 
 The recorded score is NOT trusted from here — the harness re-derives it with
-``core.reeval.reeval_run`` against the benchmark's own inputs (mandatory on this path).
+``rtlscout.reeval.reeval_run`` against the benchmark's own inputs (mandatory on this path).
 """
 from __future__ import annotations
 
@@ -29,8 +29,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Optional
 
 if TYPE_CHECKING:
-    from core.agent import AgentResult
-    from core.agent_backend import BackendRequest
+    from rtlscout.agent import AgentResult
+    from rtlscout.agent_backend import BackendRequest
 
 # Pinned OpenCode version this backend targets (recorded for provenance; re-verify CLI
 # flags / opencode.json schema against this exact version — handover §4.8/§8).
@@ -127,15 +127,15 @@ def _metric_name(req: "BackendRequest") -> str:
 
 def render_agents_md(req: "BackendRequest") -> str:
     """Render AGENTS.md for an OpenCode run via the unified lean renderer
-    (``core.agents_md``) — a shell-capable agent gets task + workflow + reference pointers,
+    (``rtlscout.agents_md``) — a shell-capable agent gets task + workflow + reference pointers,
     not the react loop's inlined tool mechanics. With ``req.design_db_skills`` the design-DB block
     (skills + subagents) rides along in the execution section."""
     metric_name = _metric_name(req)
     execution_section = _opencode_execution_section(req, metric_name)
     if req.design_db_skills:
-        from core.design_db_skills import render_design_db_agents_section
+        from rtlscout.design_db_skills import render_design_db_agents_section
         execution_section += "\n\n" + render_design_db_agents_section()
-    from core.agents_md import render_opencode_agents_md
+    from rtlscout.agents_md import render_opencode_agents_md
     return render_opencode_agents_md(req, execution_section=execution_section,
                                      metric_name=metric_name, seed_text=req.system_prompt_extra)
 
@@ -143,7 +143,7 @@ def render_agents_md(req: "BackendRequest") -> str:
 def _opencode_execution_section(req: "BackendRequest", metric_name: str) -> str:
     """Render the shared OpenCode workflow block (shell intro, ./evaluate_design,
     ./remaining_time, time budget, finishing-up). Language-agnostic; the per-HDL renderer in
-    core.agents_md places it after the objective."""
+    rtlscout.agents_md places it after the objective."""
     design_file = _DESIGN_FILE_BY_LANG.get(req.language, "design.sv")
     secs = req.limits.wall_clock_s
     budget_min = f"~{secs // 60} minutes" if secs else "a fixed wall-clock budget"
@@ -173,7 +173,7 @@ the whole time; there is no benefit to finishing early. Check how much is left a
 **Use your time wisely:** spend it making and *evaluating design changes*, not investigating
 the harness/evaluator internals. Treat `./evaluate_design` as a black box (design in, score
 out) — a quick look at the reference docs/designs listed below is fine, but do **not** burn
-your budget reading `core/`, the cost-metric implementation, or the testbench plumbing.
+your budget reading `rtlscout/`, the cost-metric implementation, or the testbench plumbing.
 
 Do **NOT** stop or wind down after one or two evaluations. Keep trying genuinely different
 designs / micro-architectures (e.g. different multiplier/adder configurations, pipelining,
@@ -230,7 +230,7 @@ def render_opencode_config(req: "BackendRequest", yolo: bool = False) -> Dict:
         },
     }
     if req.design_db_skills:
-        from core.design_db_skills import design_db_subagent_entries
+        from rtlscout.design_db_skills import design_db_subagent_entries
         agents.update(design_db_subagent_entries(model_arg, perms))
     return {
         "$schema": "https://opencode.ai/config.json",
@@ -253,7 +253,7 @@ def _is_yolo(req: "BackendRequest") -> bool:
 
 
 def write_eval_config(req: "BackendRequest") -> Path:
-    """Write _eval_config.json (read by `python -m core.eval_store`) into the run root."""
+    """Write _eval_config.json (read by `python -m rtlscout.eval_store`) into the run root."""
     cfg = {
         "design_top_module": req.benchmark.module_name,
         "cost_metric": _metric_name(req),
@@ -282,7 +282,7 @@ def write_eval_wrapper(req: "BackendRequest") -> Path:
         "# Advisory eval + snapshot shim. Usage: ./evaluate_design [design_file]\n"
         "set -e\n"
         f'cd "{repo}" >/dev/null 2>&1\n'
-        f'exec "{py}" -m core.eval_store --workspace "{ws}" --run-root "{rr}" "$@"\n'
+        f'exec "{py}" -m rtlscout.eval_store --workspace "{ws}" --run-root "{rr}" "$@"\n'
     )
     wrapper.chmod(0o755)
     return wrapper
@@ -322,7 +322,7 @@ def _parse_token_usage(stdout: str):
     """Best-effort token-usage parse from `opencode run --format json` output. Robust to
     schema drift: returns a zeroed TokenUsage if nothing parses (harvest never depends on
     this — the on-disk eval tree is the source of truth)."""
-    from core.llm_client import TokenUsage
+    from rtlscout.llm_client import TokenUsage
     tu = TokenUsage()
     if not stdout:
         return tu
@@ -342,8 +342,8 @@ def _parse_token_usage(stdout: str):
 
 
 def _harvest(req: "BackendRequest", stop_reason: str, cmd_result, token_usage) -> "AgentResult":
-    from core.agent import AgentResult
-    from core.eval_store import read_evals, select_best_eval
+    from rtlscout.agent import AgentResult
+    from rtlscout.eval_store import read_evals, select_best_eval
 
     workdir = req.workdir
     all_evals = read_evals(workdir / "agent_evals.jsonl")
@@ -384,7 +384,7 @@ class OpenCodeBackend:
     name = "opencode"
 
     def run(self, req: "BackendRequest") -> "AgentResult":
-        from core.sandbox import LocalSandbox, SandboxSpec
+        from rtlscout.sandbox import LocalSandbox, SandboxSpec
 
         workspace = req.workspace
         metric_name = _metric_name(req)
@@ -400,7 +400,7 @@ class OpenCodeBackend:
         write_eval_wrapper(req)
         write_remaining_time_wrapper(req)
         if req.design_db_skills:
-            from core.design_db_skills import provision_design_db_skills
+            from rtlscout.design_db_skills import provision_design_db_skills
             provision_design_db_skills(workspace)   # .opencode/skills/** — opencode discovers them
 
         # Provider key via env (never in opencode.json).
@@ -462,8 +462,8 @@ class OpenCodeBackend:
 
         # Stamp the wall-clock deadline as close to launch as possible so the agent's
         # ./remaining_time reflects the real budget (0 = no limit).
-        from core.agent_backend import RunLimits
-        from core.eval_store import read_evals
+        from rtlscout.agent_backend import RunLimits
+        from rtlscout.eval_store import read_evals
         wall_s = req.limits.wall_clock_s
         deadline = (time.time() + wall_s) if wall_s else None
         (req.workdir / "_deadline_epoch").write_text(str(int(deadline)) if deadline else "0")

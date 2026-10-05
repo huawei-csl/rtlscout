@@ -233,7 +233,7 @@ provisioned, mentioned, or forwarded). The DB *capability* is spire's and exists
 (`spire db` auto-creates `./design_db` on first use); this flag adds the guidance and the
 handover. It includes:
 
-- **Skills** at `.opencode/skills/` (copied from [core/skills/](core/skills/)) —
+- **Skills** at `.opencode/skills/` (copied from [rtlscout/skills/](rtlscout/skills/)) —
   `design-db-inspect` (slots/designs/Pareto + how to judge results), `design-db-insert` /
   `design-db-eval` (spire-first: submit/check `cand.py` candidates through the gate),
   `design-db-dv-prep` (verification prep for sequential slots), `design-db-dispatch`
@@ -299,7 +299,7 @@ to all admitted designs). An example report (sat_mac4_par, GLM-5.2) is checked i
 | `python rtlscout_cli.py fill-db --slot <key> --model <provider:model>` | Campaign filler: slot → ephemeral benchmark → `run_multirun(reeval=True)` → every passing candidate through Spire's gate (the slot's own golden is seeded first as the baseline/floor). |
 | `python rtlscout_cli.py db-score [--slot K --design ID --technology asap7 --dry-run]` | Measures per-technology PPA on stored designs and annotates the DB (enables `metric="asap7"` selection); `--design` scopes to one design, `--dry-run` measures without writing. Backs the `design-db-score` skill. |
 
-The decorator's generate-on-miss hook is `core.design_db_fill.rtlscout_fill`
+The decorator's generate-on-miss hook is `rtlscout.design_db_fill.rtlscout_fill`
 (`@from_design_db(fill=rtlscout_fill)`; model via `$RTLSCOUT_FILL_MODEL` or
 `make_rtlscout_fill(model=...)` — never a silent default). Trust model in one line: **agents
 propose; spire's gate disposes** — inserts only ever pass through `spire db insert`
@@ -712,7 +712,7 @@ The leading `/add-benchmark` loads the skill explicitly; everything after it is 
 Subclass `CostMetric` in `cost.py`:
 
 ```python
-from core.cost import CostMetric, CostResult
+from rtlscout.cost import CostMetric, CostResult
 
 class MyCost(CostMetric):
     @property

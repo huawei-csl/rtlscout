@@ -4,7 +4,7 @@
 (tech_eval/OpenROAD) and — unless ``dry_run`` — hands the values to spire's ``annotate`` gate,
 unlocking ``pick_design(..., metric="asap7")``. This backs the ``design-db-score`` skill in
 the OpenCode skills flow (via ``rtlscout_cli.py db-score``); the non-agentic campaign filler
-lives separately in ``core.design_db_fill``.
+lives separately in ``rtlscout.design_db_fill``.
 
 Direction note: RTLScout imports Spire (this module imports ``spire.design_db``); Spire never
 imports RTLScout back.
@@ -34,7 +34,7 @@ def score_designs(spec_keys: Optional[Sequence[str]] = None, *, db: Optional[Any
     slots. ``dry_run`` runs the same cost flow but **writes nothing** — the measured values are
     only returned (report ``measured``), for looking at numbers without committing them.
     """
-    from core.cost import make_cost_metric
+    from rtlscout.cost import make_cost_metric
     metric = make_cost_metric("area", target_delay=target_delay, technology=technology,
                               run_netlist_sim=run_netlist_sim)
     from spire.design_db import annotate

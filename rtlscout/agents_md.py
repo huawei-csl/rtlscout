@@ -14,7 +14,7 @@ Per-language differences are captured in ``_CFG``:
     in-repo docs) + point at the reference designs.
   - Verilog: a one-line note + point at the reference designs.
 
-Reuses the reference registries from ``core/prompts.py``; optimization guidance is emitted as
+Reuses the reference registries from ``rtlscout/prompts.py``; optimization guidance is emitted as
 short pointers (the OpenCode agent can read the referenced READMEs itself).
 """
 from __future__ import annotations
@@ -22,10 +22,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional
 
-from core.prompts import AMARANTH_REFERENCES, SPIREHDL_REFERENCES, VERILOG_REFERENCES, _SPIRE
+from rtlscout.prompts import AMARANTH_REFERENCES, SPIREHDL_REFERENCES, VERILOG_REFERENCES, _SPIRE
 
 if TYPE_CHECKING:
-    from core.agent_backend import BackendRequest
+    from rtlscout.agent_backend import BackendRequest
 
 # spire-hdl ships topic READMEs next to its main one — pointed at (not inlined) so a
 # shell-capable agent reads what it needs on demand.
@@ -106,7 +106,7 @@ def _demote_headings(md: str) -> str:
 
 def _objective(req: "BackendRequest", metric_name: str, cfg: dict) -> str:
     note = getattr(req.cost_metric, "metric_note", "") if req.cost_metric else ""
-    from core.prompts import COST_SCOPE_NOTE
+    from rtlscout.prompts import COST_SCOPE_NOTE
     note_line = (f"\n\n**Cost metric `{metric_name}`:** {note} {COST_SCOPE_NOTE}" if note
                  else f"\n\n**Cost metric `{metric_name}`:** {COST_SCOPE_NOTE}")
     return (

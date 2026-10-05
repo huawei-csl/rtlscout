@@ -14,10 +14,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.cost import CostMetric, YosysTransistorCost
-from core.evaluation import evaluate
-from core.llm_client import LLMClient, TokenUsage
-from core.prompts import MAX_TOOL_CALLS_PER_STEP, build_amaranth_system_prompt, build_spirehdl_system_prompt, build_system_prompt
+from rtlscout.cost import CostMetric, YosysTransistorCost
+from rtlscout.evaluation import evaluate
+from rtlscout.llm_client import LLMClient, TokenUsage
+from rtlscout.prompts import MAX_TOOL_CALLS_PER_STEP, build_amaranth_system_prompt, build_spirehdl_system_prompt, build_system_prompt
 from tech_eval.ppa_extract.core.template import target_delay_time_unit
 
 # Default read_file cap: a no-argument read returns at most this many characters, for every file

@@ -6,7 +6,7 @@ campaigns and combines their results into one Pareto front via `extract_pareto.p
 
   Phase 1  Structural exploration — one multirun campaign per cost metric
            (area, delay, ...), no synthesis decorators. Half explore / half
-           exploit (core.multirun's default fresh schedule).
+           exploit (rtlscout.multirun's default fresh schedule).
   Phase 2  Synthesis-aware polish — one campaign per cost metric, each *seeded*
            from the matching Phase-1 elite pool and run as pure exploitation
            (fresh=0). For Spire the agent additionally gets @arithmetic_optimized
@@ -189,8 +189,8 @@ def main():
         return
 
     # Lazy imports — keeps --help / --dry-run usable without the EDA deps installed.
-    from core.multirun import run_multirun
-    from core.runner import default_benchmarks_roots
+    from rtlscout.multirun import run_multirun
+    from rtlscout.runner import default_benchmarks_roots
     from extract_pareto import extract
 
     benchmarks_root = args.benchmarks_root or default_benchmarks_roots()

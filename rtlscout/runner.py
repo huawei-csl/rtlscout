@@ -12,10 +12,10 @@ from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 
-from core.agent import AgentResult
-from core.benchmarks import Benchmark, RootsLike, load_benchmarks, normalize_roots
-from core.cost import CostMetric
-from core.llm_client import AnthropicClient, DeepInfraClient, OpenRouterClient, LLMClient
+from rtlscout.agent import AgentResult
+from rtlscout.benchmarks import Benchmark, RootsLike, load_benchmarks, normalize_roots
+from rtlscout.cost import CostMetric
+from rtlscout.llm_client import AnthropicClient, DeepInfraClient, OpenRouterClient, LLMClient
 
 # Load .env for API keys
 _ENV_PATHS = [
@@ -142,7 +142,7 @@ def build_client(
             raise ValueError("ANTHROPIC_API_KEY not set")
         return AnthropicClient(model=model, api_key=key)
     elif provider == "fake":
-        from core.fake_provider import build_fake_client
+        from rtlscout.fake_provider import build_fake_client
         return build_fake_client(model)
     else:
         raise ValueError(f"Unknown provider: {provider}. Use 'deepinfra', 'openrouter', 'anthropic', or 'fake'.")
@@ -164,7 +164,7 @@ def provision_workspace(
     when ``run_cec`` is set and the benchmark ships one.
 
     Returns ``(workspace, cec_reference)``. This is the single provisioning routine
-    shared by every agent backend AND by the authoritative re-eval (``core.reeval``):
+    shared by every agent backend AND by the authoritative re-eval (``rtlscout.reeval``):
     the integrity model depends on the judge laying down the benchmark's *own* inputs
     exactly the way the agent's workspace was first built.
     """
@@ -204,7 +204,7 @@ def provision_workspace(
     # benchmarks without one simply skip the check.
     cec_reference = None
     if run_cec and benchmark.golden_reference is not None:
-        from core.equivalence import resolve_golden_reference
+        from rtlscout.equivalence import resolve_golden_reference
         cec_reference = resolve_golden_reference(benchmark, workdir / "_golden")
 
     return workspace, cec_reference
@@ -232,7 +232,7 @@ def run_agent_on_benchmark(
 ) -> AgentResult:
     """Execute the agent on a single benchmark and return the result.
 
-    ``backend_cfg`` (``core.agent_backend.BackendConfig``) selects the agent
+    ``backend_cfg`` (``rtlscout.agent_backend.BackendConfig``) selects the agent
     implementation and carries its backend-specific knobs; the default (None) is the
     react backend — the in-process ReAct loop, byte-for-byte identical to the pre-seam
     behaviour. ``agent_sandbox`` is the injected agent-role Sandbox (None ⇒ the backend
@@ -251,7 +251,7 @@ def run_agent_on_benchmark(
     )
 
     # Dispatch to the selected agent backend (default 'react' == today's loop).
-    from core.agent_backend import BackendConfig, BackendRequest, RunLimits, make_backend
+    from rtlscout.agent_backend import BackendConfig, BackendRequest, RunLimits, make_backend
     cfg = backend_cfg or BackendConfig()
     backend = make_backend(cfg.name)
     request = BackendRequest(
@@ -398,7 +398,7 @@ def _run_model_benchmarks(task: dict) -> Dict[str, Any]:
 
     # Reconstruct cost metric in worker process
     if cost_metric_cfg:
-        from core.cost import make_cost_metric
+        from rtlscout.cost import make_cost_metric
         cost_metric = make_cost_metric(
             cost_metric_cfg["name"],
             target_delay=cost_metric_cfg.get("target_delay", 500.0),

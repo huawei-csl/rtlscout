@@ -16,9 +16,9 @@ Usage:
 import argparse
 from pathlib import Path
 
-from core.agent_backend import BackendConfig
-from core.cost import COST_METRICS
-from core.multirun import run_multirun
+from rtlscout.agent_backend import BackendConfig
+from rtlscout.cost import COST_METRICS
+from rtlscout.multirun import run_multirun
 
 
 def main():

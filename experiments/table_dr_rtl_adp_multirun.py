@@ -42,8 +42,8 @@ from typing import Any, Dict, List, Optional, Tuple
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from core.benchmarks import load_benchmark  # noqa: E402
-from core.cost import make_cost_metric  # noqa: E402
+from rtlscout.benchmarks import load_benchmark  # noqa: E402
+from rtlscout.cost import make_cost_metric  # noqa: E402
 
 # Keep aligned with experiments/dr_rtl_multirun.py::AVAILABLE_CASES.
 CASE_ORDER = ["ticket", "controller", "router", "pcie", "cpu_pipe", "datapath"]

@@ -20,10 +20,10 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.agent_backend import BackendConfig
-from core.benchmarks import Benchmark, RootsLike, load_benchmarks
-from core.cost import COST_METRICS
-from core.runner import default_benchmarks_roots
+from rtlscout.agent_backend import BackendConfig
+from rtlscout.benchmarks import Benchmark, RootsLike, load_benchmarks
+from rtlscout.cost import COST_METRICS
+from rtlscout.runner import default_benchmarks_roots
 
 
 # ── dataclasses ──────────────────────────────────────────────────────────────
@@ -349,10 +349,10 @@ def build_seed_prompt(
 
 def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
     """Execute a single agent run.  Runs in a subprocess."""
-    from core.benchmarks import Benchmark, load_benchmark
-    from core.cost import make_cost_metric
-    from core.runner import parse_model_spec, run_agent_on_benchmark
-    from core.sandbox import make_agent_sandbox, make_judge_sandbox
+    from rtlscout.benchmarks import Benchmark, load_benchmark
+    from rtlscout.cost import make_cost_metric
+    from rtlscout.runner import parse_model_spec, run_agent_on_benchmark
+    from rtlscout.sandbox import make_agent_sandbox, make_judge_sandbox
 
     runs_root = Path(runs_root_str)
     run_index = task["run_index"]
@@ -455,7 +455,7 @@ def _run_one_agent(task: Dict[str, Any], runs_root_str: str) -> Dict[str, Any]:
     # set against the benchmark's own inputs and its numbers replace the agent's for
     # pool/Pareto selection.
     if cfg.wants_reeval and result_dict.get("status") == "ok" and result_dict.get("workdir"):
-        from core.reeval import adopt_authoritative_result
+        from rtlscout.reeval import adopt_authoritative_result
         judge_sandbox = make_judge_sandbox(cfg.deploy_mode, session_id=cfg.session_id,
                                            work_root=Path(result_dict["workdir"]),
                                            run_index=run_index)
@@ -509,7 +509,7 @@ def run_multirun(
 ) -> Dict[str, Any]:
     """Run the async elite-pool multi-run optimization.
 
-    ``backend_cfg`` (``core.agent_backend.BackendConfig``) selects the per-run agent
+    ``backend_cfg`` (``rtlscout.agent_backend.BackendConfig``) selects the per-run agent
     backend and carries its knobs (deploy mode, re-eval, wall clock, design-DB layer);
     the default (None) is the plain in-process react backend. A fresh ``session_id`` is
     stamped per campaign, used to label + sweep this campaign's orchestrated containers.

@@ -204,11 +204,11 @@ How it works:
 | Fresh agent (empty elite pool, or `p_fresh` coin flip) | ✗ |
 | Multirun → multirun via `--seed-from <pareto_front.json>` (extract format) | ✓ only for `--separate-dirs` extracts |
 
-The propagation lives in `core.multirun.build_seed_context`, which whitelists `.spire_cache/` when copying a seeding predecessor's `best_design/` into the seeded agent's context.
+The propagation lives in `rtlscout.multirun.build_seed_context`, which whitelists `.spire_cache/` when copying a seeding predecessor's `best_design/` into the seeded agent's context.
 
-**Fresh agents don't inherit any cache** — by design. `core.multirun._make_task` (the fresh/seeded dispatch) skips `build_seed_context` entirely when the pool is empty or the `p_fresh` coin flip fires, so a fresh agent always starts from the benchmark's raw `context/` folder with a cold cache. This is intentional: fresh agents are the exploration arm and should not be biased by prior exploitation work.
+**Fresh agents don't inherit any cache** — by design. `rtlscout.multirun._make_task` (the fresh/seeded dispatch) skips `build_seed_context` entirely when the pool is empty or the `p_fresh` coin flip fires, so a fresh agent always starts from the benchmark's raw `context/` folder with a cold cache. This is intentional: fresh agents are the exploration arm and should not be biased by prior exploitation work.
 
-**Extract-format seeds carry a cache only for `--separate-dirs` extracts.** When the entry's `extracted_file` lives in its own subdirectory (`extract_pareto.py --separate-dirs`, which copies `.spire_cache/` alongside each design), `_prepare_extract_seed_dir` (`core/multirun.py:211`) carries the sibling files and dirs — including `.spire_cache/` and local `.py` deps — into the seed dir. Flat extracts only have the single `.v`/`.py` file, so nothing else can be carried. If you seed from a flat extract, either re-extract with `--separate-dirs` or convert to `multirun_summary.json` format.
+**Extract-format seeds carry a cache only for `--separate-dirs` extracts.** When the entry's `extracted_file` lives in its own subdirectory (`extract_pareto.py --separate-dirs`, which copies `.spire_cache/` alongside each design), `_prepare_extract_seed_dir` (`rtlscout/multirun.py:211`) carries the sibling files and dirs — including `.spire_cache/` and local `.py` deps — into the seed dir. Flat extracts only have the single `.v`/`.py` file, so nothing else can be carried. If you seed from a flat extract, either re-extract with `--separate-dirs` or convert to `multirun_summary.json` format.
 
 ## Output structure
 
@@ -299,7 +299,7 @@ Title shows the benchmark, model, and global best cost. A subtitle shows the con
 
 The multirun system is built entirely on top of existing infrastructure with no modifications to core files:
 
-- **`core/multirun.py`** — `ElitePool` class, selection logic, seed context builder, async orchestration loop
+- **`rtlscout/multirun.py`** — `ElitePool` class, selection logic, seed context builder, async orchestration loop
 - **`run_multirun.py`** — CLI entry point
 
 It reuses `run_agent_on_benchmark()` from `runner.py` by constructing augmented `Benchmark` objects with temporary context directories containing seed design files.

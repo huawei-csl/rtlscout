@@ -2,7 +2,7 @@
 """rtlscout management CLI — orphan sweep / cleanup for orchestrated-mode containers
 (handover doc §5.5, layer 3).
 
-This is plain CLI (only depends on the `docker` binary + core.containers), so it works
+This is plain CLI (only depends on the `docker` binary + rtlscout.containers), so it works
 even after the harness/SDK process is gone — e.g. to clear running orphans left by a
 SIGKILLed harness:
 
@@ -19,7 +19,7 @@ import argparse
 import json
 import sys
 
-from core.containers import LABEL_SESSION, cleanup, list_managed
+from rtlscout.containers import LABEL_SESSION, cleanup, list_managed
 
 
 def main(argv=None) -> int:
@@ -63,7 +63,7 @@ def main(argv=None) -> int:
 
     if args.cmd == "fill-db":
         from spire.design_db import DesignDB, DesignDBError
-        from core.design_db_fill import fill_slot
+        from rtlscout.design_db_fill import fill_slot
         try:
             d = DesignDB.open(args.db, create=False)
             hits = [p.name for p in d.v1.iterdir()
@@ -82,7 +82,7 @@ def main(argv=None) -> int:
         return 0 if (report.admitted or report.deduped or report.seeded) else 1
 
     if args.cmd == "db-score":
-        from core.design_db_score import score_designs
+        from rtlscout.design_db_score import score_designs
         report = score_designs(args.slot, db=args.db, technology=args.technology,
                                target_delay=args.target_delay, run_netlist_sim=args.netlist_sim,
                                force=args.force, max_designs=args.max_designs,

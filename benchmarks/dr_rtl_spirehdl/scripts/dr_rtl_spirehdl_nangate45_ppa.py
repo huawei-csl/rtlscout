@@ -54,7 +54,7 @@ def _spirehdl_starting_point(case_dir: Path) -> Optional[Path]:
 def _compile_spirehdl(starting_point: Path, workdir: Path) -> Path:
     """Run the spirehdl .py inside workdir, producing design.v.
 
-    Mirrors core/runner.py's spirehdl compile step: copy the .py to
+    Mirrors rtlscout/runner.py's spirehdl compile step: copy the .py to
     workdir, chdir into workdir, run as a subprocess. Returns the path
     to the produced design.v.
     """

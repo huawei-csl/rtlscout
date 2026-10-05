@@ -23,10 +23,10 @@ requires_opencode_live = pytest.mark.skipif(
 
 def _make_req(tmp_path, language="verilog", model="z-ai/glm-4.6", provider="openrouter",
               wall_clock_s=0, design_db_skills=False):
-    from core.agent_backend import BackendRequest, RunLimits
-    from core.benchmarks import load_benchmark
-    from core.cost import make_cost_metric
-    from core.runner import provision_workspace
+    from rtlscout.agent_backend import BackendRequest, RunLimits
+    from rtlscout.benchmarks import load_benchmark
+    from rtlscout.cost import make_cost_metric
+    from rtlscout.runner import provision_workspace
 
     bench = load_benchmark(SIMPLE_ADDER_ROOT)
     workdir = tmp_path / "wd"
@@ -57,7 +57,7 @@ class _FakeSandbox:
 
     def run_command(self, argv, spec):
         from pathlib import Path
-        from core.sandbox import CommandResult
+        from rtlscout.sandbox import CommandResult
         self.specs.append(spec)
         s = self.scripts[min(self.calls, len(self.scripts) - 1)]
         self.calls += 1
@@ -73,7 +73,7 @@ class _FakeSandbox:
 
 def _run_with_fake(tmp_path, scripts, wall_clock_s=300, design_db_skills=False):
     """Run OpenCodeBackend.run with a fake sandbox; return the provenance dict."""
-    from core.opencode_backend import OpenCodeBackend
+    from rtlscout.opencode_backend import OpenCodeBackend
     req = _make_req(tmp_path, wall_clock_s=wall_clock_s, design_db_skills=design_db_skills)
     req.agent_sandbox = _FakeSandbox(req.workdir, scripts)
     OpenCodeBackend().run(req)
@@ -85,7 +85,7 @@ _SID = '{"type":"step_start","sessionID":"ses_test"}'
 
 def test_nudge_loop_caps_at_max_rounds(tmp_path):
     """Agent returns early each round but keeps producing evals → nudged up to the hard cap."""
-    from core.opencode_backend import NUDGE_MAX_ROUNDS
+    from rtlscout.opencode_backend import NUDGE_MAX_ROUNDS
     scripts = [{"stdout": _SID, "add_eval": True}]  # every call adds an eval → never breaks early
     prov = _run_with_fake(tmp_path, scripts)
     assert prov["nudge_rounds"] == NUDGE_MAX_ROUNDS
@@ -116,7 +116,7 @@ def test_no_nudge_without_wall_clock(tmp_path):
 
 
 def test_extract_session_id():
-    from core.opencode_backend import _extract_session_id
+    from rtlscout.opencode_backend import _extract_session_id
     stream = ('{"type":"step_start","sessionID":"ses_abc123","part":{}}\n'
               '{"type":"text","part":{"text":"hi"}}\n')
     assert _extract_session_id(stream) == "ses_abc123"
@@ -125,14 +125,14 @@ def test_extract_session_id():
 
 
 def test_make_backend_opencode():
-    from core.agent_backend import make_backend
-    from core.opencode_backend import OpenCodeBackend
+    from rtlscout.agent_backend import make_backend
+    from rtlscout.opencode_backend import OpenCodeBackend
     assert isinstance(make_backend("opencode"), OpenCodeBackend)
     assert make_backend("opencode").name == "opencode"
 
 
 def test_render_agents_md_workflow_present(tmp_path):
-    from core.opencode_backend import render_agents_md
+    from rtlscout.opencode_backend import render_agents_md
     req = _make_req(tmp_path, language="verilog")
     md = render_agents_md(req)
     # The clean workflow block + the eval wrapper + the right design filename.
@@ -149,7 +149,7 @@ def test_render_agents_md_workflow_present(tmp_path):
 
 
 def test_write_remaining_time_wrapper(tmp_path):
-    from core.opencode_backend import write_remaining_time_wrapper
+    from rtlscout.opencode_backend import write_remaining_time_wrapper
     req = _make_req(tmp_path, wall_clock_s=300)
     (req.workdir / "_deadline_epoch").write_text("9999999999")
     w = write_remaining_time_wrapper(req)
@@ -159,7 +159,7 @@ def test_write_remaining_time_wrapper(tmp_path):
 
 
 def test_render_agents_md_spirehdl_design_py(tmp_path):
-    from core.opencode_backend import render_agents_md
+    from rtlscout.opencode_backend import render_agents_md
     req = _make_req(tmp_path, language="spirehdl")
     md = render_agents_md(req)
     assert "design.py" in md
@@ -168,8 +168,8 @@ def test_render_agents_md_spirehdl_design_py(tmp_path):
 def test_spirehdl_agents_md_points_to_readme_not_inlined(tmp_path):
     """OpenCode (shell + read access) should get compact pointers to the spire-hdl README +
     reference files, NOT ~tens of KB of inlined source — keeps AGENTS.md small."""
-    from core.opencode_backend import render_agents_md
-    from core.prompts import build_spirehdl_system_prompt
+    from rtlscout.opencode_backend import render_agents_md
+    from rtlscout.prompts import build_spirehdl_system_prompt
 
     md = render_agents_md(_make_req(tmp_path, language="spirehdl"))
     assert "deps/spire-hdl/README.md" in md          # points at the main README
@@ -182,7 +182,7 @@ def test_spirehdl_agents_md_points_to_readme_not_inlined(tmp_path):
 
 def test_spirehdl_agents_md_no_verbose_overview(tmp_path):
     """The verbose react 'Spire Overview' prose is dropped in the OpenCode renderer."""
-    from core.opencode_backend import render_agents_md
+    from rtlscout.opencode_backend import render_agents_md
     md = render_agents_md(_make_req(tmp_path, language="spirehdl"))
     assert "## Spire Overview" not in md
 
@@ -191,7 +191,7 @@ def test_all_hdls_are_clean_no_react_cruft(tmp_path):
     """Every OpenCode HDL prompt uses the lean renderer: a clean '## How you work here'
     workflow, and NONE of the react loop's tool mechanics (the in-house tool list, the
     'always call a tool' rule, the step budget, or the 'overrides/ignore' preamble)."""
-    from core.opencode_backend import render_agents_md
+    from rtlscout.opencode_backend import render_agents_md
     for lang in ("spirehdl", "verilog", "amaranth"):
         md = render_agents_md(_make_req(tmp_path / lang, language=lang))
         assert "## How you work here" in md, lang
@@ -205,7 +205,7 @@ def test_all_hdls_are_clean_no_react_cruft(tmp_path):
 
 
 def test_amaranth_agents_md_clean(tmp_path):
-    from core.opencode_backend import render_agents_md
+    from rtlscout.opencode_backend import render_agents_md
     md = render_agents_md(_make_req(tmp_path, language="amaranth"))
     assert "Amaranth notes" in md                       # concise inline HDL note
     assert "Elaboratable" in md
@@ -214,7 +214,7 @@ def test_amaranth_agents_md_clean(tmp_path):
 
 
 def test_render_opencode_config(tmp_path):
-    from core.opencode_backend import render_opencode_config
+    from rtlscout.opencode_backend import render_opencode_config
     req = _make_req(tmp_path, model="z-ai/glm-4.6", provider="openrouter")
     cfg = render_opencode_config(req)
     assert cfg["model"] == "openrouter/z-ai/glm-4.6"
@@ -234,7 +234,7 @@ def test_render_opencode_config(tmp_path):
 def test_render_opencode_config_design_db_skills(tmp_path):
     """--design-db-skills merges the subagents: mode subagent, hidden, task tool denied (structural
     depth cap); the primary rtl agent keeps its task allowance."""
-    from core.opencode_backend import render_opencode_config
+    from rtlscout.opencode_backend import render_opencode_config
     cfg = render_opencode_config(_make_req(tmp_path, design_db_skills=True))
     for name in ("rtl-subcircuit", "rtl-dv-prep"):
         sub = cfg["agent"][name]
@@ -246,7 +246,7 @@ def test_render_opencode_config_design_db_skills(tmp_path):
 
 
 def test_agents_md_design_db_section_gated(tmp_path):
-    from core.opencode_backend import render_agents_md
+    from rtlscout.opencode_backend import render_agents_md
     md = render_agents_md(_make_req(tmp_path, design_db_skills=True))
     assert "## Design DB" in md
     assert "design-db-dispatch" in md and "design-db-inspect" in md
@@ -257,7 +257,7 @@ def test_agents_md_design_db_section_gated(tmp_path):
 def test_run_provisions_skills(tmp_path):
     """A --design-db-skills backend run (fake sandbox, no LLM) leaves the skill pack in the
     workspace; a default run leaves none."""
-    from core.design_db_skills import SKILL_NAMES
+    from rtlscout.design_db_skills import SKILL_NAMES
     _run_with_fake(tmp_path, [{"stdout": _SID, "returncode": 0}], wall_clock_s=0,
                    design_db_skills=True)
     skills = tmp_path / "wd" / "workspace" / ".opencode" / "skills"
@@ -276,7 +276,7 @@ def test_design_db_handover_env_and_mount(tmp_path):
     the dir is pre-created (a docker mount of a missing host dir would be root-owned). With
     the skills layer off the path is ignored entirely."""
     from pathlib import Path
-    from core.opencode_backend import OpenCodeBackend
+    from rtlscout.opencode_backend import OpenCodeBackend
     db_root = tmp_path / "campaign_db"
     req = _make_req(tmp_path, wall_clock_s=0, design_db_skills=True)
     req.design_db_path = db_root
@@ -298,7 +298,7 @@ def test_design_db_handover_env_and_mount(tmp_path):
 
 
 def test_child_session_extraction_and_store_preservation(tmp_path):
-    from core.opencode_backend import _extract_child_session_ids, _preserve_session_store
+    from rtlscout.opencode_backend import _extract_child_session_ids, _preserve_session_store
     text = 'x {"sessionID":"ses_parent1"} task ses_childA … ses_childB … ses_childA again'
     assert _extract_child_session_ids(text, "ses_parent1") == ["ses_childA", "ses_childB"]
     assert _extract_child_session_ids(text, None) == ["ses_childA", "ses_childB", "ses_parent1"]
@@ -359,7 +359,7 @@ def test_final_framework_eval_runs_when_design_present(tmp_path):
     """The harness scores the final workspace state itself (react parity) — a parent killed
     mid-wrap-up loses nothing measurable. design_db_skills=True: the wrap-up lifecycle (final eval →
     summary turn → export) must be identical with the design-DB layer on."""
-    from core.opencode_backend import OpenCodeBackend
+    from rtlscout.opencode_backend import OpenCodeBackend
     req = _make_req(tmp_path, wall_clock_s=0, design_db_skills=True)
     (req.workspace / "design.sv").write_text(
         "module adder(input [7:0] a, input [7:0] b, output [7:0] sum);\n"
@@ -381,7 +381,7 @@ def test_final_framework_eval_runs_when_design_present(tmp_path):
 def test_final_eval_file_override(tmp_path):
     """`.final_eval_file` redirects the closing score to the agent's actual final design;
     an invalid override falls back to the default with a provenance note."""
-    from core.opencode_backend import OpenCodeBackend
+    from rtlscout.opencode_backend import OpenCodeBackend
     req = _make_req(tmp_path, wall_clock_s=0)
     (req.workspace / "alt_design.sv").write_text("module adder(); endmodule\n")
     (req.workspace / ".final_eval_file").write_text("alt_design.sv\n")
@@ -408,8 +408,8 @@ def test_final_eval_file_override(tmp_path):
 
 def test_local_sandbox_graceful_term(tmp_path):
     """Wall-clock expiry sends SIGTERM first (child can flush state), SIGKILL only after grace."""
-    from core.agent_backend import RunLimits
-    from core.sandbox import LocalSandbox, SandboxSpec
+    from rtlscout.agent_backend import RunLimits
+    from rtlscout.sandbox import LocalSandbox, SandboxSpec
     spec = SandboxSpec(workdir=tmp_path, limits=RunLimits(max_steps=1, wall_clock_s=1))
     res = LocalSandbox().run_command(
         ["python3", "-c",
@@ -426,8 +426,8 @@ def test_local_sandbox_kills_the_whole_process_tree(tmp_path):
     process GROUP down (K8: an orphaned in-flight evaluate_design wrote an eval snapshot
     9 s after the kill)."""
     import time
-    from core.agent_backend import RunLimits
-    from core.sandbox import LocalSandbox, SandboxSpec
+    from rtlscout.agent_backend import RunLimits
+    from rtlscout.sandbox import LocalSandbox, SandboxSpec
     marker = tmp_path / "late_marker"
     script = f"(sleep 3 && touch {marker}) & exec sleep 30"
     res = LocalSandbox().run_command(
@@ -441,8 +441,8 @@ def test_local_sandbox_kills_the_whole_process_tree(tmp_path):
 def test_container_sandbox_mounts_rw_args(tmp_path, monkeypatch):
     """SandboxSpec.mounts_rw becomes writable identity -v flags (no docker needed — capture
     the constructed argv)."""
-    from core.agent_backend import RunLimits
-    from core.sandbox import ContainerSandbox, SandboxSpec
+    from rtlscout.agent_backend import RunLimits
+    from rtlscout.sandbox import ContainerSandbox, SandboxSpec
 
     captured = {}
 
@@ -454,7 +454,7 @@ def test_container_sandbox_mounts_rw_args(tmp_path, monkeypatch):
             stderr = ""
         return R()
 
-    import core.sandbox as sb
+    import rtlscout.sandbox as sb
     monkeypatch.setattr(sb.subprocess, "run", fake_run)
     box = ContainerSandbox(work_root=tmp_path, host_repo=tmp_path, image="rtlscout:latest",
                            session_id="t" * 8, role="agent", run_index=0)
@@ -471,7 +471,7 @@ def test_container_sandbox_mounts_rw_args(tmp_path, monkeypatch):
 
 
 def test_write_eval_config_and_wrapper(tmp_path):
-    from core.opencode_backend import write_eval_config, write_eval_wrapper
+    from rtlscout.opencode_backend import write_eval_config, write_eval_wrapper
     req = _make_req(tmp_path, language="verilog")
 
     cfg_path = write_eval_config(req)
@@ -485,7 +485,7 @@ def test_write_eval_config_and_wrapper(tmp_path):
     assert wrapper == req.workspace / "evaluate_design"
     assert os.access(wrapper, os.X_OK), "wrapper must be executable"
     body = wrapper.read_text()
-    assert "core.eval_store" in body
+    assert "rtlscout.eval_store" in body
     assert str(req.workspace.resolve()) in body
 
 
@@ -493,7 +493,7 @@ def test_write_eval_config_and_wrapper(tmp_path):
 def test_opencode_noninteractive_write_gate(tmp_path):
     """§4.8 gate: a real opencode run must non-interactively create a design file and
     call the eval shim, producing at least one recorded evaluation."""
-    from core.opencode_backend import OpenCodeBackend
+    from rtlscout.opencode_backend import OpenCodeBackend
 
     req = _make_req(tmp_path, language="verilog",
                     model=os.environ.get("RTLSCOUT_OPENCODE_MODEL", "z-ai/glm-4.6"),

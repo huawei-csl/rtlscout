@@ -223,7 +223,7 @@ def augment_dir(bench_dir: Path, tree: str) -> str:
 def materialize_spirehdl_baselines(cases=None) -> None:
     """Compile each spirehdl starting_point.py once into context/design.v —
     the compiled-baseline CEC reference the evidence engine expects. Safe:
-    core.runner skips a context design.v for non-verilog workspaces, so
+    rtlscout.runner skips a context design.v for non-verilog workspaces, so
     agents never see it."""
     root, _ = BENCH_TREES["spirehdl"]
     for c in (cases or range(1, 15)):

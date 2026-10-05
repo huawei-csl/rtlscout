@@ -78,7 +78,7 @@ def test_run_eval_cli_in_place(tmp_path):
 @requires_yosys
 def test_run_eval_simple_adder(tmp_path):
     """Evaluate a correct simple_adder design directly (no LLM)."""
-    from core.evaluation import evaluate
+    from rtlscout.evaluation import evaluate
 
     workdir = tmp_path / "workspace"
     workdir.mkdir()
@@ -106,7 +106,7 @@ def test_run_eval_skip_sim_cec_only(tmp_path):
     """run_rtl_sim=False (run_eval.py --skip-rtl-sim / db-score): no testbench needed,
     correctness is skipped, pass comes from the CEC verdict alone — and pass_rate is
     None (not measured), not a misleading 0.0 on a formally proven pass."""
-    from core.evaluation import evaluate
+    from rtlscout.evaluation import evaluate
 
     workdir = tmp_path / "workspace"
     workdir.mkdir()
@@ -130,8 +130,8 @@ def test_run_benchmark_simple_adder(tmp_path, monkeypatch):
     """Run the agent loop on simple_adder with a fake Verilog provider."""
     # The done tool is off by default (6b72f6e); this test exercises the done path.
     monkeypatch.setenv("RTLSCOUT_ALLOW_DONE", "1")
-    from core.benchmarks import load_benchmark
-    from core.runner import run_agent_on_benchmark
+    from rtlscout.benchmarks import load_benchmark
+    from rtlscout.runner import run_agent_on_benchmark
 
     bench = load_benchmark(SIMPLE_ADDER_ROOT)
     result = run_agent_on_benchmark(
@@ -154,8 +154,8 @@ def test_run_benchmark_simple_adder(tmp_path, monkeypatch):
 @requires_yosys
 def test_run_benchmark_simple_adder_spirehdl(tmp_path):
     """Run the agent loop on simple_adder with a fake Spire provider."""
-    from core.benchmarks import load_benchmark
-    from core.runner import run_agent_on_benchmark
+    from rtlscout.benchmarks import load_benchmark
+    from rtlscout.runner import run_agent_on_benchmark
 
     bench = load_benchmark(SIMPLE_ADDER_ROOT)
     result = run_agent_on_benchmark(
@@ -178,8 +178,8 @@ def test_run_benchmark_simple_adder_spirehdl(tmp_path):
 @requires_yosys
 def test_run_multirun_simple_adder(tmp_path):
     """Run multirun on simple_adder with a fake Verilog provider."""
-    from core.agent_backend import BackendConfig
-    from core.multirun import run_multirun
+    from rtlscout.agent_backend import BackendConfig
+    from rtlscout.multirun import run_multirun
 
     summary = run_multirun(
         benchmark_name="simple_adder",
@@ -211,7 +211,7 @@ def test_run_multirun_simple_adder(tmp_path):
 @requires_yosys
 def test_run_multirun_simple_adder_spirehdl(tmp_path):
     """Run multirun on simple_adder with a fake Spire provider."""
-    from core.multirun import run_multirun
+    from rtlscout.multirun import run_multirun
 
     summary = run_multirun(
         benchmark_name="simple_adder",

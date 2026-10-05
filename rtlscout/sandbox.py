@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, List, Optional, Protocol, Sequence
 
 if TYPE_CHECKING:
-    from core.agent_backend import RunLimits
+    from rtlscout.agent_backend import RunLimits
 
 
 @dataclass
@@ -192,7 +192,7 @@ class ContainerSandbox:
     def run_callable(self, fn: Callable[[], Any], spec: SandboxSpec) -> Any:
         raise NotImplementedError(
             "ContainerSandbox runs work via run_command (a CLI), not in-process callables; "
-            "reeval uses `python -m core.reeval` inside the judge container.")
+            "reeval uses `python -m rtlscout.reeval` inside the judge container.")
 
     def run_command(self, argv: List[str], spec: SandboxSpec) -> CommandResult:
         name = self._container_name()

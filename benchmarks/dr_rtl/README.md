@@ -19,7 +19,7 @@ benchmarks/dr_rtl/<name>/
 ```
 
 `run_benchmark.py --benchmark dr_rtl/<name>` resolves it via the relative-path
-lookup in `core/benchmarks.py:load_benchmarks`.
+lookup in `rtlscout/benchmarks.py:load_benchmarks`.
 
 ## Status
 

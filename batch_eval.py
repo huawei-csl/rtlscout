@@ -37,8 +37,8 @@ def _eval_single(design_dir: Path, design_file_name: str, td: float,
     """
     import tempfile
 
-    from core.cost import make_cost_metric
-    from core.evaluation import evaluate
+    from rtlscout.cost import make_cost_metric
+    from rtlscout.evaluation import evaluate
 
     name = design_dir.name
     label = f"{name}/{design_file_name}"
@@ -141,8 +141,8 @@ def main():
         if tb_match:
             eval_top = tb_match.group(1)
 
-    from core.cost import make_cost_metric
-    from core.evaluation import evaluate
+    from rtlscout.cost import make_cost_metric
+    from rtlscout.evaluation import evaluate
 
     global_tds = args.target_delay
     td_desc = str(global_tds) if global_tds else "per-entry"

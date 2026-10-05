@@ -4,12 +4,12 @@ import re
 from pathlib import Path
 from typing import List
 
-# Hard cap enforced by the agent loop (core/agent.py) and stated in the
+# Hard cap enforced by the agent loop (rtlscout/agent.py) and stated in the
 # system prompt; extra calls in a response are not executed.
 MAX_TOOL_CALLS_PER_STEP = 8
 
 from tech_eval.ppa_extract.core.template import target_delay_time_unit
-from core.evaluation import SPIREHDL_VERILOG_OUTPUT, AMARANTH_VERILOG_OUTPUT
+from rtlscout.evaluation import SPIREHDL_VERILOG_OUTPUT, AMARANTH_VERILOG_OUTPUT
 
 # ---------------------------------------------------------------------------
 # Optimization decorators README (read once at import time from spire-hdl)
@@ -242,7 +242,7 @@ def _build_references_block(registry: List[dict], **flags: bool) -> str:
 
 
 # (The OpenCode reference-pointer block + per-HDL AGENTS.md assembly live in
-# core/agents_md.py — the react prompts below inline their references instead.)
+# rtlscout/agents_md.py — the react prompts below inline their references instead.)
 
 
 # ---------------------------------------------------------------------------
@@ -644,7 +644,7 @@ def build_spirehdl_system_prompt(description: str, cost_metric_name: str, extra:
                                   fsm_optimize: bool = False,
                                   cost_metric_note: str = "") -> str:
     # The react loop inlines the reference sources. (The OpenCode path uses the lean
-    # pointer-based renderer in core.agents_md instead.)
+    # pointer-based renderer in rtlscout.agents_md instead.)
     gate = dict(abc_optimize=abc_optimize, flowy_optimize=flowy_optimize,
                 arith_autoconfig=arith_autoconfig, fsm_optimize=fsm_optimize)
     references_block = _build_references_block(SPIREHDL_REFERENCES, **gate)

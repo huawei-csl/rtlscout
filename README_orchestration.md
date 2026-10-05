@@ -35,13 +35,13 @@ python run_multirun.py --benchmark fpmul_f16 --model openrouter:z-ai/glm-5.2 \
 
 Two orthogonal abstractions, selected by one flag each:
 
-- **`AgentBackend`** (`core/agent_backend.py`) — *how* the agent runs. `--agent-backend`.
-  - `PythonReactBackend` — the in-process ReAct loop (`core/agent.py::RTLAgent`). Default;
+- **`AgentBackend`** (`rtlscout/agent_backend.py`) — *how* the agent runs. `--agent-backend`.
+  - `PythonReactBackend` — the in-process ReAct loop (`rtlscout/agent.py::RTLAgent`). Default;
     capability-confined (no shell); the only backend that can replay the offline `fake:`
     smoke test.
-  - `OpenCodeBackend` (`core/opencode_backend.py`) — an external `opencode run` with a real
+  - `OpenCodeBackend` (`rtlscout/opencode_backend.py`) — an external `opencode run` with a real
     shell.
-- **`Sandbox`** (`core/sandbox.py`) — *where* work runs, used for **both** the agent and the
+- **`Sandbox`** (`rtlscout/sandbox.py`) — *where* work runs, used for **both** the agent and the
   judge. `--mode`.
   - `LocalSandbox` — in the current process/container (single-container).
   - `ContainerSandbox` — a fresh `docker run --rm` per call (orchestrated).
@@ -115,7 +115,7 @@ doesn't need to be trustworthy (it only helps the agent iterate); the *recorded*
 | Purpose | feedback for iteration | the recorded score |
 | Trust | untrusted | trusted |
 | Inputs | the agent's own (writable) copies | the **benchmark's own** tb.sv + all `*.dat` (+ golden) |
-| Implemented by | `run_eval_and_store` (`core/eval_store.py`) | `reeval_run` (`core/reeval.py`) |
+| Implemented by | `run_eval_and_store` (`rtlscout/eval_store.py`) | `reeval_run` (`rtlscout/reeval.py`) |
 | From the agent | everything in its container | **design source only** |
 
 Same `evaluate()`, same args — only the **provenance of the inputs** differs. That delta is
@@ -166,10 +166,10 @@ exposed.)
 
 ## The OpenCode backend
 
-Per-run lifecycle (`core/opencode_backend.py`):
+Per-run lifecycle (`rtlscout/opencode_backend.py`):
 
 1. **Provision** the workspace (shared `provision_workspace`).
-2. **Render** `AGENTS.md` (the per-language `core/prompts.py` spec + an *OpenCode execution
+2. **Render** `AGENTS.md` (the per-language `rtlscout/prompts.py` spec + an *OpenCode execution
    section* that overrides the react tool mechanics, documents the `./evaluate_design` eval
    shim, and keeps the four reflection prompts), `opencode.json`, `_eval_config.json`, and an
    executable `evaluate_design` wrapper.

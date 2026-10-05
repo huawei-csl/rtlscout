@@ -523,8 +523,8 @@ These are recommendations for the *next* iteration; not in scope now.
    design, no LFSR generator. Reserved for FIFO-style designs where the
    protocol *is* the design. Small benefit vs cost of writing 1–2 hand tbs.
 
-3. **`tb_mode: "synth_only"` for CPUs.** Add a branch in `core/runner.py` /
-   `core/evaluation.py` that skips the verilator correctness gate when
+3. **`tb_mode: "synth_only"` for CPUs.** Add a branch in `rtlscout/runner.py` /
+   `rtlscout/evaluation.py` that skips the verilator correctness gate when
    `metadata["tb_mode"] == "synth_only"`. Lets cells/wires/transistors numbers
    be measured on tv80/arm/etc without committing to a meaningful stimulus.
    Smallest possible change to make these designs scoreable.

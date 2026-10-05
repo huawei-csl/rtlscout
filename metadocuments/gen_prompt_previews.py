@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Generate all prompt previews for review, for each HDL:
 
-  - the OpenCode AGENTS.md  (core.opencode_backend.render_agents_md)  -> _AGENTS_preview_<lang>.md
-  - the react-loop system prompt (core.prompts.build_*_system_prompt)  -> _react_prompt_<lang>.txt
+  - the OpenCode AGENTS.md  (rtlscout.opencode_backend.render_agents_md)  -> _AGENTS_preview_<lang>.md
+  - the react-loop system prompt (rtlscout.prompts.build_*_system_prompt)  -> _react_prompt_<lang>.txt
 
 6 files total (3 HDLs x 2 backends), written next to this script (metadocuments/). These are
 review-only scratch artifacts (git-ignored). Run from anywhere:
@@ -10,7 +10,7 @@ review-only scratch artifacts (git-ignored). Run from anywhere:
     python metadocuments/gen_prompt_previews.py
 
 Must run in an environment with the toolchain deps importable (the rtlscout container), since
-core.prompts imports tech_eval/spirehdl.
+rtlscout.prompts imports tech_eval/spirehdl.
 """
 import sys
 from pathlib import Path
@@ -33,7 +33,7 @@ SAMPLE_SEED = ("(sample) Previous best: 12345 area. A prior agent used a carry-s
 
 def _react_prompt(language, description, metric_name, cost_metric):
     """Render the react-loop system prompt for one HDL (mirrors what RTLAgent.run builds)."""
-    from core.prompts import (build_amaranth_system_prompt, build_spirehdl_system_prompt,
+    from rtlscout.prompts import (build_amaranth_system_prompt, build_spirehdl_system_prompt,
                               build_system_prompt)
     td_settable = hasattr(cost_metric, "target_delay")
     note = getattr(cost_metric, "metric_note", "") or ""
@@ -52,9 +52,9 @@ def _react_prompt(language, description, metric_name, cost_metric):
 def _agents_md(language, benchmark, cost_metric):
     """Render the OpenCode AGENTS.md for one HDL."""
     import shutil
-    from core.agent_backend import BackendRequest, RunLimits
-    from core.opencode_backend import render_agents_md
-    from core.runner import provision_workspace
+    from rtlscout.agent_backend import BackendRequest, RunLimits
+    from rtlscout.opencode_backend import render_agents_md
+    from rtlscout.runner import provision_workspace
     wd = Path("/tmp") / f"_preview_{language}"
     shutil.rmtree(wd, ignore_errors=True)
     ws, _ = provision_workspace(benchmark, wd, language=language, run_cec=False)
@@ -68,8 +68,8 @@ def _agents_md(language, benchmark, cost_metric):
 
 
 def main():
-    from core.benchmarks import load_benchmark
-    from core.cost import make_cost_metric
+    from rtlscout.benchmarks import load_benchmark
+    from rtlscout.cost import make_cost_metric
 
     for language, bench_path, metric in CASES:
         bench = load_benchmark(REPO / bench_path)

@@ -5,7 +5,7 @@ frontmatter `name` to equal the directory name (NameMismatchError otherwise).
 """
 import stat
 
-from core.design_db_skills import (SKILL_NAMES, SKILLS_SRC, design_db_subagent_entries,
+from rtlscout.design_db_skills import (SKILL_NAMES, SKILLS_SRC, design_db_subagent_entries,
                                    provision_design_db_skills, render_design_db_agents_section)
 
 
