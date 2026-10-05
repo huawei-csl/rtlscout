@@ -13,8 +13,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from dotenv import load_dotenv
-load_dotenv(Path(__file__).parent.parent / ".env")
+from rtlscout import paths
+paths.load_env()
 
 # Timeout (seconds) for Spire/Amaranth compilation subprocesses.
 # Override with SPIREHDL_TIMEOUT env var (e.g. for long flowy optimizations).

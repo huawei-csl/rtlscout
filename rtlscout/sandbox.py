@@ -27,6 +27,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, List, Optional, Protocol, Sequence
 
+from rtlscout import paths
+
 if TYPE_CHECKING:
     from rtlscout.agent_backend import RunLimits
 
@@ -249,7 +251,7 @@ class ContainerSandbox:
 
 # --- Deployment-mode factories: map --mode to the Sandbox impl for each role ----------------
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
+_REPO_ROOT = paths.workspace_root()
 _AGENT_IMAGE = "rtlscout-opencode:latest"
 
 

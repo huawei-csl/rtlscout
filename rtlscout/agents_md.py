@@ -22,7 +22,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional
 
-from rtlscout.prompts import AMARANTH_REFERENCES, SPIREHDL_REFERENCES, VERILOG_REFERENCES, _SPIRE
+from rtlscout.prompts import (AMARANTH_REFERENCES, SPIREHDL_REFERENCES, VERILOG_REFERENCES, _SPIRE,
+                              require_spire_sources)
 
 if TYPE_CHECKING:
     from rtlscout.agent_backend import BackendRequest
@@ -198,6 +199,8 @@ def render_opencode_agents_md(req: "BackendRequest", *, execution_section: str,
     one copy across languages.
     """
     cfg = _CFG.get(req.language, _CFG["verilog"])
+    if req.language == "spirehdl":
+        require_spire_sources()
     sections = [
         _objective(req, metric_name, cfg),
         execution_section,

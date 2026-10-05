@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar, Dict, List, Optional
 
+from rtlscout import paths
 from rtlscout.tech_eval.ppa_extract.core.template import target_delay_time_unit
 
 
@@ -321,7 +322,7 @@ class Sky130ADPCost(CostMetric):
 
 ASAP7_MERGED_NLDM = os.environ.get(
     "ASAP7_MERGED_NLDM",
-    str(Path(__file__).resolve().parent.parent / ".cache" / "asap7_merged_rvt_tt_nldm.lib"),
+    str(paths.cache_dir() / "asap7_merged_rvt_tt_nldm.lib"),
 )
 
 _ASAP7_NLDM_SOURCES = [

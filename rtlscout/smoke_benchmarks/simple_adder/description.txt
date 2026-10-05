@@ -1,0 +1,1 @@
+Design a module named adder that takes two 8-bit inputs a and b and produces an 8-bit output sum. The output should be the sum of a and b modulo 256.

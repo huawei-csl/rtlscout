@@ -27,6 +27,7 @@ import traceback
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from rtlscout import paths
 from rtlscout.eval_store import read_evals, select_best_eval, snapshot_best
 
 # Agent-workspace entries that are NEVER taken as design source: the benchmark owns the
@@ -322,8 +323,8 @@ def _container_judge_argv(eval_dir: Path, benchmark, cost_metric, language: str,
                           run_cec: bool) -> List[str]:
     """Build the `bash -c` argv that re-evals ONE eval_dir inside a judge container.
     Uses identity-mounted paths (host == container), the image's venv python, and
-    cd's into the repo so `core` is importable."""
-    repo = Path(__file__).resolve().parent.parent
+    cd's into the workspace root so the checkout mounted there provides `rtlscout`."""
+    repo = paths.workspace_root()
     py = "/home/vscode/pyenv_eda/bin/python"
     parts = [py, "-m", "rtlscout.reeval",
              "--eval-dir", str(eval_dir),

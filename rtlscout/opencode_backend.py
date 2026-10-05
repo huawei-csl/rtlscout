@@ -28,6 +28,8 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Optional
 
+from rtlscout import paths
+
 if TYPE_CHECKING:
     from rtlscout.agent import AgentResult
     from rtlscout.agent_backend import BackendRequest
@@ -118,7 +120,7 @@ _DESIGN_FILE_BY_LANG = {"spirehdl": "design.py", "amaranth": "design.py", "veril
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parent.parent
+    return paths.workspace_root()
 
 
 def _metric_name(req: "BackendRequest") -> str:

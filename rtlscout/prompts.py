@@ -8,28 +8,39 @@ from typing import List
 # system prompt; extra calls in a response are not executed.
 MAX_TOOL_CALLS_PER_STEP = 8
 
+from rtlscout import paths
 from rtlscout.tech_eval.ppa_extract.core.template import target_delay_time_unit
 from rtlscout.evaluation import SPIREHDL_VERILOG_OUTPUT, AMARANTH_VERILOG_OUTPUT
 
 # ---------------------------------------------------------------------------
-# Optimization decorators README (read once at import time from spire-hdl)
+# spire-hdl documentation (read once at import time)
 # ---------------------------------------------------------------------------
 
-# The topic READMEs live under deps/spire-hdl/docs/ in Spire >= 0.2.0.
-_opt_dec_path = Path(__file__).parent.parent / "deps" / "spire-hdl" / "docs" / "README_optimization_decorators.md"
-_OPTIMIZATION_DECORATORS_MD = _opt_dec_path.read_text()
+# The Spire prompts quote documentation and examples from the spire-hdl source tree, located by
+# rtlscout.paths.spire_hdl_root(): the deps/spire-hdl submodule of a checkout wherever it is mounted
+# (devcontainer, single-container, or an identity-mounted orchestrated container), RTLSCOUT_SPIRE_HDL_DIR, or the
+# tree an editable spire-hdl is installed from. The spire-hdl wheel ships none of it, so without the tree the
+# Verilog and Amaranth prompts still build and the Spire ones raise (require_spire_sources).
+_SPIRE_ROOT = paths.spire_hdl_root()
+_SPIRE = _SPIRE_ROOT if _SPIRE_ROOT is not None else paths.workspace_root() / "deps" / "spire-hdl"
 
-_arith_opt_path = Path(__file__).parent.parent / "deps" / "spire-hdl" / "docs" / "README_arithmetic_optimization.md"
-_ARITHMETIC_OPTIMIZATION_MD = _arith_opt_path.read_text()
 
-_fsm_opt_path = Path(__file__).parent.parent / "deps" / "spire-hdl" / "docs" / "README_fsm_optimization.md"
-_FSM_OPTIMIZATION_MD = _fsm_opt_path.read_text()
+def require_spire_sources() -> None:
+    """Raise unless the spire-hdl source tree was found when this module was imported."""
+    if _SPIRE_ROOT is None:
+        raise FileNotFoundError(paths.SPIRE_HDL_MISSING)
 
-_state_machines_path = Path(__file__).parent.parent / "deps" / "spire-hdl" / "docs" / "README_state_machines.md"
-_STATE_MACHINES_MD = _state_machines_path.read_text()
 
-_hints_path = Path(__file__).parent.parent / "deps" / "spire-hdl" / "docs" / "hints.md"
-_SPIRE_HINTS_MD = _hints_path.read_text()
+def _read_spire_doc(name: str) -> str:
+    """A topic README from spire-hdl's docs/ (Spire >= 0.2.0); empty when there is no spire-hdl source tree."""
+    return (_SPIRE / "docs" / name).read_text() if _SPIRE_ROOT is not None else ""
+
+
+_OPTIMIZATION_DECORATORS_MD = _read_spire_doc("README_optimization_decorators.md")
+_ARITHMETIC_OPTIMIZATION_MD = _read_spire_doc("README_arithmetic_optimization.md")
+_FSM_OPTIMIZATION_MD = _read_spire_doc("README_fsm_optimization.md")
+_STATE_MACHINES_MD = _read_spire_doc("README_state_machines.md")
+_SPIRE_HINTS_MD = _read_spire_doc("hints.md")
 
 
 def _extract_md_section(md: str, heading: str) -> str:
@@ -64,13 +75,6 @@ VERILOG_REFERENCES = [
         "lang": "systemverilog",
     },
 ]
-
-# spire-hdl is an in-repo submodule; resolve its reference files relative to the repo root
-# (via __file__) so they load regardless of where the repo is mounted — devcontainer
-# (/workspaces/rtl_scout), single-container, or an identity-mounted orchestrated container.
-# (Previously these were hard-coded to /workspaces/rtl_scout, which only resolved under the
-# pinned devcontainer mount and showed "(... not found)" elsewhere.)
-_SPIRE = Path(__file__).resolve().parent.parent / "deps" / "spire-hdl"
 
 SPIREHDL_REFERENCES = [
     {
@@ -643,6 +647,7 @@ def build_spirehdl_system_prompt(description: str, cost_metric_name: str, extra:
                                   dont_touch_main_arith: bool = False,
                                   fsm_optimize: bool = False,
                                   cost_metric_note: str = "") -> str:
+    require_spire_sources()
     # The react loop inlines the reference sources. (The OpenCode path uses the lean
     # pointer-based renderer in rtlscout.agents_md instead.)
     gate = dict(abc_optimize=abc_optimize, flowy_optimize=flowy_optimize,

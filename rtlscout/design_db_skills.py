@@ -17,8 +17,10 @@ import sys
 from pathlib import Path
 from typing import Any, Dict
 
+from rtlscout import paths
+
 SKILLS_SRC = Path(__file__).resolve().parent / "skills"
-_REPO_ROOT = Path(__file__).resolve().parent.parent
+_REPO_ROOT = paths.workspace_root()
 
 SKILL_NAMES = ("design-db-inspect", "design-db-insert", "design-db-eval",
                "design-db-dv-prep", "design-db-dispatch", "design-db-score")

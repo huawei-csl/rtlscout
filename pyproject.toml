@@ -32,6 +32,7 @@ include = ["rtlscout*", "core"]    # core: compatibility alias of rtlscout, remo
 rtlscout = [
     "spirehdl_readme.md",
     "skills/**/*",
+    "smoke_benchmarks/**/*",
     "tech_eval/**/*.md",
     "tech_eval/ppa_extract/data/*.v",
     "tech_eval/ppa_extract/tests/files/*",

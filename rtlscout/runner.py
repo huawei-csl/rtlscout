@@ -10,37 +10,27 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from dotenv import load_dotenv
-
+from rtlscout import paths
 from rtlscout.agent import AgentResult
 from rtlscout.benchmarks import Benchmark, RootsLike, load_benchmarks, normalize_roots
 from rtlscout.cost import CostMetric
 from rtlscout.llm_client import AnthropicClient, DeepInfraClient, OpenRouterClient, LLMClient
 
 # Load .env for API keys
-_ENV_PATHS = [
-    Path(__file__).parent.parent / ".env",
-    Path("/workspaces/rtl_scout/.env"),
-]
-for p in _ENV_PATHS:
-    if p.exists():
-        load_dotenv(p)
-        break
+paths.load_env()
 
 
-DEFAULT_BENCHMARKS_ROOT = Path(__file__).parent.parent / "benchmarks"
+DEFAULT_BENCHMARKS_ROOT = paths.workspace_root() / "benchmarks"
 # Optional private sibling tree: a gitignored nested checkout (e.g. an internal repo)
 # may provide additional benchmarks under internal/benchmarks/. It is scanned by
 # default when present; public checkouts without it are unaffected.
-INTERNAL_BENCHMARKS_ROOT = Path(__file__).parent.parent / "internal" / "benchmarks"
+INTERNAL_BENCHMARKS_ROOT = paths.workspace_root() / "internal" / "benchmarks"
 
 
 def default_benchmarks_roots() -> List[Path]:
-    """The default discovery roots: public benchmarks/ plus internal/benchmarks/ if present."""
-    roots = [DEFAULT_BENCHMARKS_ROOT]
-    if INTERNAL_BENCHMARKS_ROOT.is_dir():
-        roots.append(INTERNAL_BENCHMARKS_ROOT)
-    return roots
+    """The default discovery roots: benchmarks/ plus internal/benchmarks/ if present, or the roots named by
+    RTLSCOUT_BENCHMARKS (see rtlscout.paths.benchmark_roots)."""
+    return paths.benchmark_roots()
 
 
 def _write_chat_log(result: "AgentResult", path: Path) -> None:
