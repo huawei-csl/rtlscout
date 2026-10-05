@@ -30,7 +30,6 @@ jobs:
           # The image's pyenv_eda is a `uv venv` (no pip); use `uv pip`, like post_create.sh does.
           . /home/vscode/pyenv_eda/bin/activate
           uv pip install -e deps/spire-hdl
-          uv pip install -e deps/tech_eval
           uv pip install -r requirements.txt
           uv pip install pytest
 

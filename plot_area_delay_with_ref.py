@@ -17,15 +17,15 @@ A secondary legend shows the marker/line shapes so the source is always clear.
 Usage
 -----
   python plot_area_delay_with_ref.py runs/cost_lang_sweep_20260223_073255 \\
-      --ref deps/tech_eval/results/ppa/Add_a16_results.json \\
+      --ref results/ppa/Add_a16_results.json \\
       [--ref-benchmark add16] \\
       [--output-dir plots/] \\
       [--variant verilog_area]
 
   # Multiple ref files, each with its own benchmark mapping:
   python plot_area_delay_with_ref.py runs/sweep/ \\
-      --ref deps/tech_eval/results/ppa/Add_a16_results.json --ref-benchmark add16 \\
-      --ref deps/tech_eval/results/ppa/Add_a4_results.json  --ref-benchmark add4
+      --ref results/ppa/Add_a16_results.json --ref-benchmark add16 \\
+      --ref results/ppa/Add_a4_results.json  --ref-benchmark add4
 """
 
 import argparse
@@ -44,7 +44,7 @@ from plot_area_delay import load_results, _COLORS, _short_model
 from rtlscout.tech_eval.ppa_extract.core.ppa_extraction import PPA_REPORT_TIME_UNIT
 
 
-# ── Pareto helpers (ported from tech_eval/src/…/plotting2.py) ─────────────────
+# ── Pareto helpers (ported from rtlscout/tech_eval/…/plotting2.py) ─────────────────
 
 def _pareto_front(points):
     """Return the Pareto-optimal (area, delay) points (lower is better for both).

@@ -299,8 +299,7 @@ flowchart TD
   **docker-*out*-of-docker** (siblings on the host daemon) — **not** a nested daemon
   (docker-in-docker), which is deliberately avoided. So run the harness either:
   - **on the host** — works too, but it's **more setup**: you first have to install the Python
-    deps into a host environment (`pip install -e deps/spire-hdl -e deps/tech_eval -r
-    requirements.txt`) because the harness imports `rtlscout.tech_eval`/`spirehdl`. (Only the Python
+    deps into a host environment (`pip install -e deps/spire-hdl -r requirements.txt`) because the harness imports `rtlscout.tech_eval`/`spirehdl`. (Only the Python
     deps + docker are needed on the host — **not** the EDA toolchain, since `evaluate()` runs
     inside the judge *containers*. The container option below bundles all of that, which is why
     it's the easier, validated path.) **or**
@@ -346,7 +345,7 @@ docker run --rm -v "$PWD:$PWD" -v /usr/bin/docker:/usr/bin/docker:ro \
 #     the host first needs the Python deps installed (the harness imports tech_eval/spirehdl);
 #     it does NOT need the EDA toolchain (that lives in the judge containers). Option (3) is the
 #     bundled, validated path; this is here for completeness.
-pip install -e deps/spire-hdl -e deps/tech_eval -r requirements.txt   # one-time host setup
+pip install -e deps/spire-hdl -r requirements.txt   # one-time host setup
 python run_multirun.py --benchmark fpmul_f16 --model openrouter:z-ai/glm-5.2 --language spirehdl \
     --agent-backend opencode --mode orchestrated --total-runs 4 \
     --wall-clock-min 10 --skip-cec --runs-root runs/orch

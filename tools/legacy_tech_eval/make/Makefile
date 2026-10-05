@@ -39,7 +39,7 @@ NETLIST_PATH := $(OPENROAD_RESULT_DIR)/1_synth.v
 SDC_PATH := $(OPENROAD_RESULT_DIR)/1_synth.sdc
 SOURCE_STAMP := $(DESIGN_SRC_DIR)/.sources.stamp
 CONFIG_FILES := config.mk constraint.sdc rules-base.json metadata-base-ok.json autotuner.json
-CONFIG_SCRIPT := $(REPO_ROOT)/src/tech_eval/update_config.py
+CONFIG_SCRIPT := $(abspath $(REPO_ROOT)/../..)/rtlscout/tech_eval/update_config.py
 TRACE2POWER_SCOPE := $(TOP_MODULE_TB).dut
 
 .DEFAULT_GOAL := run
@@ -75,7 +75,7 @@ power: $(DUMP_VCD)
 	export TOP_MODULE="$(TOP_MODULE)"; \
 	export TRACE2POWER_OUT="$(TRACE2POWER_OUT)"; \
 	openroad -exit "$(POWER_SCRIPT)"
-	python -m tech_eval.recompose_total_power
+	python -m rtlscout.tech_eval.recompose_total_power
 
 # Run the OpenROAD flow to create the synthesized netlist (synth or route)
 $(NETLIST_PATH): $(CONFIG_PATH) $(SOURCE_STAMP)

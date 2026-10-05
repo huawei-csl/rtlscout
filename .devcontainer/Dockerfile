@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.4
-# rtlscout layer on top of the rtlscout_base image (built from deps/tech_eval; rtlscout-owned, not
+# rtlscout layer on top of the rtlscout_base image (built from .devcontainer/base; rtlscout-owned, not
 # the shared oss_eda_dev_base — build_image.sh builds rtlscout_base from scratch if absent).
 #
 # NOTE: Flowy / Mockturtle / ABC are intentionally NOT part of the public release.

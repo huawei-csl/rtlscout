@@ -162,19 +162,17 @@ arithmetic units from a library — sweeping partial-product accumulation trees 
 × prefix adders (Kogge–Stone, Brent–Kung, Sklansky, ripple-carry, sparse Kogge–Stone) × target
 delays over the Pareto designs from Phase 2.
 
-The sweep is implemented in `rtlscout.tech_eval`; run it via its entry point rather than from this repo:
+The sweep is implemented in `rtlscout.tech_eval`; run it via its entry point from the repo root:
 
 - **Script:** [`rtlscout/tech_eval/ppa_extract/sweeps/fpmul/fpmul_sweep_mp.py`](rtlscout/tech_eval/ppa_extract/sweeps/fpmul/fpmul_sweep_mp.py)
 
 ```bash
-cd deps/tech_eval
-
 # Point the sweep at the Phase 2 Pareto designs (folders matching pareto_*/design_NNN/):
 python -m rtlscout.tech_eval.ppa_extract.sweeps.fpmul.fpmul_sweep_mp \
     --references-dir /workspaces/rtl_scout/pareto_fronts
 ```
 
-Output: `deps/tech_eval/results/ppa/FpMul_e5f10_results.json` (one entry per design × arithmetic
+Output: `results/ppa/FpMul_e5f10_results.json`, relative to the working directory (one entry per design × arithmetic
 configuration × target delay).
 
 ---

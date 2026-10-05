@@ -10,10 +10,8 @@
 *.expanded
 obj_dir/*
 out/*
-make/out/*
 total_output
 result/*
-make/result/*
 worker_*/
 *.dat
 *.v
@@ -24,7 +22,7 @@ ppa_extract/ref/*
 dist/
 build/
 out_tb/*
-src/tech_eval/ppa_extract/sweeps/multipliers/restored
+ppa_extract/sweeps/multipliers/restored
 references/*
 output/*
 abc.history

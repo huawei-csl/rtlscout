@@ -4,7 +4,7 @@
 # Usage:
 #   bash build_image.sh
 #
-# Step 1 builds the rtlscout_base image from deps/tech_eval/.devcontainer/Dockerfile.
+# Step 1 builds the rtlscout_base image from .devcontainer/base/Dockerfile.
 #   This is HEAVY (compiles OpenROAD from source) and network-dependent (~1-2h first time).
 # Step 2 builds the thin rtlscout layer (ELAU only) on top.
 #
@@ -23,20 +23,20 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CACHE_FLAG=""
 [ "${NO_CACHE:-0}" = "1" ] && CACHE_FLAG="--no-cache"
 
-# ---- Step 1: Build base image from rtlscout.tech_eval (skip if already exists, unless NO_CACHE=1) ----
+# ---- Step 1: Build base image from .devcontainer/base (skip if already exists, unless NO_CACHE=1) ----
 BASE_IMAGE="rtlscout_base:latest"
 if [ "${BUILD_SLIM:-0}" = "1" ]; then
-    BASE_DOCKERFILE="$REPO_ROOT/deps/tech_eval/.devcontainer/Dockerfile.slim"
+    BASE_DOCKERFILE="$SCRIPT_DIR/base/Dockerfile.slim"
     echo "BUILD_SLIM=1: building the slim base image (~3 GB; same tools, trimmed PDK data)"
 else
-    BASE_DOCKERFILE="$REPO_ROOT/deps/tech_eval/.devcontainer/Dockerfile"
+    BASE_DOCKERFILE="$SCRIPT_DIR/base/Dockerfile"
 fi
 
 if [ "${NO_CACHE:-0}" != "1" ] && docker image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
     echo "Base image $BASE_IMAGE already exists, skipping."
 else
     echo "Building base image $BASE_IMAGE (heavy: builds OpenROAD from source)..."
-    docker build $CACHE_FLAG -t "$BASE_IMAGE" -f "$BASE_DOCKERFILE" "$REPO_ROOT/deps/tech_eval"
+    docker build $CACHE_FLAG -t "$BASE_IMAGE" -f "$BASE_DOCKERFILE" "$SCRIPT_DIR/base"
 fi
 
 # ---- Step 2: Build rtlscout layer ----

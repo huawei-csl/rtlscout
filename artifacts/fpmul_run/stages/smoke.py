@@ -91,7 +91,7 @@ def step_patch_gate(results: dict) -> None:
     import os
     targets = common.front_design_scripts(SMOKE / "front")
     env = {**os.environ,
-           "PYTHONPATH": f"{cfg.REPO}/deps/tech_eval/src:{cfg.REPO}"}
+           "PYTHONPATH": f"{cfg.REPO}"}
     proc = subprocess.run(common.py(Path(__file__).parent / "patch_gate.py", *targets),
                           capture_output=True, text=True, cwd=cfg.REPO, env=env)
     gate = [json.loads(l[len("GATE_RESULT "):]) for l in proc.stdout.splitlines()

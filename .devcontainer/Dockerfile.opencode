@@ -13,7 +13,7 @@
 #   docker build -f .devcontainer/Dockerfile.opencode -t rtlscout-opencode:latest .
 #
 # The repo's rtlscout.* + benchmarks + .env are bind-mounted at runtime; only the slow-moving
-# Python deps (spire-hdl / tech_eval / requirements) are baked so containers start fast.
+# Python deps (spire-hdl / requirements) are baked so containers start fast.
 
 FROM rtlscout:latest
 
@@ -35,13 +35,12 @@ RUN curl -fsSL -o /tmp/oc.tgz \
 # Bake the Python deps into the image's venv so orchestrated containers don't pip-install
 # on every launch. (Non-editable snapshot; the mounted repo provides rtlscout.* at runtime.)
 COPY deps/spire-hdl /opt/rtlscout-deps/spire-hdl
-COPY deps/tech_eval /opt/rtlscout-deps/tech_eval
 COPY requirements.txt /opt/rtlscout-deps/requirements.txt
 RUN chown -R vscode:vscode /opt/rtlscout-deps
 
 USER vscode
 RUN bash -lc '. /home/vscode/pyenv_eda/bin/activate \
- && uv pip install /opt/rtlscout-deps/spire-hdl /opt/rtlscout-deps/tech_eval \
+ && uv pip install /opt/rtlscout-deps/spire-hdl \
  && uv pip install -r /opt/rtlscout-deps/requirements.txt'
 
 # Orchestrated agent/judge containers run as the HOST uid (so bind-mounted, host-owned

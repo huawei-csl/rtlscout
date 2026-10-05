@@ -3,7 +3,7 @@
 Patchability gate first: every front design must be auto-patchable by the
 sweep's strict AST matcher, otherwise it would silently sweep 183 identical
 configurations. On gate failure we STOP — loosening the matcher toward the
-fpadd style is a deliberate code change to deps/tech_eval, not something to
+fpadd style is a deliberate code change to rtlscout/tech_eval, not something to
 do silently (handover Stage 3).
 """
 import datetime
@@ -19,8 +19,7 @@ import common
 import rerun_config as cfg
 import stagev_verify
 
-TECH_EVAL = cfg.REPO / "deps" / "tech_eval"
-TE_ENV = {"PYTHONPATH": str(TECH_EVAL / "src") + ":" + str(cfg.REPO),
+TE_ENV = {"PYTHONPATH": str(cfg.REPO),
           # The sweep's plot epilogue must never touch the session's X display
           # (a dead DISPLAY killed a finished sweep with an XIO fatal).
           "MPLBACKEND": "Agg"}

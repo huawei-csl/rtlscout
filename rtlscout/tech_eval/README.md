@@ -23,18 +23,12 @@ PPA (Power, Performance, Area) evaluation workflows for arithmetic blocks and MM
 
 ### 1. Python dependencies
 
+`rtlscout.tech_eval` is part of the `rtlscout` package and is installed with it. From the repo root:
+
 ```bash
-pip install -r requirements.txt
+pip install -e deps/spire-hdl   # optional: the spire-hdl submodule instead of the PyPI release
 pip install -e .
 ```
-
-If you develop with a local `spire-hdl` checkout, install it first (as done in `.devcontainer/start_interactive_container_custom.sh`):
-
-```bash
-pip install ../spire-hdl
-```
-
-Without editable install, prefix every command with `PYTHONPATH=src`.
 
 ### 2. External EDA tools (must be on `PATH`)
 
@@ -46,7 +40,7 @@ Without editable install, prefix every command with `PYTHONPATH=src`.
 
 ### 3. Technology library paths
 
-Default library and LEF paths are configured in `src/tech_eval/ppa_extract/core/template.py`.
+Default library and LEF paths are configured in `rtlscout/tech_eval/ppa_extract/core/template.py`.
 The default technology is **ASAP7** and expects libraries under `/prog/OpenROAD-flow-scripts/...`.
 
 ---
@@ -54,7 +48,7 @@ The default technology is **ASAP7** and expects libraries under `/prog/OpenROAD-
 ## Project layout
 
 ```
-src/tech_eval/
+rtlscout/tech_eval/
 ├── int_tb_sim.py                   # vector generation + testbench simulation helper
 ├── recompose_total_power.py        # post-processing utility for power breakdown
 └── ppa_extract/
@@ -145,7 +139,7 @@ ppa = get_ppa(
 print(ppa)
 ```
 
-See `src/tech_eval/ppa_extract/tests/ppa_extraction_test.py` for a runnable version.
+See `rtlscout/tech_eval/ppa_extract/tests/ppa_extraction_test.py` for a runnable version.
 
 ---
 
@@ -168,7 +162,7 @@ ppa = get_ppa(
 print(ppa)
 ```
 
-Static RTL files for quick tests are in `src/tech_eval/ppa_extract/tests/files/`
+Static RTL files for quick tests are in `rtlscout/tech_eval/ppa_extract/tests/files/`
 (e.g. `mult16.sv`, `add32.sv`, `mult32_karatsuba.v`).
 
 A complete example that first runs a spire-hdl multiplier and then evaluates a static `.sv` file in the same script is in:
@@ -184,7 +178,7 @@ python -m rtlscout.tech_eval.ppa_extract.tests.ppa_extraction_test_verilog_file
 [ELAU](https://github.com/pulp-platform/ELAU) uses multi-file SystemVerilog.
 `get_ppa` accepts a list of source paths so you can evaluate these designs directly — no wrapper generation needed beyond an optional thin module to fix the port names/parameters.
 
-The script `src/tech_eval/ppa_extract/tests/ppa_extraction_test_elau_mul16.py` shows the full pattern:
+The script `rtlscout/tech_eval/ppa_extract/tests/ppa_extraction_test_elau_mul16.py` shows the full pattern:
 
 - Resolves sources from `$ELAU_ROOT/src/`.
 - Generates a thin wrapper module to expose fixed-width ports.
@@ -200,7 +194,7 @@ python -m rtlscout.tech_eval.ppa_extract.tests.ppa_extraction_test_elau_mul16
 
 ## Test / example scripts
 
-All scripts under `src/tech_eval/ppa_extract/tests/` can be run as modules from the repo root.
+All scripts under `rtlscout/tech_eval/ppa_extract/tests/` can be run as modules from the repo root.
 
 | Script | What it demonstrates |
 |---|---|
@@ -225,7 +219,7 @@ The `tests/unit/` subdirectory contains lightweight unit tests (`pytest`) that d
 
 ### MMAC core sweep
 
-**Script:** `src/tech_eval/ppa_extract/sweeps/mmac/mmac_cores_mp.py`
+**Script:** `rtlscout/tech_eval/ppa_extract/sweeps/mmac/mmac_cores_mp.py`
 
 ```bash
 python -m rtlscout.tech_eval.ppa_extract.sweeps.mmac.mmac_cores_mp
@@ -259,7 +253,7 @@ python -m rtlscout.tech_eval.ppa_extract.sweeps.mmac.mmac_cores_mp_optim
 
 ### Multiplier + adder sweep
 
-**Script:** `src/tech_eval/ppa_extract/sweeps/multipliers/mul_add_sweep_mp.py`
+**Script:** `rtlscout/tech_eval/ppa_extract/sweeps/multipliers/mul_add_sweep_mp.py`
 
 ```bash
 python -m rtlscout.tech_eval.ppa_extract.sweeps.multipliers.mul_add_sweep_mp
@@ -334,9 +328,9 @@ Produces the same six plot types as the sweep itself.
 
 These are suggestions only — no files have been moved:
 
-- **`src/tech_eval/ppa_extract/tests/ppa_extraction_test.py` and `ppa_extraction_test_verilog_file.py`** do very similar things. They could be merged into a single parametrised script or renamed to reflect what they specifically test (e.g. `test_spirehdl_multiplier.py` and `test_static_verilog.py`).
+- **`rtlscout/tech_eval/ppa_extract/tests/ppa_extraction_test.py` and `ppa_extraction_test_verilog_file.py`** do very similar things. They could be merged into a single parametrised script or renamed to reflect what they specifically test (e.g. `test_spirehdl_multiplier.py` and `test_static_verilog.py`).
 
-- **`src/tech_eval/ppa_extract/sweeps/plot_saved_results.py`** and **`sweeps/mmac/` formerly had their own `plot_saved_results.py`** — the common one now lives at `sweeps/plot_saved_results.py`, which is correct; the MMAC sweep no longer needs its own copy.
+- **`rtlscout/tech_eval/ppa_extract/sweeps/plot_saved_results.py`** and **`sweeps/mmac/` formerly had their own `plot_saved_results.py`** — the common one now lives at `sweeps/plot_saved_results.py`, which is correct; the MMAC sweep no longer needs its own copy.
 
 ## Python environment
 

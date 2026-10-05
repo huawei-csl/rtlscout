@@ -7,7 +7,7 @@ synthesis results.
 
 ## Why it's vendored here
 
-The base EDA image (`deps/tech_eval/.devcontainer/Dockerfile`) originally obtained this file by
+The base EDA image (`.devcontainer/base/Dockerfile`) originally obtained this file by
 cloning `https://github.com/oscc-ip/nangate` into `/app/nangate`. **That repository has been
 deleted from GitHub (HTTP 404 — "Repository not found").** As a result the clone now fails and the
 base image build aborts. We therefore vendor the single file the flow actually needs and `COPY` it

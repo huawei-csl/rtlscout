@@ -11,8 +11,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Verify deps are present (spire-hdl submodule + vendored tech_eval)
-for repo in deps/spire-hdl deps/tech_eval; do
+# Verify deps are present (spire-hdl submodule)
+for repo in deps/spire-hdl; do
     if [[ ! -d "$REPO_DIR/$repo" ]]; then
         echo "ERROR: $repo not found."
         echo "  For deps/spire-hdl run: git submodule update --init deps/spire-hdl"

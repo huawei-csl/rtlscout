@@ -84,7 +84,7 @@ ARG NPROC
 # netlists with vendor cell models). The patch switches sequential UDP
 # outputs to non-blocking assigns. See
 # internal/task_level/power/verilator_udp_bug/ in rtlscout for reproducers.
-COPY .devcontainer/patches/verilator_v5.040_seq_udp_nba.patch /tmp/verilator_seq_udp_nba.patch
+COPY patches/verilator_v5.040_seq_udp_nba.patch /tmp/verilator_seq_udp_nba.patch
 RUN git clone --depth 1 --branch "${VERILATOR_VER}" https://github.com/verilator/verilator /build/verilator \
  && cd /build/verilator \
  && git apply /tmp/verilator_seq_udp_nba.patch \
@@ -194,7 +194,7 @@ RUN git clone --depth 1 "${ASAP7_REPO}" /out/asap7sc7p5t_28
 # Slim variant of Dockerfile. Same builder stages, but the final image is FROM the CLEAN builder-base
 # (not build-openroad), so the ~15 GB ORFS build tree under /build is never inherited. We COPY in only
 # the built tool binaries + the small PDK/platform slices the PPA engine actually reads
-# (see src/tech_eval/ppa_extract/core/template.py and rtl_scout rtlscout/cost.py). TOOLS are identical to
+# (see rtlscout/tech_eval/ppa_extract/core/template.py and rtlscout/cost.py). TOOLS are identical to
 # the full image; only unused platform DATA is dropped (other ORFS platforms, the full ASAP7
 # LIB/GDS/CDL/Datasheet, the ORFS flow scripts). freepdk45 was already non-functional (no mflowgen).
 FROM builder-base AS base
@@ -269,9 +269,9 @@ RUN apt-get update \
     && echo "vscode ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/90-vscode \
     && chmod 0440 /etc/sudoers.d/90-vscode
 
-# nangate45 sim cells: vendored (see .devcontainer/nangate45/README.md)
+# nangate45 sim cells: vendored (see .devcontainer/base/nangate45/README.md)
 USER vscode
-COPY --chown=vscode:vscode .devcontainer/nangate45/cells.v /app/nangate/sim/cells.v
+COPY --chown=vscode:vscode nangate45/cells.v /app/nangate/sim/cells.v
 
 USER vscode
 WORKDIR /app

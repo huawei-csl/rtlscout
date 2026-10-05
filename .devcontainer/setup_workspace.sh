@@ -4,7 +4,7 @@
 # Usage:
 #   bash setup_workspace.sh
 #
-# rtlscout.tech_eval is vendored into the repo via `git subtree` (no submodule to init).
+# rtlscout.tech_eval is part of the package (rtlscout/tech_eval/); there is no second dependency to init.
 # flowy and mockturtle are intentionally not part of the public release.
 
 set -euo pipefail

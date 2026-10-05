@@ -84,7 +84,7 @@ ARG NPROC
 # netlists with vendor cell models). The patch switches sequential UDP
 # outputs to non-blocking assigns. See
 # internal/task_level/power/verilator_udp_bug/ in rtlscout for reproducers.
-COPY .devcontainer/patches/verilator_v5.040_seq_udp_nba.patch /tmp/verilator_seq_udp_nba.patch
+COPY patches/verilator_v5.040_seq_udp_nba.patch /tmp/verilator_seq_udp_nba.patch
 RUN git clone --depth 1 --branch "${VERILATOR_VER}" https://github.com/verilator/verilator /build/verilator \
  && cd /build/verilator \
  && git apply /tmp/verilator_seq_udp_nba.patch \
@@ -259,9 +259,9 @@ RUN apt-get update \
     && echo "vscode ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/90-vscode \
     && chmod 0440 /etc/sudoers.d/90-vscode
 
-# nangate45 sim cells: vendored — upstream clone source was removed from GitHub; see .devcontainer/nangate45/README.md
+# nangate45 sim cells: vendored — upstream clone source was removed from GitHub; see .devcontainer/base/nangate45/README.md
 USER vscode
-COPY --chown=vscode:vscode .devcontainer/nangate45/cells.v /app/nangate/sim/cells.v
+COPY --chown=vscode:vscode nangate45/cells.v /app/nangate/sim/cells.v
 
 USER vscode
 WORKDIR /app

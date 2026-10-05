@@ -6,7 +6,6 @@ yosys -V || true
 source /home/vscode/pyenv_eda/bin/activate
 
 uv pip install -e deps/spire-hdl
-uv pip install -e deps/tech_eval
 uv pip install -r requirements.txt
 
 # flowy is not part of the public release. If a local deps/flowy is present (e.g. you added
@@ -20,7 +19,7 @@ fi
 
 # --- Verilator sequential-UDP patch check -------------------------------------
 # The base image must ship the patched Verilator (v5.040 + seq-UDP NBA fix,
-# applied by deps/tech_eval/.devcontainer/Dockerfile; version string carries
+# applied by .devcontainer/base/Dockerfile; version string carries
 # "(mod)"). Without it, gate-level sims of netlists with vendor UDP flop
 # models can be SILENTLY corrupted
 if verilator --version 2>/dev/null | grep -q "(mod)"; then
