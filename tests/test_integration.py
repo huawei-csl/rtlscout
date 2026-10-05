@@ -152,6 +152,31 @@ def test_run_benchmark_simple_adder(tmp_path, monkeypatch):
 
 @requires_verilator
 @requires_yosys
+def test_evals_carry_run_clock_and_cumulative_token_usage(tmp_path, monkeypatch):
+    """Every evaluation records where the run stood when it finished: seconds since the run started and the
+    tokens of all LLM calls so far (the keys of the run-level token_usage)."""
+    monkeypatch.setenv("RTLSCOUT_ALLOW_DONE", "1")
+    from rtlscout.benchmarks import load_benchmark
+    from rtlscout.runner import run_agent_on_benchmark
+
+    result = run_agent_on_benchmark(load_benchmark(SIMPLE_ADDER_ROOT), model="simple_adder_pass",
+                                    runs_dir=tmp_path / "runs", max_steps=10, provider="fake")
+    [saved] = [d for d in (json.loads(p.read_text()) for p in (tmp_path / "runs").rglob("result.json"))
+               if "all_evals" in d]
+    evals, total = saved["all_evals"], saved["token_usage"]
+    assert evals and evals == result.to_dict()["all_evals"]
+
+    elapsed = [e["elapsed_s"] for e in evals]
+    assert elapsed == sorted(elapsed) and 0 <= elapsed[0] and elapsed[-1] <= saved["duration_s"] + 1
+    for e in evals:
+        assert e["elapsed_s"] >= e["duration_s"]                    # the evaluation itself is part of the run
+        assert set(e["cumulative_token_usage"]) == set(total)
+    spent = [e["cumulative_token_usage"]["input_tokens"] for e in evals]
+    assert spent == sorted(spent) and 0 < spent[0] and spent[-1] <= total["input_tokens"]
+
+
+@requires_verilator
+@requires_yosys
 def test_run_benchmark_simple_adder_spirehdl(tmp_path):
     """Run the agent loop on simple_adder with a fake Spire provider."""
     from rtlscout.benchmarks import load_benchmark

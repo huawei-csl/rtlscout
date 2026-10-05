@@ -204,13 +204,7 @@ class AgentResult:
             "best_eval": self.best_eval,
             "all_evals": self.all_evals,
             "num_steps": self.num_steps,
-            "token_usage": {
-                "input_tokens": self.token_usage.input_tokens,
-                "output_tokens": self.token_usage.output_tokens,
-                "cache_creation_input_tokens": self.token_usage.cache_creation_input_tokens,
-                "cache_read_input_tokens": self.token_usage.cache_read_input_tokens,
-                "total_input_tokens": self.token_usage.total_input,
-            },
+            "token_usage": self.token_usage.to_dict(),
             "duration_s": self.duration_s,
             "error": self.error,
         }
@@ -270,6 +264,9 @@ class RTLAgent:
         self.best_cost: Optional[float] = None
         self.best_metrics: Optional[Dict[str, float]] = None
         self._last_step_usage: Optional[TokenUsage] = None
+        # Run clock and token total so far, stamped on every evaluation (elapsed_s, cumulative_token_usage)
+        self._run_t0: Optional[float] = None
+        self._usage_so_far = TokenUsage()
 
         # Benchmark info (set before running)
         self.design_top_module: Optional[str] = None
@@ -601,6 +598,11 @@ class RTLAgent:
         eval_dict["target_delay"] = target_delay
         if self._last_step_usage is not None:
             eval_dict["context_window_tokens"] = self._last_step_usage.total_input
+        # Where the run stood when this evaluation finished: wall clock since the run started and the tokens of
+        # every LLM call so far (same keys as the run-level token_usage), for time- and cost-resolved plots.
+        if self._run_t0 is not None:
+            eval_dict["elapsed_s"] = round(time.monotonic() - self._run_t0, 1)
+        eval_dict["cumulative_token_usage"] = self._usage_so_far.to_dict()
         self.all_evals.append(eval_dict)
 
         # Track best: lowest cost among 100% correct designs.  Ties are
@@ -688,6 +690,8 @@ class RTLAgent:
         self.best_cost = None
         self.best_metrics = None
         total_usage = TokenUsage()
+        self._run_t0 = time.monotonic()
+        self._usage_so_far = total_usage
 
         # Initial user message to kick off the agent
         self.messages.append({
@@ -714,6 +718,7 @@ class RTLAgent:
 
             total_usage = total_usage + response.usage
             self._last_step_usage = response.usage
+            self._usage_so_far = total_usage
 
             # Guard against degenerate responses carrying an unbounded
             # tool_calls array (observed: 2,835 identical calls in one GLM

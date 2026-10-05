@@ -46,6 +46,15 @@ class TokenUsage:
             cache_read_input_tokens=self.cache_read_input_tokens + other.cache_read_input_tokens,
         )
 
+    def to_dict(self) -> Dict[str, int]:
+        return {
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "cache_creation_input_tokens": self.cache_creation_input_tokens,
+            "cache_read_input_tokens": self.cache_read_input_tokens,
+            "total_input_tokens": self.total_input,
+        }
+
     def summary(self) -> str:
         parts = [f"input={self.input_tokens}"]
         if self.cache_creation_input_tokens:
