@@ -1,0 +1,18 @@
+{
+  "name": "pdpu_dot16_pipe_spire",
+  "module_name": "pdpu_top_pipelined",
+  "tb_module": "tb",
+  "language": "spirehdl",
+  "starting_point": "context/starting_point.py",
+  "cost_metric": [
+    "area",
+    "yosys_transistors"
+  ],
+  "source": {
+    "origin": "github.com/qleenju/PDPU (ISCAS 2023, Apache-2.0), commit HEAD 2026-08-04",
+    "design": "pipelined pdpu_top_pipelined, 5 stages of reset-less flops. N overridden from 4 to 16; posit(8,2) inputs -> posit(16,2) accumulator and result, ALIGN_WIDTH=14, CARRY_W=5, SUM_W=19. Identical architecture, formats and rounding to the N=4 reference, so lane count is the only change.",
+    "port": "upstream SystemVerilog -> Spire: structural port with the same five pipeline cut points and the same redundant (sum, carry) form carried across pipe2 as the reference. Clock port uses Spire's standard name `clk`",
+    "oracle": "vectors.dat expected_result is the reference RTL's own output (_debug/gen_vectors.py); the unit is architecturally inexact vs ideal posit math, so reference-as-oracle is the only correct golden",
+    "testbench": "1,999,992 checked of 2,000,000 streamed (8-vector warm-up skipped; reset-less flops); vectors.dat shared with pdpu_dot16"
+  }
+}

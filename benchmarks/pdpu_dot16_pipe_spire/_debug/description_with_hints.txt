@@ -1,0 +1,32 @@
+PIPELINED 16-lane PDPU: upstream `pdpu_top_pipelined` (github.com/qleenju/PDPU,
+ISCAS 2023, Apache-2.0) taken verbatim, with the dot-product size N overridden
+from 4 to 16. Five pipeline stages (pipe1..pipe5) of reset-less flops
+(`FFNR`: always_ff @(posedge clk_i), no reset), so the result appears 5 cycles
+after the inputs are applied.
+
+Ports: clk_i, operands_a[127:0], operands_b[127:0], acc[15:0] -> result_o[15:0]
+(16 posit(8,2) element pairs, posit(16,2) accumulator and result).
+
+Function is IDENTICAL to the combinational pdpu_dot16 — pipelining changes
+latency, not results — so vectors.dat is shared with that benchmark and the
+combinational reference is the oracle. REQUIRED behavior is bit-exactness to
+it, including the ALIGN_WIDTH=14 truncation and NaR handling.
+
+A starting point is provided in context/starting_point.py — a Spire STRUCTURAL
+port of the pipelined reference. Mirrored from upstream:
+  - radix-4 Booth encoding + partial-product generation with upstream's sign
+    stuffing, reduced by a 3:2 compressor tree (radix4_booth_multiplier)
+  - the redundant (sum, carry) pair carried across pipe2 and resolved by one
+    add in the next stage, as upstream does
+  - two's-complement negation applied BEFORE pipe3 (mantissa_comp)
+  - the N+1 aligned terms reduced by a recursive CSA tree (compressor_3to2 /
+    compressor_4to2 / counter_5to3) then ONE final add, not a serial chain
+  - maximum exponent via a recursive comparator tree (comp_tree), not a serial
+    compare chain
+Still the functional (non-structural) versions: the leading-zero count (_clz,
+vs upstream's lzc.sv index_lut tree) and the alignment shift (`>>` vs
+barrel_shifter.sv). Those are the remaining delay gap vs the Verilog.
+
+Preserve the 5-cycle latency and the clocked interface: the testbench applies
+inputs and samples result_o 5 posedges later. The clock port uses Spire's
+standard name `clk`.

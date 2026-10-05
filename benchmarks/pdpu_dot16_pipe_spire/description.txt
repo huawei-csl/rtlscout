@@ -1,0 +1,20 @@
+PIPELINED 16-lane posit dot-product-accumulate unit `pdpu_top_pipelined`.
+
+Five pipeline stages (pipe1..pipe5) of reset-less flops, so the result appears
+5 cycles after the inputs are applied.
+
+Ports: clk, operands_a[127:0], operands_b[127:0], acc[15:0] -> result_o[15:0]
+(16 posit(8,2) element pairs, posit(16,2) accumulator and result).
+
+Parameters: N=16, posit(8,2) inputs, posit(16,2) accumulator and result,
+ALIGN_WIDTH=14, CARRY_W=5, SUM_W=19.
+
+Function is IDENTICAL to the combinational pdpu_dot16 - pipelining changes
+latency, not results - so vectors.dat is shared with that benchmark and the
+combinational reference is the oracle. REQUIRED behavior is bit-exactness to
+it, including the ALIGN_WIDTH=14 truncation and NaR handling.
+
+A starting point is provided in context/starting_point.py -
+start from it and optimize. Preserve the 5-cycle latency and the clk interface:
+the testbench applies inputs and samples result_o 5 posedges later. Any
+transformation is legal as long as result_o remains bit-identical for every input.

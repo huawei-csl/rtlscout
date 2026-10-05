@@ -163,7 +163,7 @@ ppa = get_ppa(
     worker_path="worker_my_design",
     top_module_name="MyTopModule",
     run_verilator=False,                # no testbench needed
-    use_fa_ha_inference=False,
+    use_fa_ha_inference=False,          # True = FA+HA cells, "fa" / "ha" = only that cell type
 )
 print(ppa)
 ```
