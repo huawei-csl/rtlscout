@@ -5,8 +5,9 @@ yosys -V || true
 
 source /home/vscode/pyenv_eda/bin/activate
 
+# spire-hdl from the submodule (editable), then rtlscout itself (editable) with the rest of its dependencies
 uv pip install -e deps/spire-hdl
-uv pip install -r requirements.txt
+uv pip install -e .
 
 # flowy is not part of the public release. If a local deps/flowy is present (e.g. you added
 # it yourself), install it; otherwise continue without it. The agent's flowy code paths stay

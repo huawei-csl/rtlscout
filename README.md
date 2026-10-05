@@ -107,6 +107,47 @@ The base EDA image (OpenROAD, Yosys, Verilator, OpenSTA, sv2v, …) is large. Th
 
 The VS Code devcontainer pulls by default; to self-build instead, edit `initializeCommand` in `.devcontainer/devcontainer.json`.
 
+### Install as a Python package
+
+RTL Scout is also an installable package (`rtlscout`), so another project can use it without working inside this checkout. It is installed from git by URL and tag:
+
+```bash
+pip install "rtlscout @ git+https://github.com/huawei-csl/rtlscout@v0.2.0"
+```
+
+The EDA tools are not Python packages: install it inside the container image (or wherever Yosys, Verilator, OpenROAD and sv2v are on `PATH`). Every command-line tool is a module of the package; the root scripts of this repository are thin wrappers around them, so both forms below are the same command:
+
+| Module | Root script in a checkout |
+|--------|---------------------------|
+| `python -m rtlscout.run_eval` | `python run_eval.py` |
+| `python -m rtlscout.run_benchmark` | `python run_benchmark.py` |
+| `python -m rtlscout.run_multirun` | `python run_multirun.py` |
+| `python -m rtlscout.run_pipeline` | `python run_pipeline.py` |
+| `python -m rtlscout.run_sweep` | `python run_sweep.py` |
+| `python -m rtlscout.batch_eval` | `python batch_eval.py` |
+| `python -m rtlscout.extract_pareto` | `python extract_pareto.py` |
+| `python -m rtlscout.containers` | `python rtlscout_cli.py` |
+
+```bash
+# from any directory, no checkout needed: a packaged smoke benchmark and an offline fake model
+python -m rtlscout.run_benchmark --benchmark simple_adder --model fake:simple_adder_pass
+
+# your own benchmark tree
+RTLSCOUT_BENCHMARKS=/path/to/benchmarks python -m rtlscout.run_benchmark --benchmark my_design --model <provider>:<model>
+```
+
+Outside a checkout the package finds its surroundings through these variables (a checkout needs none of them; see [`rtlscout/paths.py`](rtlscout/paths.py)):
+
+| Variable | Meaning | Default |
+|----------|---------|---------|
+| `RTLSCOUT_HOME` | workspace root: holds `.env`, `benchmarks/`, `deps/` | the checkout the package runs from, else the current directory |
+| `RTLSCOUT_ENV_FILE` | `.env` with the provider API keys | `<workspace root>/.env` |
+| `RTLSCOUT_BENCHMARKS` | benchmark trees, separated by `:` | `<workspace root>/benchmarks` (plus `internal/benchmarks` if present) |
+| `RTLSCOUT_CACHE_DIR` | derived files such as the merged ASAP7 liberty | `<checkout>/.cache`, else `~/.cache/rtlscout` |
+| `RTLSCOUT_SPIRE_HDL_DIR` | spire-hdl source tree | `<workspace root>/deps/spire-hdl` |
+
+Spire HDL runs (`--language spirehdl` with an agent) quote the spire-hdl documentation and examples in their prompts. Those are part of the spire-hdl repository, not of its wheel, so outside a checkout point `RTLSCOUT_SPIRE_HDL_DIR` at a clone of [spire-hdl](https://github.com/huawei-csl/spire-hdl) at the installed version. Evaluating an existing Spire design (`run_eval`) and all Verilog and Amaranth flows need only the installed packages. The OpenCode backend's orchestrated mode mounts the workspace root into its containers and therefore needs a checkout.
+
 ## Benchmarks
 
 Each benchmark is a directory under `benchmarks/`, and directories can be nested in subfolders for grouping, e.g. the RTLRewriter cases under `benchmarks/dr_rtl/` (referenced as `--benchmark dr_rtl/<case>`). A few of the bundled benchmarks:
@@ -131,7 +172,7 @@ Browse `benchmarks/` for the full set; to add your own, see **[README_add_benchm
 | Reproduce RTLRewriter paper tables | [Bundled RTLRewriter results](#bundled-rtlrewriter-results) | The 14 general (non-FP) cases; cell & transistor count tables |
 | Reproduce FP paper experiments | [`README_fpmul.md`](README_fpmul.md) | Specialized `fpmul_f16` / `fpadd_f16` pipeline |
 
-Each is detailed in [Running benchmarks](#running-benchmarks) below.
+Each is detailed in [Running benchmarks](#running-benchmarks) below. Every script is also a module of the installed package (`python -m rtlscout.run_eval`, …); see [Install as a Python package](#install-as-a-python-package).
 
 ## Agent Flow
 
