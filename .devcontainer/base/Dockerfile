@@ -149,7 +149,7 @@ FROM builder-base AS build-pulp
 ARG NPROC
 RUN set -eux; \
   curl --proto '=https' --tlsv1.2 -sSf https://pulp-platform.github.io/bender/init | bash; \
-  for cand in /bender /root/.local/bin/bender /usr/local/bin/bender ./bender; do \
+  for cand in /bender /root/.cargo/bin/bender /root/.local/bin/bender /usr/local/bin/bender ./bender; do \
     if [ -f "$cand" ]; then \
       install -m 0755 "$cand" /usr/local/bin/bender; \
       break; \
