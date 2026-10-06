@@ -196,7 +196,12 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no
 ########## Builder: ASAP7 (models) ##########
 FROM builder-base AS build-asap7
 ARG ASAP7_REPO
-RUN git clone --depth 1 "${ASAP7_REPO}" /out/asap7sc7p5t_28
+# pinned to the last upstream commit before the published image was built (2026-04-11)
+ARG ASAP7_COMMIT=875fd1eee58741378d875d9b81c95526a9b8c47c
+RUN git clone -q --depth 1 "${ASAP7_REPO}" /out/asap7sc7p5t_28 \
+ && cd /out/asap7sc7p5t_28 \
+ && git fetch -q --depth 1 origin "${ASAP7_COMMIT}" \
+ && git checkout -q --detach FETCH_HEAD
 
 ########## Final stage (SLIM) ##########
 # Slim variant of Dockerfile. Same builder stages, but the final image is FROM the CLEAN builder-base
