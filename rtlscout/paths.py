@@ -9,8 +9,9 @@ assume that the directory above the package is the repository, so every such loo
 ``RTLSCOUT_BENCHMARKS``      benchmark trees. Default: ``<workspace root>/benchmarks`` and, if present,
                              ``<workspace root>/internal/benchmarks``.
 ``RTLSCOUT_CACHE_DIR``       derived files. Default: ``<checkout>/.cache`` in a checkout, else ``~/.cache/rtlscout``.
-``RTLSCOUT_SPIRE_HDL_DIR``   spire-hdl source tree. Default: ``<workspace root>/deps/spire-hdl``, else the tree an
-                             editable spire-hdl is installed from.
+``RTLSCOUT_SPIRE_HDL_DIR``   spire-hdl source tree, needed only with spire-hdl 0.4.0 (later versions ship their docs
+                             and examples in the package). Default: ``<workspace root>/deps/spire-hdl``, else the
+                             tree an editable spire-hdl is installed from.
 
 ``RTLSCOUT_BENCHMARKS`` holds one or more roots separated by ``os.pathsep``. A checkout needs none of the
 variables: its defaults are the paths that were hard-wired before the package was installable.
@@ -26,11 +27,12 @@ _PACKAGE_DIR = Path(__file__).resolve().parent
 #: Benchmarks shipped inside the package, so a fake-model smoke run needs no benchmark tree.
 SMOKE_BENCHMARKS_ROOT = _PACKAGE_DIR / "smoke_benchmarks"
 
-#: What to tell the user when a Spire flow needs the spire-hdl source tree and :func:`spire_hdl_root` found none.
+#: What to tell the user when a Spire flow needs spire-hdl's documentation and :func:`spire_docs_dir` found none.
 SPIRE_HDL_MISSING = (
-    "Spire HDL prompts quote the spire-hdl documentation and examples, which are not part of the spire-hdl wheel. "
-    "Run from an rtlscout checkout with the deps/spire-hdl submodule, or set RTLSCOUT_SPIRE_HDL_DIR to a spire-hdl "
-    "source tree of the installed version (https://github.com/huawei-csl/spire-hdl).")
+    "Spire HDL prompts quote the spire-hdl documentation and examples. spire-hdl 0.4.0 does not ship them in its "
+    "wheel: install spire-hdl >= 0.4.1, run from an rtlscout checkout with the deps/spire-hdl submodule, or set "
+    "RTLSCOUT_SPIRE_HDL_DIR to a spire-hdl source tree of the installed version "
+    "(https://github.com/huawei-csl/spire-hdl).")
 
 #: The devcontainer mounts the checkout here; its .env is the last place looked at.
 _DEVCONTAINER_ENV_FILE = Path("/workspaces/rtl_scout/.env")
@@ -104,12 +106,15 @@ def cache_dir() -> Path:
     return checkout / ".cache" if checkout is not None else Path.home() / ".cache" / "rtlscout"
 
 
-def spire_hdl_root() -> Optional[Path]:
-    """The spire-hdl *source tree* (``docs/``, ``testing/``, ``src/spire/``), or None.
+def spire_package_dir() -> Optional[Path]:
+    """Directory of the installed ``spire`` package (its sources: expr.py, component.py, ...), or None."""
+    spec = importlib.util.find_spec("spire")
+    return Path(spec.origin).resolve().parent if spec is not None and spec.origin else None
 
-    The Spire prompts quote its documentation and examples, which the spire-hdl wheel does not ship. A plain
-    ``pip install spire-hdl`` is therefore enough for every Verilog and Amaranth flow, but not for a Spire run.
-    """
+
+def spire_hdl_root() -> Optional[Path]:
+    """A spire-hdl *source tree* (``docs/``, ``testing/``, ``src/spire/``), or None: ``RTLSCOUT_SPIRE_HDL_DIR``,
+    else ``<workspace root>/deps/spire-hdl``, else the tree an editable spire-hdl is installed from."""
     explicit = _env_path("RTLSCOUT_SPIRE_HDL_DIR")
     if explicit is not None:
         if not (explicit / "docs").is_dir():
@@ -118,9 +123,33 @@ def spire_hdl_root() -> Optional[Path]:
     submodule = workspace_root() / "deps" / "spire-hdl"
     if (submodule / "docs").is_dir():
         return submodule
-    spec = importlib.util.find_spec("spire")
-    if spec is not None and spec.origin:            # editable install: <tree>/src/spire/__init__.py
-        tree = Path(spec.origin).resolve().parents[2]
+    pkg = spire_package_dir()
+    if pkg is not None:                             # editable install: <tree>/src/spire/__init__.py
+        tree = pkg.parents[1]
         if (tree / "docs" / "hints.md").is_file():
             return tree
     return None
+
+
+def spire_docs_dir() -> Optional[Path]:
+    """Where spire-hdl's topic READMEs (``hints.md``, ``README_*.md``) are, or None.
+
+    The Spire prompts quote them. spire-hdl ships them inside the package from 0.4.1 on; with 0.4.0 they exist only
+    in a source tree (:func:`spire_hdl_root`), so a plain ``pip install spire-hdl==0.4.0`` is enough for every Verilog
+    and Amaranth flow but not for a Spire agent run.
+    """
+    pkg = spire_package_dir()
+    if pkg is not None and (pkg / "docs" / "hints.md").is_file():
+        return pkg / "docs"
+    root = spire_hdl_root()
+    return root / "docs" if root is not None else None
+
+
+def spire_example(name: str, tree_path: str) -> Optional[Path]:
+    """An example script of spire-hdl: ``examples/<name>`` inside the package (0.4.1+), else *tree_path* in a source
+    tree (0.4.0), else None."""
+    pkg = spire_package_dir()
+    if pkg is not None and (pkg / "examples" / name).is_file():
+        return pkg / "examples" / name
+    root = spire_hdl_root()
+    return root / tree_path if root is not None else None

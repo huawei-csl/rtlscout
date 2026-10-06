@@ -95,11 +95,38 @@ def test_spire_hdl_root(env, tmp_path):
         paths.spire_hdl_root()
 
 
+def test_spire_sources_inside_the_package_come_first(env, tmp_path):
+    """spire-hdl >= 0.4.1 ships docs/ and examples/ in the package; 0.4.0 has them only in a source tree."""
+    pkg, tree = tmp_path.resolve() / "site-packages" / "spire", tmp_path.resolve() / "spire-hdl"
+    (tree / "docs").mkdir(parents=True)
+    (tree / "docs" / "hints.md").write_text("tree\n")
+    (tree / "testing" / "examples").mkdir(parents=True)
+    (tree / "testing" / "examples" / "component_example.py").write_text("tree\n")
+    env.setenv("RTLSCOUT_SPIRE_HDL_DIR", str(tree))
+    env.setattr(paths, "spire_package_dir", lambda: pkg)
+    pkg.mkdir(parents=True)                                       # a 0.4.0-style package: sources only
+    assert paths.spire_docs_dir() == tree / "docs"
+    assert paths.spire_example("component_example.py", "testing/examples/component_example.py") == \
+        tree / "testing" / "examples" / "component_example.py"
+    (pkg / "docs").mkdir()                                        # a package that ships its docs and examples
+    (pkg / "docs" / "hints.md").write_text("package\n")
+    (pkg / "examples").mkdir()
+    (pkg / "examples" / "component_example.py").write_text("package\n")
+    assert paths.spire_docs_dir() == pkg / "docs"
+    assert paths.spire_example("component_example.py", "testing/examples/component_example.py") == \
+        pkg / "examples" / "component_example.py"
+    env.setattr(paths, "spire_package_dir", lambda: None)
+    env.delenv("RTLSCOUT_SPIRE_HDL_DIR")
+    env.setenv("RTLSCOUT_HOME", str(tmp_path.resolve() / "nowhere"))
+    assert paths.spire_docs_dir() is None
+
+
 def test_prompts_without_the_spire_hdl_sources():
-    """An install without the spire-hdl source tree still builds the Verilog prompt; the Spire prompt says why not."""
+    """An install without spire-hdl's documentation still builds the Verilog prompt; the Spire prompt says why not."""
     code = (
         "import rtlscout.paths as paths\n"
         "paths.spire_hdl_root = lambda: None\n"
+        "paths.spire_package_dir = lambda: None\n"
         "import rtlscout.prompts as prompts\n"
         "assert 'RTL' in prompts.build_system_prompt('an adder', 'transistors')\n"
         "try:\n"

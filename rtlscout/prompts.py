@@ -16,24 +16,42 @@ from rtlscout.evaluation import SPIREHDL_VERILOG_OUTPUT, AMARANTH_VERILOG_OUTPUT
 # spire-hdl documentation (read once at import time)
 # ---------------------------------------------------------------------------
 
-# The Spire prompts quote documentation and examples from the spire-hdl source tree, located by
-# rtlscout.paths.spire_hdl_root(): the deps/spire-hdl submodule of a checkout wherever it is mounted
-# (devcontainer, single-container, or an identity-mounted orchestrated container), RTLSCOUT_SPIRE_HDL_DIR, or the
-# tree an editable spire-hdl is installed from. The spire-hdl wheel ships none of it, so without the tree the
-# Verilog and Amaranth prompts still build and the Spire ones raise (require_spire_sources).
-_SPIRE_ROOT = paths.spire_hdl_root()
-_SPIRE = _SPIRE_ROOT if _SPIRE_ROOT is not None else paths.workspace_root() / "deps" / "spire-hdl"
+# The Spire prompts quote spire-hdl's documentation, example scripts and sources. rtlscout.paths finds them inside
+# the installed spire package (spire-hdl >= 0.4.1) or in a source tree (the deps/spire-hdl submodule of a checkout
+# wherever it is mounted, RTLSCOUT_SPIRE_HDL_DIR, an editable install). Without either, the Verilog and Amaranth
+# prompts still build and the Spire ones raise (require_spire_sources).
+_SPIRE_DOCS = paths.spire_docs_dir()
+_SPIRE_PKG = paths.spire_package_dir()
+_SPIRE_TREE = paths.spire_hdl_root()
+#: spire-hdl's main README: the source tree's when there is one, else the copy that ships with rtlscout.
+SPIRE_README_PATH = (_SPIRE_TREE / "README.md" if _SPIRE_TREE is not None and (_SPIRE_TREE / "README.md").is_file()
+                     else Path(__file__).parent / "spirehdl_readme.md")
 
 
 def require_spire_sources() -> None:
-    """Raise unless the spire-hdl source tree was found when this module was imported."""
-    if _SPIRE_ROOT is None:
+    """Raise unless spire-hdl's documentation was found when this module was imported."""
+    if _SPIRE_DOCS is None:
         raise FileNotFoundError(paths.SPIRE_HDL_MISSING)
 
 
+def spire_doc_path(name: str) -> Path:
+    """Where a topic README of spire-hdl is (the path may not exist without the sources)."""
+    return (_SPIRE_DOCS if _SPIRE_DOCS is not None else Path("<spire-hdl docs>")) / name
+
+
 def _read_spire_doc(name: str) -> str:
-    """A topic README from spire-hdl's docs/ (Spire >= 0.2.0); empty when there is no spire-hdl source tree."""
-    return (_SPIRE / "docs" / name).read_text() if _SPIRE_ROOT is not None else ""
+    """A topic README from spire-hdl (Spire >= 0.2.0); empty when its documentation is not available."""
+    return spire_doc_path(name).read_text() if _SPIRE_DOCS is not None else ""
+
+
+def _spire_src(relpath: str) -> str:
+    """A source file of the installed spire package."""
+    return str((_SPIRE_PKG if _SPIRE_PKG is not None else Path("<spire>")) / relpath)
+
+
+def _spire_example(name: str, tree_path: str) -> str:
+    path = paths.spire_example(name, tree_path)
+    return str(path) if path is not None else f"<spire-hdl examples>/{name}"
 
 
 _OPTIMIZATION_DECORATORS_MD = _read_spire_doc("README_optimization_decorators.md")
@@ -85,43 +103,43 @@ SPIREHDL_REFERENCES = [
     },
     {
         "name": "component_example.py",
-        "path": str(_SPIRE / "testing/examples/component_example.py"),
+        "path": _spire_example("component_example.py", "testing/examples/component_example.py"),
         "description": "Example: defining Components with IORecord IO, hierarchy, and simulation",
         "lang": "python",
     },
     {
         "name": "expr.py",
-        "path": str(_SPIRE / "src/spire/expr.py"),
+        "path": _spire_src("expr.py"),
         "description": "Core Spire DSL source (signals, types, operators, Const/mux/cat)",
         "lang": "python",
     },
     {
         "name": "component.py",
-        "path": str(_SPIRE / "src/spire/component.py"),
+        "path": _spire_src("component.py"),
         "description": "Spire Component class (IO, Verilog emission)",
         "lang": "python",
     },
     {
         "name": "prefix_adder_clean.py",
-        "path": str(_SPIRE / "src/spire/arithmetic/prefix_adders/prefix_adder_clean.py"),
+        "path": _spire_src("arithmetic/prefix_adders/prefix_adder_clean.py"),
         "description": "Prefix adder builder and classic topologies (Kogge-Stone, Slansky, etc.)",
         "lang": "python",
     },
     {
         "name": "sign_magnitude.py",
-        "path": str(_SPIRE / "src/spire/arithmetic/encoding/sign_magnitude.py"),
+        "path": _spire_src("arithmetic/encoding/sign_magnitude.py"),
         "description": "Two's complement / sign-magnitude encoder and decoder components",
         "lang": "python",
     },
     {
         "name": "direct_expression_basics.py",
-        "path": str(_SPIRE / "testing/examples/direct_expression_basics.py"),
+        "path": _spire_example("direct_expression_basics.py", "testing/examples/direct_expression_basics.py"),
         "description": "Example: direct arithmetic expressions, constants, mux usage",
         "lang": "python",
     },
     {
         "name": "README_control_structures.md",
-        "path": str(_SPIRE / "docs/README_control_structures.md"),
+        "path": str(spire_doc_path("README_control_structures.md")),
         "description": ("Control structures (if_/elif_/else_, switch_/case_) and selection "
                         "emission modes (selection_topology('tournament'/'onehot'/'bittree'), "
                         "region/decorator forms) — log-depth alternatives to nested mux cascades"),
@@ -129,7 +147,7 @@ SPIREHDL_REFERENCES = [
     },
     {
         "name": "README_reductions.md",
-        "path": str(_SPIRE / "docs/README_reductions.md"),
+        "path": str(spire_doc_path("README_reductions.md")),
         "description": ("Balanced log-depth reduction trees (spire.reduce: max_/min_/argmax_/"
                         "sum_/reduce_tree/prefix_scan) — use instead of loop-built running max/min chains, "
                         "which are O(N) deep and cannot be rebalanced by synthesis"),
@@ -137,26 +155,27 @@ SPIREHDL_REFERENCES = [
     },
     {
         "name": "sequential_mac.py",
-        "path": str(_SPIRE / "testing/basic_examples/sequential_mac.py"),
+        "path": _spire_example("sequential_mac.py", "testing/basic_examples/sequential_mac.py"),
         "description": "Example: sequential multiply-accumulate (MAC) with clock and reset",
         "lang": "python",
     },
     # Optional matmul-accumulate core examples (included only when files exist)
     {
         "name": "matmul_accumulate_core.py",
-        "path": str(_SPIRE / "src/spire/cores/matmul_accumulate/matmul_accumulate_core.py"),
+        "path": _spire_src("cores/matmul_accumulate/matmul_accumulate_core.py"),
         "description": "Core: matrix multiply-accumulate implementation",
         "lang": "python"
     },
     {
         "name": "matmul_accumulate_core_fused.py",
-        "path": str(_SPIRE / "src/spire/cores/matmul_accumulate/matmul_accumulate_core_fused.py"),
+        "path": _spire_src("cores/matmul_accumulate/matmul_accumulate_core_fused.py"),
         "description": "Core: fused matrix multiply-accumulate implementation",
         "lang": "python"
     },
     {
         "name": "test_matmul_accumulate_core_fused.py",
-        "path": str(_SPIRE / "testing/matmul_accumulate_core/test_matmul_accumulate_core_fused.py"),
+        "path": _spire_example("test_matmul_accumulate_core_fused.py",
+                               "testing/matmul_accumulate_core/test_matmul_accumulate_core_fused.py"),
         "description": "Example: test/usage of the fused matmul-accumulate core",
         "lang": "python"
     },

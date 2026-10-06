@@ -22,31 +22,31 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional
 
-from rtlscout.prompts import (AMARANTH_REFERENCES, SPIREHDL_REFERENCES, VERILOG_REFERENCES, _SPIRE,
-                              require_spire_sources)
+from rtlscout.prompts import (AMARANTH_REFERENCES, SPIREHDL_REFERENCES, SPIRE_README_PATH, VERILOG_REFERENCES,
+                              require_spire_sources, spire_doc_path)
 
 if TYPE_CHECKING:
     from rtlscout.agent_backend import BackendRequest
 
 # spire-hdl ships topic READMEs next to its main one — pointed at (not inlined) so a
 # shell-capable agent reads what it needs on demand.
-# README.md is at the spire-hdl root; the topic READMEs live under docs/ (Spire >= 0.2.0).
+# The main README comes with rtlscout (or the source tree); the topic READMEs with spire-hdl (Spire >= 0.2.0).
 _SPIRE_DOC_READMES = [
-    ("README.md", "main Spire overview — start here"),
-    ("docs/README_arithmetic_generator.md", "configurable multiplier/adder generators"),
-    ("docs/README_arithmetic_optimization.md", "arithmetic architecture optimization"),
-    ("docs/README_optimization_decorators.md", "@abc_optimized / etc."),
-    ("docs/README_fsm_optimization.md", "FSM / state-encoding optimization"),
-    ("docs/README_state_machines.md", "state machines"),
-    ("docs/README_control_structures.md",
+    (str(SPIRE_README_PATH), "main Spire overview — start here"),
+    (str(spire_doc_path("README_arithmetic_generator.md")), "configurable multiplier/adder generators"),
+    (str(spire_doc_path("README_arithmetic_optimization.md")), "arithmetic architecture optimization"),
+    (str(spire_doc_path("README_optimization_decorators.md")), "@abc_optimized / etc."),
+    (str(spire_doc_path("README_fsm_optimization.md")), "FSM / state-encoding optimization"),
+    (str(spire_doc_path("README_state_machines.md")), "state machines"),
+    (str(spire_doc_path("README_control_structures.md")),
      "if_/switch_ control structures + selection emission modes "
      "(selection_topology('tournament'/'onehot'/'bittree') — log-depth mux-cascade rewrites)"),
-    ("docs/README_reductions.md",
+    (str(spire_doc_path("README_reductions.md")),
      "balanced log-depth reduction trees (spire.reduce: max_/min_/argmax_/sum_/reduce_tree/prefix_scan "
      "— loop-built running max/min chains are O(N) deep and synthesis cannot rebalance them)"),
-    ("docs/README_composite_types.md", "structs / arrays / composite types"),
-    ("docs/README_memories.md", "memories"),
-    ("docs/README_custom_verilog.md", "embedding custom Verilog"),
+    (str(spire_doc_path("README_composite_types.md")), "structs / arrays / composite types"),
+    (str(spire_doc_path("README_memories.md")), "memories"),
+    (str(spire_doc_path("README_custom_verilog.md")), "embedding custom Verilog"),
 ]
 
 _VERILOG_ESSENTIALS = (
@@ -89,7 +89,7 @@ _CFG = {
                      doc_readmes=_SPIRE_DOC_READMES, essentials=None, opt_flags=True),
 }
 
-_HINTS_PATH = _SPIRE / "docs" / "hints.md"
+_HINTS_PATH = spire_doc_path("hints.md")
 
 
 def _demote_headings(md: str) -> str:
@@ -140,7 +140,7 @@ def _references(cfg: dict) -> str:
     ]
     if cfg["doc_readmes"]:
         lines += ["", "**Docs (start with the main README):**"]
-        lines += [f"- `{_SPIRE / fname}` — {desc}" for fname, desc in cfg["doc_readmes"]]
+        lines += [f"- `{path}` — {desc}" for path, desc in cfg["doc_readmes"]]
     if cfg["refs"]:
         lines += ["", "**Reference implementations / examples (read the ones you need):**"]
         lines += [f"- `{ref['path']}` — {ref['description']}" for ref in cfg["refs"]]
@@ -155,7 +155,7 @@ def _optimization_guidance(req: "BackendRequest", cfg: dict) -> str:
         return ""
 
     def R(name):
-        return f"`{_SPIRE / 'docs' / name}`"
+        return f"`{spire_doc_path(name)}`"
 
     items = []
     if req.abc_optimize:
