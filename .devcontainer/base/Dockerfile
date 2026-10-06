@@ -57,10 +57,10 @@ ARG NPROC
 # 49bd051a1, which `openroad -version` reports as 26Q2-1846-g49bd051a10). Later ORFS builds OpenROAD with Bazel and
 # would change the STA results every delay number rests on.
 ARG ORFS_COMMIT=dd16357d8e468bf10bbcaad074f42067030ff483
-RUN git init -q /build/ORFS \
+RUN git clone -q --depth 1 "${ORFS_REPO}" /build/ORFS \
  && cd /build/ORFS \
- && git fetch -q --depth 1 "${ORFS_REPO}" "${ORFS_COMMIT}" \
- && git checkout -q FETCH_HEAD
+ && git fetch -q --depth 1 origin "${ORFS_COMMIT}" \
+ && git checkout -q --detach FETCH_HEAD
 WORKDIR /build/ORFS
 RUN set -eu; \
   tmpdir="$(mktemp -d)"; trap 'rm -rf "$tmpdir"' EXIT; \
