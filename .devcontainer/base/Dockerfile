@@ -53,12 +53,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 FROM builder-base AS build-openroad
 ARG ORFS_REPO
 ARG NPROC
-RUN git clone --depth 1 "${ORFS_REPO}" /build/ORFS
+# ORFS pinned to the commit the published image was built from (2026-06-04; its OpenROAD submodule is
+# 49bd051a1, which `openroad -version` reports as 26Q2-1846-g49bd051a10). Later ORFS builds OpenROAD with Bazel and
+# would change the STA results every delay number rests on.
+ARG ORFS_COMMIT=dd16357d8e468bf10bbcaad074f42067030ff483
+RUN git init -q /build/ORFS \
+ && cd /build/ORFS \
+ && git fetch -q --depth 1 "${ORFS_REPO}" "${ORFS_COMMIT}" \
+ && git checkout -q FETCH_HEAD
 WORKDIR /build/ORFS
-# Fetch exactly that commit into the shallow clone and check it out
-# RUN git fetch --no-tags --depth 1 origin 9c88e25970729dcaf7af59ffd7c98c168c5a2c71 \
-#  && git checkout --detach 9c88e25970729dcaf7af59ffd7c98c168c5a2c71 \
-#  && git submodule update --init --recursive --depth 1
 RUN set -eu; \
   tmpdir="$(mktemp -d)"; trap 'rm -rf "$tmpdir"' EXIT; \
   { \
