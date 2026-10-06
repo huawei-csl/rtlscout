@@ -108,8 +108,13 @@ RUN git clone --depth 1 --branch "${YOSYS_VER}" https://github.com/YosysHQ/yosys
  && mkdir -p /staged/usr/local \
  && cp -a /usr/local/. /staged/usr/local/ \
  && rm -rf /build/yosys
-RUN git clone --recursive --depth 1 https://github.com/povik/yosys-slang /build/yosys-slang \
+# yosys-slang pinned to its last commit before this recipe was first built (2026-06-03): its later history needs
+# a newer Yosys API than v0.55.
+RUN git init -q /build/yosys-slang \
  && cd /build/yosys-slang \
+ && git fetch -q --depth 1 https://github.com/povik/yosys-slang 73329092eae7ccbf691ce206b256b4923437ddfe \
+ && git checkout -q FETCH_HEAD \
+ && git submodule update -q --init --recursive --depth 1 \
  && cmake -S . -B build \
       -DYOSYS_CONFIG=/usr/local/bin/yosys-config \
       -DCMAKE_BUILD_TYPE=Release \
