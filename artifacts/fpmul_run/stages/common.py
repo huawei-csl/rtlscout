@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import rerun_config as cfg
 
-if str(cfg.REPO) not in sys.path:      # for in-process imports of core.*
+if str(cfg.REPO) not in sys.path:      # for in-process imports of rtlscout.*
     sys.path.insert(0, str(cfg.REPO))
 
 

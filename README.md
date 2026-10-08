@@ -102,10 +102,51 @@ bash .devcontainer/start_container.sh
 The base EDA image (OpenROAD, Yosys, Verilator, OpenSTA, sv2v, …) is large. The easiest path is to **pull the prebuilt slim image**; building from source is fully supported as an alternative.
 
 - **Prebuilt pull** (default, recommended): `bash .devcontainer/pull_image.sh`. Pulls `ghcr.io/huawei-csl/rtlscout:slim` (~3 GB) and tags it `rtlscout:latest` (the tag `start_container.sh` and the devcontainer expect). By hand: `docker pull ghcr.io/huawei-csl/rtlscout:slim && docker tag ghcr.io/huawei-csl/rtlscout:slim rtlscout:latest`.
-- **Slim self-build**: `BUILD_SLIM=1 bash .devcontainer/build_image.sh`. Builds the same ~3 GB image from source: same toolchain, but drops the OpenROAD build tree and the PDK data the flow never reads (uses `deps/tech_eval/.devcontainer/Dockerfile.slim`; shares the full build's compile cache).
+- **Slim self-build**: `BUILD_SLIM=1 bash .devcontainer/build_image.sh`. Builds the same ~3 GB image from source: same toolchain, but drops the OpenROAD build tree and the PDK data the flow never reads (uses `.devcontainer/base/Dockerfile.slim`; shares the full build's compile cache).
 - **Full self-build**: `bash .devcontainer/build_image.sh`. Builds everything from source (~1–2 h the first time; ~54 GB image).
 
 The VS Code devcontainer pulls by default; to self-build instead, edit `initializeCommand` in `.devcontainer/devcontainer.json`.
+
+### Install as a Python package
+
+RTL Scout is also an installable package (`rtlscout`), so another project can use it without working inside this checkout. It is installed from git by URL and tag:
+
+```bash
+pip install "rtlscout @ git+https://github.com/huawei-csl/rtlscout@v0.2.0"
+```
+
+The EDA tools are not Python packages: install it inside the container image (or wherever Yosys, Verilator, OpenROAD and sv2v are on `PATH`). Every command-line tool is a module of the package; the root scripts of this repository are thin wrappers around them, so both forms below are the same command:
+
+| Module | Root script in a checkout |
+|--------|---------------------------|
+| `python -m rtlscout.run_eval` | `python run_eval.py` |
+| `python -m rtlscout.run_benchmark` | `python run_benchmark.py` |
+| `python -m rtlscout.run_multirun` | `python run_multirun.py` |
+| `python -m rtlscout.run_pipeline` | `python run_pipeline.py` |
+| `python -m rtlscout.run_sweep` | `python run_sweep.py` |
+| `python -m rtlscout.batch_eval` | `python batch_eval.py` |
+| `python -m rtlscout.extract_pareto` | `python extract_pareto.py` |
+| `python -m rtlscout.containers` | `python rtlscout_cli.py` |
+
+```bash
+# from any directory, no checkout needed: a packaged smoke benchmark and an offline fake model
+python -m rtlscout.run_benchmark --benchmark simple_adder --model fake:simple_adder_pass
+
+# your own benchmark tree
+RTLSCOUT_BENCHMARKS=/path/to/benchmarks python -m rtlscout.run_benchmark --benchmark my_design --model <provider>:<model>
+```
+
+Outside a checkout the package finds its surroundings through these variables (a checkout needs none of them; see [`rtlscout/paths.py`](rtlscout/paths.py)):
+
+| Variable | Meaning | Default |
+|----------|---------|---------|
+| `RTLSCOUT_HOME` | workspace root: holds `.env`, `benchmarks/`, `deps/` | the checkout the package runs from, else the current directory |
+| `RTLSCOUT_ENV_FILE` | `.env` with the provider API keys | `<workspace root>/.env` |
+| `RTLSCOUT_BENCHMARKS` | benchmark trees, separated by `:` | `<workspace root>/benchmarks` (plus `internal/benchmarks` if present) |
+| `RTLSCOUT_CACHE_DIR` | derived files such as the merged ASAP7 liberty | `<checkout>/.cache`, else `~/.cache/rtlscout` |
+| `RTLSCOUT_SPIRE_HDL_DIR` | spire-hdl source tree | `<workspace root>/deps/spire-hdl` |
+
+Spire HDL runs (`--language spirehdl` with an agent) quote the spire-hdl documentation and examples in their prompts. Those are part of the spire-hdl repository, not of its wheel, so outside a checkout point `RTLSCOUT_SPIRE_HDL_DIR` at a clone of [spire-hdl](https://github.com/huawei-csl/spire-hdl) at the installed version. Evaluating an existing Spire design (`run_eval`) and all Verilog and Amaranth flows need only the installed packages. The OpenCode backend's orchestrated mode mounts the workspace root into its containers and therefore needs a checkout.
 
 ## Benchmarks
 
@@ -131,7 +172,7 @@ Browse `benchmarks/` for the full set; to add your own, see **[README_add_benchm
 | Reproduce RTLRewriter paper tables | [Bundled RTLRewriter results](#bundled-rtlrewriter-results) | The 14 general (non-FP) cases; cell & transistor count tables |
 | Reproduce FP paper experiments | [`README_fpmul.md`](README_fpmul.md) | Specialized `fpmul_f16` / `fpadd_f16` pipeline |
 
-Each is detailed in [Running benchmarks](#running-benchmarks) below.
+Each is detailed in [Running benchmarks](#running-benchmarks) below. Every script is also a module of the installed package (`python -m rtlscout.run_eval`, …); see [Install as a Python package](#install-as-a-python-package).
 
 ## Agent Flow
 
@@ -233,7 +274,7 @@ provisioned, mentioned, or forwarded). The DB *capability* is spire's and exists
 (`spire db` auto-creates `./design_db` on first use); this flag adds the guidance and the
 handover. It includes:
 
-- **Skills** at `.opencode/skills/` (copied from [core/skills/](core/skills/)) —
+- **Skills** at `.opencode/skills/` (copied from [rtlscout/skills/](rtlscout/skills/)) —
   `design-db-inspect` (slots/designs/Pareto + how to judge results), `design-db-insert` /
   `design-db-eval` (spire-first: submit/check `cand.py` candidates through the gate),
   `design-db-dv-prep` (verification prep for sequential slots), `design-db-dispatch`
@@ -299,7 +340,7 @@ to all admitted designs). An example report (sat_mac4_par, GLM-5.2) is checked i
 | `python rtlscout_cli.py fill-db --slot <key> --model <provider:model>` | Campaign filler: slot → ephemeral benchmark → `run_multirun(reeval=True)` → every passing candidate through Spire's gate (the slot's own golden is seeded first as the baseline/floor). |
 | `python rtlscout_cli.py db-score [--slot K --design ID --technology asap7 --dry-run]` | Measures per-technology PPA on stored designs and annotates the DB (enables `metric="asap7"` selection); `--design` scopes to one design, `--dry-run` measures without writing. Backs the `design-db-score` skill. |
 
-The decorator's generate-on-miss hook is `core.design_db_fill.rtlscout_fill`
+The decorator's generate-on-miss hook is `rtlscout.design_db_fill.rtlscout_fill`
 (`@from_design_db(fill=rtlscout_fill)`; model via `$RTLSCOUT_FILL_MODEL` or
 `make_rtlscout_fill(model=...)` — never a silent default). Trust model in one line: **agents
 propose; spire's gate disposes** — inserts only ever pass through `spire db insert`
@@ -452,7 +493,7 @@ The cost metric is configurable via `--cost-metric`. All metrics follow the same
 | AIG count | `aig_count` | Yosys + aigverse | Post-optimization AIG AND-node count (`num_gates` = `len(aig.gates())`, i.e. AND nodes only, excluding the constant and primary-input nodes), combinational designs only |
 | AIG depth | `aig_depth` | Yosys + aigverse | Post-optimization AIG logic depth (`DepthAig.num_levels()`), combinational designs only |
 
-**Transistors** runs a fast Yosys + ABC flow (`proc; opt; fsm; memory; opt; techmap; opt; abc -fast; opt`) and reads the estimated transistor count from `stat -tech cmos`. The **yosys_cells / yosys_wires / yosys_transistors** variants are Yosys-only (technology-independent): they skip ABC and instead run `synth; clean -purge; stat`. The `clean -purge` step drops public-alias buffers that `opt_clean` preserves for debuggability, giving counts that more faithfully reflect the netlist. **Delay/area/power** use the `tech_eval` package which synthesizes against a standard cell library (nangate45) and runs OpenROAD static timing analysis. **aig_count / aig_depth** measure the And-Inverter Graph after aigverse AIG optimization (yosys `aigmap` → aigverse); combinational designs only.
+**Transistors** runs a fast Yosys + ABC flow (`proc; opt; fsm; memory; opt; techmap; opt; abc -fast; opt`) and reads the estimated transistor count from `stat -tech cmos`. The **yosys_cells / yosys_wires / yosys_transistors** variants are Yosys-only (technology-independent): they skip ABC and instead run `synth; clean -purge; stat`. The `clean -purge` step drops public-alias buffers that `opt_clean` preserves for debuggability, giving counts that more faithfully reflect the netlist. **Delay/area/power** use the `rtlscout.tech_eval` package which synthesizes against a standard cell library (nangate45) and runs OpenROAD static timing analysis. **aig_count / aig_depth** measure the And-Inverter Graph after aigverse AIG optimization (yosys `aigmap` → aigverse); combinational designs only.
 
 For PPA metrics, the `--target-delay` flag (in ps) controls the synthesis timing constraint. Lower values push for faster designs at the expense of area/power.
 
@@ -712,7 +753,7 @@ The leading `/add-benchmark` loads the skill explicitly; everything after it is 
 Subclass `CostMetric` in `cost.py`:
 
 ```python
-from core.cost import CostMetric, CostResult
+from rtlscout.cost import CostMetric, CostResult
 
 class MyCost(CostMetric):
     @property

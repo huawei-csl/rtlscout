@@ -30,9 +30,7 @@ jobs:
           # The image's pyenv_eda is a `uv venv` (no pip); use `uv pip`, like post_create.sh does.
           . /home/vscode/pyenv_eda/bin/activate
           uv pip install -e deps/spire-hdl
-          uv pip install -e deps/tech_eval
-          uv pip install -r requirements.txt
-          uv pip install pytest
+          uv pip install -e ".[test]"
 
       - name: Tool sanity (Yosys / Verilator / OpenROAD load)
         run: |
@@ -71,3 +69,18 @@ jobs:
               --total-runs 1 --max-concurrent 1 --max-steps 5 \
               --runs-root /tmp/pipe --out /tmp/pipe_pareto | tee /tmp/pipe.log
           grep -q 'Combined .*Pareto front' /tmp/pipe.log   # both phases ran and the extract step was reached
+
+      - name: Installed package — install by git URL into a clean venv, fake-LLM run from an empty directory
+        run: |
+          # The same code path as `pip install "rtlscout @ git+https://github.com/huawei-csl/rtlscout@<tag>"`, from
+          # this checkout. pip/uv initialise submodules; relative to a file:// origin the host-relative spire-hdl
+          # URL has no sibling repository to resolve to, so point it at the public one.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global url."https://github.com/huawei-csl/spire-hdl.git".insteadOf \
+              "file://$(dirname "$GITHUB_WORKSPACE")/spire-hdl.git"
+          uv venv /tmp/installed && . /tmp/installed/bin/activate
+          uv pip install "rtlscout @ git+file://$GITHUB_WORKSPACE@$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD)"
+          mkdir /tmp/empty && cd /tmp/empty
+          python -c "import rtlscout; print(rtlscout.__version__, rtlscout.__file__)"
+          python -m rtlscout.run_benchmark --benchmark simple_adder --model fake:simple_adder_pass | tee /tmp/installed.log
+          grep -q 'Best: PASS' /tmp/installed.log

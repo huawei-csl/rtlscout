@@ -1,11 +1,11 @@
-"""Unit tests for the Phase-0 agent-backend seam (core.agent_backend) and the
-factored-out workspace provisioning (core.runner.provision_workspace)."""
+"""Unit tests for the Phase-0 agent-backend seam (rtlscout.agent_backend) and the
+factored-out workspace provisioning (rtlscout.runner.provision_workspace)."""
 
 from pathlib import Path
 
 import pytest
 
-from core.agent_backend import BackendRequest, RunLimits, PythonReactBackend, make_backend
+from rtlscout.agent_backend import BackendRequest, RunLimits, PythonReactBackend, make_backend
 
 BENCHMARKS_ROOT = Path(__file__).parent.parent / "benchmarks"
 SIMPLE_ADDER_ROOT = BENCHMARKS_ROOT / "simple_adder"
@@ -31,8 +31,8 @@ def test_run_limits_defaults():
 def test_provision_workspace_lays_down_inputs(tmp_path):
     """provision_workspace creates workdir/workspace and copies the benchmark's
     testbench (the integrity-critical inputs the judge re-lays-down identically)."""
-    from core.benchmarks import load_benchmark
-    from core.runner import provision_workspace
+    from rtlscout.benchmarks import load_benchmark
+    from rtlscout.runner import provision_workspace
 
     bench = load_benchmark(SIMPLE_ADDER_ROOT)
     workdir = tmp_path / "run"
@@ -48,7 +48,7 @@ def test_provision_workspace_lays_down_inputs(tmp_path):
 
 def test_backend_request_is_constructible(tmp_path):
     """The seam's request object accepts the same config run_agent_on_benchmark passes."""
-    from core.benchmarks import load_benchmark
+    from rtlscout.benchmarks import load_benchmark
 
     bench = load_benchmark(SIMPLE_ADDER_ROOT)
     req = BackendRequest(

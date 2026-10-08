@@ -12,7 +12,7 @@
 tag: pdpu16-glm
 model: openrouter:z-ai/glm-5.2
 
-benchmarks:                 # UNBLOCKED 2026-08-15: the tech_eval netlist-sim bug
+benchmarks:                 # UNBLOCKED 2026-08-15: the rtlscout.tech_eval netlist-sim bug
   verilog: pdpu_dot16         # (_shorten_netlist_names mangling >80-char sized
   spirehdl: pdpu_dot16_spire  # literals) is fixed; verified 749.7um2/3605.6ps,
                               # 2M/2M checks. Re-add the verilog line and resume

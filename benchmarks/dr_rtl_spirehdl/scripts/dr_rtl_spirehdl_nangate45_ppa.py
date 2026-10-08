@@ -54,7 +54,7 @@ def _spirehdl_starting_point(case_dir: Path) -> Optional[Path]:
 def _compile_spirehdl(starting_point: Path, workdir: Path) -> Path:
     """Run the spirehdl .py inside workdir, producing design.v.
 
-    Mirrors core/runner.py's spirehdl compile step: copy the .py to
+    Mirrors rtlscout/runner.py's spirehdl compile step: copy the .py to
     workdir, chdir into workdir, run as a subprocess. Returns the path
     to the produced design.v.
     """
@@ -76,7 +76,7 @@ def _compile_spirehdl(starting_point: Path, workdir: Path) -> Path:
 
 
 def _run_one(case: str, target_delay_ps: int) -> dict:
-    from tech_eval.ppa_extract.core.ppa_extraction import get_ppa
+    from rtlscout.tech_eval.ppa_extract.core.ppa_extraction import get_ppa
 
     case_dir = BENCH_ROOT / case
     md = json.loads((case_dir / "metadata.json").read_text())

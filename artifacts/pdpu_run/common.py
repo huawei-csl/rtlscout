@@ -29,10 +29,10 @@ def sh(cmd, log_name: str, cwd: Path = cfg.REPO, check: bool = True,
     log_file = cfg.LOGS / f"{log_name}.log"
     cmd = [str(c) for c in cmd]
     env = os.environ.copy()
-    env["PYTHONPATH"] = f"{cfg.REPO}:{cfg.REPO}/deps/tech_eval/src:" + env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{cfg.REPO}:" + env.get("PYTHONPATH", "")
     env["MPLBACKEND"] = "Agg"
     # The ABC recipes are ~120 s each and agents stack them; the 60 s default
-    # would time out every cold-cache compile (core/evaluation.py).
+    # would time out every cold-cache compile (rtlscout/evaluation.py).
     env.setdefault("SPIREHDL_TIMEOUT", "600")
     if env_extra:
         env.update(env_extra)

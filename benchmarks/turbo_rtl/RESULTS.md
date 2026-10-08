@@ -4,7 +4,7 @@
 
 ### Cost metric — `sky130_adp`
 
-Added in `core/cost.py` as `Sky130ADPCost`. Replicates `references/run_evaluation.py` (no CEC, no OpenROAD STA):
+Added in `rtlscout/cost.py` as `Sky130ADPCost`. Replicates `references/run_evaluation.py` (no CEC, no OpenROAD STA):
 
 ```
 yosys: read_verilog -sv <files>; hierarchy -top <top>; proc; opt; techmap; opt;
@@ -89,7 +89,7 @@ So the metric is correct. The gap between our numbers and the paper's `ppa_raw` 
 - **Different yosys / abc version.** We're on `Yosys 0.55 (git sha1 60f126cd0)` in this devcontainer. The paper's numbers presumably come from an older toolchain; `synth -flatten` + `dch -f; map` output is quite version-sensitive. For the encoder, area is within ~3% (222.71 vs 230.22) but the paper's delay is ~73% higher (396.36 ps vs 229.21 ps) — consistent with abc's mapping/sizing heuristics having changed.
 - **Same flow text, different environment.** Liberty file mtime/contents, locale, `ABC_DATA` / resource-limits may also perturb sizing decisions marginally.
 
-Minor differences between `core/cost.py:Sky130ADPCost` and `references/run_evaluation.py`, none of which change the numbers (verified by the match table above):
+Minor differences between `rtlscout/cost.py:Sky130ADPCost` and `references/run_evaluation.py`, none of which change the numbers (verified by the match table above):
 
 - We call yosys as `yosys -q <script_file>` instead of `echo … | yosys`. Same script text, same effect.
 - We pass the abc script via `yosys-abc -f <script_file>` instead of `-c "<script>"`. Same commands.
@@ -199,7 +199,7 @@ All round-2 best designs live under `runs/turbo_rtl_30/<benchmark>/claude-opus-4
 
 ## Round 3 — area-only and delay-only metrics (encoder_8b10b, gda_adder_n8m8p2)
 
-To check whether the language gap that shows up under `sky130_adp` is specific to that flow or also present under area-only and delay-only optimization targets, we ran a focused round on the two simpler combinational benchmarks (encoder_8b10b and gda_adder_n8m8p2) with `--cost-metric area` and `--cost-metric delay` — both metrics use the **OpenROAD STA flow against ASAP7** via `tech_eval`, completely separate from the `yosys-abc stime` flow that powers `sky130_adp`. Same agent settings as round 2 (Opus 4.6, 30 steps), 8 campaigns total (2 benchmarks × 2 metrics × 2 languages), all in parallel under `runs/turbo_rtl_30_pp/`.
+To check whether the language gap that shows up under `sky130_adp` is specific to that flow or also present under area-only and delay-only optimization targets, we ran a focused round on the two simpler combinational benchmarks (encoder_8b10b and gda_adder_n8m8p2) with `--cost-metric area` and `--cost-metric delay` — both metrics use the **OpenROAD STA flow against ASAP7** via `rtlscout.tech_eval`, completely separate from the `yosys-abc stime` flow that powers `sky130_adp`. Same agent settings as round 2 (Opus 4.6, 30 steps), 8 campaigns total (2 benchmarks × 2 metrics × 2 languages), all in parallel under `runs/turbo_rtl_30_pp/`.
 
 ```bash
 for bench in encoder_8b10b gda_adder_n8m8p2; do
@@ -225,7 +225,7 @@ done; wait
 | `encoder_8b10b`    | 3.0 | 84.89 |   2.0 |   2.0 | 83.45 | **83.15** |
 | `gda_adder_n8m8p2` | 4.0 | 89.15 |   4.0 |   4.0 | 89.15 | 89.15 |
 
-> **Caveat — area numbers were being rounded to integers by OpenROAD.** We later discovered that OpenROAD's `report_design_area` Tcl proc formats the area with `%.0f` (see `/prog/OpenROAD-flow-scripts/tools/OpenROAD/src/rsz/src/Resizer.tcl:396`), so every `area` value at the metric's granularity was quantized to whole µm². For these small benchmarks that was catastrophic resolution loss — agent improvements of ~0.1 µm² were invisible, and a genuine 10% improvement could look identical to "tie at 2.0". We patched the tech_eval STA template to additionally emit `rsz::design_area` (a Tcl double in square meters → µm² with full precision) and the parser to prefer that value, then **re-evaluated the saved best designs from all 8 round-3 campaigns against the precise metric** (without rerunning the agent). The table below has the real numbers.
+> **Caveat — area numbers were being rounded to integers by OpenROAD.** We later discovered that OpenROAD's `report_design_area` Tcl proc formats the area with `%.0f` (see `/prog/OpenROAD-flow-scripts/tools/OpenROAD/src/rsz/src/Resizer.tcl:396`), so every `area` value at the metric's granularity was quantized to whole µm². For these small benchmarks that was catastrophic resolution loss — agent improvements of ~0.1 µm² were invisible, and a genuine 10% improvement could look identical to "tie at 2.0". We patched the rtlscout.tech_eval STA template to additionally emit `rsz::design_area` (a Tcl double in square meters → µm² with full precision) and the parser to prefer that value, then **re-evaluated the saved best designs from all 8 round-3 campaigns against the precise metric** (without rerunning the agent). The table below has the real numbers.
 
 **Re-evaluated numbers with precise `design_area_precise` (same designs, higher-resolution readout):**
 
@@ -268,7 +268,7 @@ A few specific notes (using precise area):
 
 The `sky130_adp` flow is `yosys synth → write_blif → yosys-abc strash; dch -f; map; topo; upsize; dnsize; stime`. It maps the **input BLIF as given**, doing local rewrites within the AIG nodes. Spire's emit pollutes the AIG with explicit alias buffer nodes (Cause 1 above), named cut-wires from `_maybe_share` (Cause 2), and explicit slice-truncation nodes (Cause 3) — all of which `dch -f` respects as boundaries.
 
-The `area` / `delay` flow goes through `tech_eval`'s OpenROAD pipeline:
+The `area` / `delay` flow goes through `rtlscout.tech_eval`'s OpenROAD pipeline:
 
 ```
 yosys: read; synth -top; abc -D <target_delay> -constr <…> -liberty <asap7_lib>; write
@@ -366,7 +366,7 @@ Notably, **Spire already beat the paper's `ppa_opt` on all 5 benchmarks** — it
 
 ## Why is Spire still worse — Round 2 analysis (Opus 30-step)
 
-> **Correction (added later).** This section originally claimed three spirehdl-side root causes. After deeper testing, **Cause 1 (the "registered output buffer tax") was actually a `Sky130ADPCost` script bug, not a spirehdl issue** — yosys's default `opt_clean` deliberately preserves named (public) wires for debuggability, and the `Sky130ADPCost` yosys script never invoked `clean -purge` to drop alias buffers. Adding `clean -purge` to the script (committed in `core/cost.py`) makes the alias-buffer chain vanish and brings `adder_4bit_reg` spirehdl from 53,427 → 47,217 ADP — a 11.6% win that puts it narrowly *ahead* of the verilog winner (47,630). **Causes 2 and 3 (named-wire explosion + output-truncation slice) are confirmed spirehdl emission issues** and survive the purge — re-evaluating the encoder and bcd_to_bin spirehdl bests under the patched metric gives byte-identical numbers. The original three-cause analysis is preserved verbatim below for the record; the "Correction summary" subsection at the very end of this section reconciles everything against the post-patch reality.
+> **Correction (added later).** This section originally claimed three spirehdl-side root causes. After deeper testing, **Cause 1 (the "registered output buffer tax") was actually a `Sky130ADPCost` script bug, not a spirehdl issue** — yosys's default `opt_clean` deliberately preserves named (public) wires for debuggability, and the `Sky130ADPCost` yosys script never invoked `clean -purge` to drop alias buffers. Adding `clean -purge` to the script (committed in `rtlscout/cost.py`) makes the alias-buffer chain vanish and brings `adder_4bit_reg` spirehdl from 53,427 → 47,217 ADP — a 11.6% win that puts it narrowly *ahead* of the verilog winner (47,630). **Causes 2 and 3 (named-wire explosion + output-truncation slice) are confirmed spirehdl emission issues** and survive the purge — re-evaluating the encoder and bcd_to_bin spirehdl bests under the patched metric gives byte-identical numbers. The original three-cause analysis is preserved verbatim below for the record; the "Correction summary" subsection at the very end of this section reconciles everything against the post-patch reality.
 
 In round 2 Spire loses on **4 of 7** benchmarks (encoder_8b10b +7.8%, bcd_to_bin_16b +16.2%, adder_4bit_reg +12.2%, avg4_reg +5.9%), ties on **2** (gda_adder_n8m8p2, const_mult_3853), and **wins outright on 1** (rgb_diff_check, −10.0%). I dug into the chat logs, the per-step `design_*.{py,sv}` files in `runs/turbo_rtl_30/`, and ran controlled empirical experiments to nail down the root causes. **Three concrete spirehdl mechanisms explain the regressions** — all are library-level, none are agent-strategy issues. (See the correction note above and the "Correction summary" at the end of this section.)
 
@@ -504,7 +504,7 @@ The reason all this matters: the cost-metric flow we're using (`yosys synth` →
 
 The original "Three causes" analysis above had Cause 1 attributed to the wrong layer, and Cause 2's mechanism wrong. Empirical re-test on the saved round-2 best designs (no agent rerun):
 
-- **Cause 1 was a `Sky130ADPCost` script bug, not a spirehdl issue.** Yosys's default `opt`/`opt_clean` deliberately preserves named (public) wires for debuggability — the alias buffer chain `.names sum_reg[i] sum[i] / 1 1` survives into BLIF only because our script never invoked `opt_clean -purge` (a.k.a. `clean -purge`). The `assign output = reg` pattern that spirehdl is forced to emit is *not* the proximate cause; the missing yosys flag is. **Patch:** one line added to `core/cost.py:Sky130ADPCost`'s yosys script (`clean -purge` before `write_blif`).
+- **Cause 1 was a `Sky130ADPCost` script bug, not a spirehdl issue.** Yosys's default `opt`/`opt_clean` deliberately preserves named (public) wires for debuggability — the alias buffer chain `.names sum_reg[i] sum[i] / 1 1` survives into BLIF only because our script never invoked `opt_clean -purge` (a.k.a. `clean -purge`). The `assign output = reg` pattern that spirehdl is forced to emit is *not* the proximate cause; the missing yosys flag is. **Patch:** one line added to `rtlscout/cost.py:Sky130ADPCost`'s yosys script (`clean -purge` before `write_blif`).
 - **Cause 2 mechanism was wrong.** I claimed spirehdl's `_maybe_share` named wires acted as hard `dch -f` boundaries that prevented optimization. Empirical test contradicts this: yosys's `opt`/`opt_clean -purge` does collapse most of the named-wire chain. The post-yosys cell counts on `encoder_8b10b` are **58 cells (spirehdl) vs 53 cells (verilog)** — a real but small (+9%) difference, not a 53-vs-14 explosion. On `bcd_to_bin_16b` spirehdl has **fewer** post-yosys cells (384 vs 452), yet still loses on ADP. The actual mechanism is "source structure leaks into the post-flatten AIG topology in a residual way, and abc's local search lands in different optima for the two AIG shapes". On encoder, abc maps the spirehdl AIG to smaller area (202 vs 228) but worse delay (258 vs 213); ADP penalises the spirehdl landing by 7.8% but area-only would FAVOUR it. Switching abc to `abc -fast` (a different mapping strategy) flips the sign — spirehdl 49,963 vs verilog 50,597 (spirehdl wins by 1.3%). So the gap is sensitive to abc's strategy, not to a hard barrier. None of the yosys-side passes I tried (`opt -full`, `opt_share`, `opt_merge`, double-`flatten`) closed it.
 - **Cause 3 (bcd output-truncation slice) is partially a special case of the corrected Cause 2.** The slice contributes to bcd's post-flatten AIG having a different shape than verilog's. A library-side `fit_width`-at-output fix would remove the slice and is the most promising actionable change for that specific benchmark.
 

@@ -4,7 +4,7 @@
 Distinct from `experiments/table_dr_rtl_multirun.py` because the metric
 set is different. ADP runs evaluate every design with
 ``PPAAreaDelayProductCost`` (Yosys synth + OpenROAD STA via
-``tech_eval``), which reports ``{area, delay, area_delay_product, power}``
+``rtlscout.tech_eval``), which reports ``{area, delay, area_delay_product, power}``
 in ``μm²``, ``ps``, ``area·ps`` rather than the cells / wires /
 transistors set the yosys renderer expects.
 
@@ -42,8 +42,8 @@ from typing import Any, Dict, List, Optional, Tuple
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from core.benchmarks import load_benchmark  # noqa: E402
-from core.cost import make_cost_metric  # noqa: E402
+from rtlscout.benchmarks import load_benchmark  # noqa: E402
+from rtlscout.cost import make_cost_metric  # noqa: E402
 
 # Keep aligned with experiments/dr_rtl_multirun.py::AVAILABLE_CASES.
 CASE_ORDER = ["ticket", "controller", "router", "pcie", "cpu_pipe", "datapath"]

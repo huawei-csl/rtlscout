@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import common
 import rerun_config as cfg
 
-PLOT_FPMUL_PARETO = (cfg.REPO / "deps" / "tech_eval" / "src" / "tech_eval" /
+PLOT_FPMUL_PARETO = (cfg.REPO / "rtlscout" / "tech_eval" /
                      "ppa_extract" / "sweeps" / "fpmul" / "plot_fpmul_pareto.py")
 
 

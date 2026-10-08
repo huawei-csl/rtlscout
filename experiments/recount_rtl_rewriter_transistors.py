@@ -3,17 +3,17 @@
 
 Why this exists
 ---------------
-The transistor side-stat in ``core/cost.py`` used to read the per-module
+The transistor side-stat in ``rtlscout/cost.py`` used to read the per-module
 ``estimated_num_transistors`` straight from ``stat -tech cmos -json``. For a
 design shipped as a module *hierarchy* (top module instantiates submodules)
 that field is 0 (or undercounted) on the top module -- the gates live inside
 the submodule instances. Wires and cells were never affected (they come from
 the text ``stat`` ``=== design hierarchy ===`` roll-up, which recurses). See
-``TRANSISTOR_STAT_MODE`` in ``core/cost.py`` for the fix.
+``TRANSISTOR_STAT_MODE`` in ``rtlscout/cost.py`` for the fix.
 
 Summaries produced before the fix therefore carry stale transistor numbers for
 any hierarchical design. This script re-measures, with the *current* (fixed)
-``core/cost.py``, every design that feeds the best-per-phase table and writes a
+``rtlscout/cost.py``, every design that feeds the best-per-phase table and writes a
 corrected summary. The original summary is left untouched.
 
 Scope
@@ -48,7 +48,7 @@ from typing import Dict, List, Optional, Tuple
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from core.cost import YosysCellsCost  # noqa: E402  (after sys.path tweak)
+from rtlscout.cost import YosysCellsCost  # noqa: E402  (after sys.path tweak)
 
 
 def _case_sort_key(case_id: str) -> int:

@@ -35,13 +35,13 @@ python run_multirun.py --benchmark fpmul_f16 --model openrouter:z-ai/glm-5.2 \
 
 Two orthogonal abstractions, selected by one flag each:
 
-- **`AgentBackend`** (`core/agent_backend.py`) — *how* the agent runs. `--agent-backend`.
-  - `PythonReactBackend` — the in-process ReAct loop (`core/agent.py::RTLAgent`). Default;
+- **`AgentBackend`** (`rtlscout/agent_backend.py`) — *how* the agent runs. `--agent-backend`.
+  - `PythonReactBackend` — the in-process ReAct loop (`rtlscout/agent.py::RTLAgent`). Default;
     capability-confined (no shell); the only backend that can replay the offline `fake:`
     smoke test.
-  - `OpenCodeBackend` (`core/opencode_backend.py`) — an external `opencode run` with a real
+  - `OpenCodeBackend` (`rtlscout/opencode_backend.py`) — an external `opencode run` with a real
     shell.
-- **`Sandbox`** (`core/sandbox.py`) — *where* work runs, used for **both** the agent and the
+- **`Sandbox`** (`rtlscout/sandbox.py`) — *where* work runs, used for **both** the agent and the
   judge. `--mode`.
   - `LocalSandbox` — in the current process/container (single-container).
   - `ContainerSandbox` — a fresh `docker run --rm` per call (orchestrated).
@@ -115,7 +115,7 @@ doesn't need to be trustworthy (it only helps the agent iterate); the *recorded*
 | Purpose | feedback for iteration | the recorded score |
 | Trust | untrusted | trusted |
 | Inputs | the agent's own (writable) copies | the **benchmark's own** tb.sv + all `*.dat` (+ golden) |
-| Implemented by | `run_eval_and_store` (`core/eval_store.py`) | `reeval_run` (`core/reeval.py`) |
+| Implemented by | `run_eval_and_store` (`rtlscout/eval_store.py`) | `reeval_run` (`rtlscout/reeval.py`) |
 | From the agent | everything in its container | **design source only** |
 
 Same `evaluate()`, same args — only the **provenance of the inputs** differs. That delta is
@@ -166,10 +166,10 @@ exposed.)
 
 ## The OpenCode backend
 
-Per-run lifecycle (`core/opencode_backend.py`):
+Per-run lifecycle (`rtlscout/opencode_backend.py`):
 
 1. **Provision** the workspace (shared `provision_workspace`).
-2. **Render** `AGENTS.md` (the per-language `core/prompts.py` spec + an *OpenCode execution
+2. **Render** `AGENTS.md` (the per-language `rtlscout/prompts.py` spec + an *OpenCode execution
    section* that overrides the react tool mechanics, documents the `./evaluate_design` eval
    shim, and keeps the four reflection prompts), `opencode.json`, `_eval_config.json`, and an
    executable `evaluate_design` wrapper.
@@ -293,14 +293,13 @@ flowchart TD
 - **single-container:** the harness runs the agent + judge **in its own process**, so launch
   it **inside a container that already has the toolchain + deps** (`rtlscout` /
   `rtlscout-opencode`), or any environment with them installed. It can't run on the bare host
-  (it imports `tech_eval`/`spirehdl`).
+  (it imports `rtlscout.tech_eval`/`spirehdl`).
 - **orchestrated:** the harness launches the agent + judge as **sibling containers on a real
   docker daemon**, so it needs that daemon's socket plus paths that resolve on it. This is
   **docker-*out*-of-docker** (siblings on the host daemon) — **not** a nested daemon
   (docker-in-docker), which is deliberately avoided. So run the harness either:
   - **on the host** — works too, but it's **more setup**: you first have to install the Python
-    deps into a host environment (`pip install -e deps/spire-hdl -e deps/tech_eval -r
-    requirements.txt`) because the harness imports `tech_eval`/`spirehdl`. (Only the Python
+    deps into a host environment (`pip install -e deps/spire-hdl -r requirements.txt`) because the harness imports `rtlscout.tech_eval`/`spirehdl`. (Only the Python
     deps + docker are needed on the host — **not** the EDA toolchain, since `evaluate()` runs
     inside the judge *containers*. The container option below bundles all of that, which is why
     it's the easier, validated path.) **or**
@@ -346,7 +345,7 @@ docker run --rm -v "$PWD:$PWD" -v /usr/bin/docker:/usr/bin/docker:ro \
 #     the host first needs the Python deps installed (the harness imports tech_eval/spirehdl);
 #     it does NOT need the EDA toolchain (that lives in the judge containers). Option (3) is the
 #     bundled, validated path; this is here for completeness.
-pip install -e deps/spire-hdl -e deps/tech_eval -r requirements.txt   # one-time host setup
+pip install -e deps/spire-hdl -r requirements.txt   # one-time host setup
 python run_multirun.py --benchmark fpmul_f16 --model openrouter:z-ai/glm-5.2 --language spirehdl \
     --agent-backend opencode --mode orchestrated --total-runs 4 \
     --wall-clock-min 10 --skip-cec --runs-root runs/orch
@@ -362,7 +361,7 @@ python rtlscout_cli.py cleanup --session <id-printed-at-start>
   aborts). The backend handles this; if you customise `opencode.json`, keep it `allow`/`deny`.
 - **Launch:** opencode `--agent` must be started via a shell wrapper (handled by the backend).
 - **Identity mounts** are required for orchestrated docker-in-docker; the harness can't run
-  on the bare host (it imports `tech_eval`/`spirehdl`), so run it inside an
+  on the bare host (it imports `rtlscout.tech_eval`/`spirehdl`), so run it inside an
   `rtlscout-opencode` container.
 - **Agent egress** is the default `bridge` (broad). Restricting it to the model provider only
   is a hardening lever (handover §4.7/Phase 4).

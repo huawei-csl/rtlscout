@@ -24,7 +24,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from tech_eval.ppa_extract.core.ppa_extraction import PPA_REPORT_TIME_UNIT
+from rtlscout.tech_eval.ppa_extract.core.ppa_extraction import PPA_REPORT_TIME_UNIT
 
 
 # ── colour / marker cycle ────────────────────────────────────────────────────

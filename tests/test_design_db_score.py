@@ -1,4 +1,4 @@
-"""`db-score` tests: the per-technology PPA scorer (`core.design_db_score.score_designs`).
+"""`db-score` tests: the per-technology PPA scorer (`rtlscout.design_db_score.score_designs`).
 
 Runs the real asap7 PPA flow on one tiny design; backs the `design-db-score` skill.
 """
@@ -13,7 +13,7 @@ from spire.component import Netlist
 from spire.design_db import register_slot, seed_original, pick_design
 from spire.design_db.store import DB_ENV, VERSION_DIR
 
-from core.design_db_score import score_designs
+from rtlscout.design_db_score import score_designs
 
 
 @pytest.fixture

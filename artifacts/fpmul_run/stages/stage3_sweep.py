@@ -3,7 +3,7 @@
 Patchability gate first: every front design must be auto-patchable by the
 sweep's strict AST matcher, otherwise it would silently sweep 183 identical
 configurations. On gate failure we STOP — loosening the matcher toward the
-fpadd style is a deliberate code change to deps/tech_eval, not something to
+fpadd style is a deliberate code change to rtlscout/tech_eval, not something to
 do silently (handover Stage 3).
 """
 import datetime
@@ -19,8 +19,7 @@ import common
 import rerun_config as cfg
 import stagev_verify
 
-TECH_EVAL = cfg.REPO / "deps" / "tech_eval"
-TE_ENV = {"PYTHONPATH": str(TECH_EVAL / "src") + ":" + str(cfg.REPO),
+TE_ENV = {"PYTHONPATH": str(cfg.REPO),
           # The sweep's plot epilogue must never touch the session's X display
           # (a dead DISPLAY killed a finished sweep with an XIO fatal).
           "MPLBACKEND": "Agg"}
@@ -104,7 +103,7 @@ def patchability_gate() -> None:
             f"reported, Stage-V-verified front; only Phase 3 skips it):\n"
             f"{fail_dirs}\n"
             f"  (b) or extend the converter/matcher in "
-            f"deps/tech_eval/src/tech_eval/ppa_extract/sweeps/fpmul/"
+            f"rtlscout/tech_eval/ppa_extract/sweeps/fpmul/"
             f"script_to_component.py (fpadd-style loosening, handover Stage 3) "
             f"and record the change in STATUS.md.\n"
             f"Then RERUN the same command (run_all.py --profile {cfg.PROFILE}) "
@@ -121,7 +120,7 @@ def run_sweep() -> None:
         backup = cfg.SWEEP_RESULTS.with_suffix(f".pre_{cfg.TAG}_{ts}.json")
         cfg.SWEEP_RESULTS.rename(backup)
         common.log(f"existing sweep results moved aside: {backup}")
-    cmd = [cfg.VENV_PYTHON, "-m", "tech_eval.ppa_extract.sweeps.fpmul.fpmul_sweep_mp",
+    cmd = [cfg.VENV_PYTHON, "-m", "rtlscout.tech_eval.ppa_extract.sweeps.fpmul.fpmul_sweep_mp",
            "--references-dir", cfg.FRONTS,
            "--target-delays", *[str(t) for t in cfg.SWEEP_TARGET_DELAYS]]
     if cfg.SWEEP_SINGLE_POINT:

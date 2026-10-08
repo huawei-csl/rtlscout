@@ -52,7 +52,7 @@ def stage0() -> None:
         return
     # Preconditions (handover): uniform read_file cap present; no flowy;
     # phase-2 recipe patched to ABC-only; benchmarks exist.
-    agent_src = (cfg.REPO / "core" / "agent.py").read_text()
+    agent_src = (cfg.REPO / "rtlscout" / "agent.py").read_text()
     assert "READ_FILE_DEFAULT_MAX_CHARS = 5_000" in agent_src, "read_file fix missing"
     mr = (cfg.REPO / "experiments" / "rtl_rewriter_multirun.py").read_text()
     assert '"flowy_optimize": True' not in mr, "phase-2 flags still advertise flowy"
