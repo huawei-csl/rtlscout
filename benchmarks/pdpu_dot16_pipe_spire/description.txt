@@ -14,7 +14,7 @@ latency, not results - so vectors.dat is shared with that benchmark and the
 combinational reference is the oracle. REQUIRED behavior is bit-exactness to
 it, including the ALIGN_WIDTH=14 truncation and NaR handling.
 
-A starting point is provided in context/starting_point.py -
+A starting point is provided in starting_point.py -
 start from it and optimize. Preserve the 5-cycle latency and the clk interface:
 the testbench applies inputs and samples result_o 5 posedges later. Any
 transformation is legal as long as result_o remains bit-identical for every input.

@@ -123,7 +123,9 @@ reports `Path Group: clk` with a **register** startpoint, not an input port.
 
 - [ ] Pick `--language` to match the design file: `verilog` (`.v` / `.sv`), `spirehdl` (`.py`), or `amaranth`.
 - [ ] `description.txt` is language-neutral; if you ship a `context/` starting point, **say so in it** —
-      otherwise the agent ignores the files and writes a design from scratch.
+      otherwise the agent ignores the files and writes a design from scratch. Cite the files by their path
+      inside `context/` (`starting_point.py`, not `context/starting_point.py`; `lib/foo.py` for `context/lib/foo.py`):
+      the contents of `context/` land at the workspace root with their subfolders kept, so the `context/` prefix does not exist there.
 - [ ] `metadata.json` `module_name` must equal what `tb.sv` instantiates as `dut`.
 - [ ] **Sequential design?** Top-level clock port named `clk`, reset `rst` — see section 4. Any other
       name silently under-reports delay (no reg-to-reg paths are timed at all).

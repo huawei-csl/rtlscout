@@ -107,7 +107,7 @@ Anything in `context/` is copied into the agent's workspace at the start of a ru
 
 Omit the `context/` directory entirely if the benchmark is meant to be solved from scratch with no starting code.
 
-**Important:** if you ship a `context/` directory, mention it explicitly in `description.txt`. The agent does not list its workspace by default — if the spec doesn't tell it the files exist, it will write a fresh design from scratch and ignore them. Append a note like:
+**Important:** if you ship a `context/` directory, mention it explicitly in `description.txt`, citing the files by their path inside `context/` (`starting_point.py`, not `context/starting_point.py`; `lib/foo.py` for `context/lib/foo.py`): the contents of `context/` are placed at the root of the agent's workspace, keeping any subfolders, so the `context/` prefix itself does not exist there. The agent does not list its workspace by default — if the spec doesn't tell it the files exist, it will write a fresh design from scratch and ignore them. Append a note like:
 
 > A working starting point is provided: run `starting_point.py` (Spire mode) to generate a correct reference design (`design.v`). Study the context files in your workspace for implementation details, then optimize from there.
 
