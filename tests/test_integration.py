@@ -78,7 +78,7 @@ def test_run_eval_cli_in_place(tmp_path):
 @requires_yosys
 def test_run_eval_simple_adder(tmp_path):
     """Evaluate a correct simple_adder design directly (no LLM)."""
-    from core.evaluation import evaluate
+    from rtlscout.evaluation import evaluate
 
     workdir = tmp_path / "workspace"
     workdir.mkdir()
@@ -106,7 +106,7 @@ def test_run_eval_skip_sim_cec_only(tmp_path):
     """run_rtl_sim=False (run_eval.py --skip-rtl-sim / db-score): no testbench needed,
     correctness is skipped, pass comes from the CEC verdict alone — and pass_rate is
     None (not measured), not a misleading 0.0 on a formally proven pass."""
-    from core.evaluation import evaluate
+    from rtlscout.evaluation import evaluate
 
     workdir = tmp_path / "workspace"
     workdir.mkdir()
@@ -126,12 +126,35 @@ def test_run_eval_skip_sim_cec_only(tmp_path):
 
 @requires_verilator
 @requires_yosys
+def test_empty_reply_is_stored_as_an_empty_string(tmp_path, monkeypatch):
+    """An assistant turn without text or tool calls (a reply cut at the completion cap) goes into the history
+    with content "" and not null: Xiaomi's endpoint rejects every later request of a conversation whose
+    assistant message has neither content nor tool calls."""
+    monkeypatch.setenv("RTLSCOUT_ALLOW_DONE", "1")
+    from rtlscout.benchmarks import load_benchmark
+    from rtlscout.fake_provider import _SCRIPT_REGISTRY, register_fake_script
+    from rtlscout.llm_client import ChatResponse, TokenUsage
+    from rtlscout.runner import run_agent_on_benchmark
+
+    empty = ChatResponse(content=None, tool_calls=[], usage=TokenUsage(input_tokens=10, output_tokens=0),
+                         finish_reason="length")
+    register_fake_script("simple_adder_empty_first", [empty] + list(_SCRIPT_REGISTRY["simple_adder_pass"]))
+    result = run_agent_on_benchmark(load_benchmark(SIMPLE_ADDER_ROOT), model="simple_adder_empty_first",
+                                    runs_dir=tmp_path / "runs", max_steps=10, provider="fake")
+    assert result.passed and result.num_steps == 4
+    assistant = [m for m in result.messages if m["role"] == "assistant"]
+    assert assistant[0] == {"role": "assistant", "content": ""} and all(m["content"] is not None for m in assistant)
+    assert result.messages[result.messages.index(assistant[0]) + 1]["content"].startswith("[Step 1/10] Empty reply")
+
+
+@requires_verilator
+@requires_yosys
 def test_run_benchmark_simple_adder(tmp_path, monkeypatch):
     """Run the agent loop on simple_adder with a fake Verilog provider."""
     # The done tool is off by default (6b72f6e); this test exercises the done path.
     monkeypatch.setenv("RTLSCOUT_ALLOW_DONE", "1")
-    from core.benchmarks import load_benchmark
-    from core.runner import run_agent_on_benchmark
+    from rtlscout.benchmarks import load_benchmark
+    from rtlscout.runner import run_agent_on_benchmark
 
     bench = load_benchmark(SIMPLE_ADDER_ROOT)
     result = run_agent_on_benchmark(
@@ -148,14 +171,42 @@ def test_run_benchmark_simple_adder(tmp_path, monkeypatch):
     assert result.num_steps == 3
     assert list((tmp_path / "runs").rglob("result.json"))
     assert list((tmp_path / "runs").rglob("best_design"))
+    # The per-evaluation snapshot is taken, but the agent is not told about eval_N/ (it cannot read it).
+    assert list((tmp_path / "runs").rglob("eval_1"))
+    assert "Eval saved to" not in next((tmp_path / "runs").rglob("chat_log.txt")).read_text()
+
+
+@requires_verilator
+@requires_yosys
+def test_evals_carry_run_clock_and_cumulative_token_usage(tmp_path, monkeypatch):
+    """Every evaluation records where the run stood when it finished: seconds since the run started and the
+    tokens of all LLM calls so far (the keys of the run-level token_usage)."""
+    monkeypatch.setenv("RTLSCOUT_ALLOW_DONE", "1")
+    from rtlscout.benchmarks import load_benchmark
+    from rtlscout.runner import run_agent_on_benchmark
+
+    result = run_agent_on_benchmark(load_benchmark(SIMPLE_ADDER_ROOT), model="simple_adder_pass",
+                                    runs_dir=tmp_path / "runs", max_steps=10, provider="fake")
+    [saved] = [d for d in (json.loads(p.read_text()) for p in (tmp_path / "runs").rglob("result.json"))
+               if "all_evals" in d]
+    evals, total = saved["all_evals"], saved["token_usage"]
+    assert evals and evals == result.to_dict()["all_evals"]
+
+    elapsed = [e["elapsed_s"] for e in evals]
+    assert elapsed == sorted(elapsed) and 0 <= elapsed[0] and elapsed[-1] <= saved["duration_s"] + 1
+    for e in evals:
+        assert e["elapsed_s"] >= e["duration_s"]                    # the evaluation itself is part of the run
+        assert set(e["cumulative_token_usage"]) == set(total)
+    spent = [e["cumulative_token_usage"]["input_tokens"] for e in evals]
+    assert spent == sorted(spent) and 0 < spent[0] and spent[-1] <= total["input_tokens"]
 
 
 @requires_verilator
 @requires_yosys
 def test_run_benchmark_simple_adder_spirehdl(tmp_path):
     """Run the agent loop on simple_adder with a fake Spire provider."""
-    from core.benchmarks import load_benchmark
-    from core.runner import run_agent_on_benchmark
+    from rtlscout.benchmarks import load_benchmark
+    from rtlscout.runner import run_agent_on_benchmark
 
     bench = load_benchmark(SIMPLE_ADDER_ROOT)
     result = run_agent_on_benchmark(
@@ -178,8 +229,8 @@ def test_run_benchmark_simple_adder_spirehdl(tmp_path):
 @requires_yosys
 def test_run_multirun_simple_adder(tmp_path):
     """Run multirun on simple_adder with a fake Verilog provider."""
-    from core.agent_backend import BackendConfig
-    from core.multirun import run_multirun
+    from rtlscout.agent_backend import BackendConfig
+    from rtlscout.multirun import run_multirun
 
     summary = run_multirun(
         benchmark_name="simple_adder",
@@ -211,7 +262,7 @@ def test_run_multirun_simple_adder(tmp_path):
 @requires_yosys
 def test_run_multirun_simple_adder_spirehdl(tmp_path):
     """Run multirun on simple_adder with a fake Spire provider."""
-    from core.multirun import run_multirun
+    from rtlscout.multirun import run_multirun
 
     summary = run_multirun(
         benchmark_name="simple_adder",

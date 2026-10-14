@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from core.prompts import (_GATED_TOKENS, _scrub_gated_features,
+from rtlscout.prompts import (_GATED_TOKENS, _scrub_gated_features,
                           build_spirehdl_system_prompt)
 
 FLAGS = ("abc_optimize", "flowy_optimize", "arith_autoconfig", "fsm_optimize")
@@ -37,13 +37,13 @@ def test_present_when_its_flag_is_on(flag):
 
 def test_scrub_is_identity_when_all_flags_on():
     """With every flag on the scrubber must not touch the markdown at all."""
-    md = Path("core/spirehdl_readme.md").read_text()
+    md = Path("rtlscout/spirehdl_readme.md").read_text()
     assert _scrub_gated_features(md, **{f: True for f in FLAGS}) == md
 
 
 def test_scrub_removes_only_the_gated_blocks():
     """Scrubbing drops the feature blocks and nothing else."""
-    md = Path("core/spirehdl_readme.md").read_text()
+    md = Path("rtlscout/spirehdl_readme.md").read_text()
     out = _scrub_gated_features(md)
     assert not any(t in out for t in _GATED_TOKENS)
     kept = [l for l in md.splitlines() if l in out.splitlines()]

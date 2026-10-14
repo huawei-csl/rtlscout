@@ -5,7 +5,7 @@ Reproduces the main `fpmul_f16` results from the paper. The full pipeline has fo
 optional high-effort gate-level refinement); the Pareto-optimal designs of each phase seed the next.
 
 **This document covers the two agentic phases** (1 and 2) and **references the architecture sweep**
-(Phase 3) via its entry point in `tech_eval`. The optional high-effort refinement (Phase 4) is
+(Phase 3) via its entry point in `rtlscout.tech_eval`. The optional high-effort refinement (Phase 4) is
 omitted here for now.
 
 ## Benchmark
@@ -162,19 +162,17 @@ arithmetic units from a library — sweeping partial-product accumulation trees 
 × prefix adders (Kogge–Stone, Brent–Kung, Sklansky, ripple-carry, sparse Kogge–Stone) × target
 delays over the Pareto designs from Phase 2.
 
-The sweep is implemented in `tech_eval`; run it via its entry point rather than from this repo:
+The sweep is implemented in `rtlscout.tech_eval`; run it via its entry point from the repo root:
 
-- **Script:** [`deps/tech_eval/src/tech_eval/ppa_extract/sweeps/fpmul/fpmul_sweep_mp.py`](deps/tech_eval/src/tech_eval/ppa_extract/sweeps/fpmul/fpmul_sweep_mp.py)
+- **Script:** [`rtlscout/tech_eval/ppa_extract/sweeps/fpmul/fpmul_sweep_mp.py`](rtlscout/tech_eval/ppa_extract/sweeps/fpmul/fpmul_sweep_mp.py)
 
 ```bash
-cd deps/tech_eval
-
 # Point the sweep at the Phase 2 Pareto designs (folders matching pareto_*/design_NNN/):
-python -m tech_eval.ppa_extract.sweeps.fpmul.fpmul_sweep_mp \
+python -m rtlscout.tech_eval.ppa_extract.sweeps.fpmul.fpmul_sweep_mp \
     --references-dir /workspaces/rtl_scout/pareto_fronts
 ```
 
-Output: `deps/tech_eval/results/ppa/FpMul_e5f10_results.json` (one entry per design × arithmetic
+Output: `results/ppa/FpMul_e5f10_results.json`, relative to the working directory (one entry per design × arithmetic
 configuration × target delay).
 
 ---

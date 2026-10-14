@@ -3,7 +3,7 @@
 All fourteen RTLRewriter (ICCAD 2024, arXiv:2409.11414) short-bench cases, scaffolded in the
 same shape as `benchmarks/turbo_rtl/<case>/`. The cost metric is `yosys_wires`
 and/or `yosys_cells` (tech-independent post-`synth` counts — see
-`core/cost.py`); correctness is guarded by a data-driven `tb.sv` +
+`rtlscout/cost.py`); correctness is guarded by a data-driven `tb.sv` +
 `vectors.dat` captured from the baseline (see *Correctness semantics*
 below).
 
@@ -169,7 +169,7 @@ Cost-metric-only (skip correctness):
 python -c "
 from pathlib import Path
 import json
-from core.cost import make_cost_metric
+from rtlscout.cost import make_cost_metric
 
 case = 'case1'
 d   = Path(f'benchmarks/rtl_rewriter/{case}')

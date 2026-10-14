@@ -44,7 +44,7 @@ add noise.
 `tb.sv` column is `PASS` when the Spire-emitted design passes the
 mirrored testbench at 100% — 14/14 today.
 
-The yosys script used by `core.cost.YosysWiresCost` / `YosysCellsCost`
+The yosys script used by `rtlscout.cost.YosysWiresCost` / `YosysCellsCost`
 appends `clean -purge` after `synth`, which drops public alias buffers
 and dangling nets. Cell counts are unchanged way.
 
@@ -113,7 +113,7 @@ Cost-metric-only (skip correctness, run the `.py` manually first):
 python -c "
 from pathlib import Path
 import json, subprocess, tempfile
-from core.cost import make_cost_metric
+from rtlscout.cost import make_cost_metric
 
 case = 'case1'
 d   = Path(f'benchmarks/rtl_rewriter_spirehdl/{case}')

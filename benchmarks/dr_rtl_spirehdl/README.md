@@ -190,7 +190,7 @@ ADP comparison.)
 Spirehdl rows come from `run_eval.py --cost-metric yosys_cells/yosys_wires/transistors`;
 verilog rows from the same flow with one fix:
 
-**Note on transistor measurements.** `core/cost.py`'s `YosysTransistorCost`
+**Note on transistor measurements.** `rtlscout/cost.py`'s `YosysTransistorCost`
 runs `stat -tech cmos` on a hierarchical netlist *without flattening*. For
 multi-module verilog designs (everything except `ticket` and `controller`)
 this counts only the top-level wrapper cells, producing `0` (or partial
@@ -230,7 +230,7 @@ benchmarks/dr_rtl_spirehdl/<case>/
     starting_point.py               # hand-written Spire — done for all 7 ported cases
   _debug/                            # debug artifacts (DEBUGGING.md, traces, helpers).
                                      # NB: any path containing a `_*` segment is skipped
-                                     # by core/benchmarks.py and core/runner.py — these
+                                     # by rtlscout/benchmarks.py and rtlscout/runner.py — these
                                      # files don't leak into agent workspaces.
 ```
 
@@ -622,7 +622,7 @@ spirehdl feature — out of scope for this iteration.
 **yosys's FSM extraction pass** (`fsm_detect` + `fsm_extract` +
 `fsm_opt` + `fsm_recode` + `fsm_map`), which is part of `synth`'s
 default coarse-opt phase (run unless `-nofsm` is given — which the
-`tech_eval` template doesn't pass). Both spirehdl and verilog therefore
+`rtlscout.tech_eval` template doesn't pass). Both spirehdl and verilog therefore
 hit `synth -top control_unit` with the FSM passes attempting to run;
 the difference is whether **`fsm_detect` finds anything to extract**.
 

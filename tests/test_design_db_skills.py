@@ -5,7 +5,7 @@ frontmatter `name` to equal the directory name (NameMismatchError otherwise).
 """
 import stat
 
-from core.design_db_skills import (SKILL_NAMES, SKILLS_SRC, design_db_subagent_entries,
+from rtlscout.design_db_skills import (SKILL_NAMES, SKILLS_SRC, design_db_subagent_entries,
                                    provision_design_db_skills, render_design_db_agents_section)
 
 
@@ -40,7 +40,7 @@ def test_provision_into_workspace(tmp_path):
     wrapper = dest / "design-db-score" / "scripts" / "db-score"
     assert wrapper.stat().st_mode & stat.S_IXUSR, "db-score wrapper must be executable"
     text = wrapper.read_text()
-    assert "rtlscout_cli.py db-score" in text and '"$@"' in text
+    assert "-m rtlscout.containers db-score" in text and '"$@"' in text
     provision_design_db_skills(ws)                       # idempotent re-provision
     assert (dest / "design-db-inspect" / "SKILL.md").exists()
 

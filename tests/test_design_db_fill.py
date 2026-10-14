@@ -13,7 +13,7 @@ from spire.component import Netlist
 from spire.design_db import DesignDBError, register_slot, seed_original, pick_design
 from spire.design_db.store import DB_ENV, VERSION_DIR
 
-from core.design_db_fill import FILL_MODEL_ENV, fill_slot, make_rtlscout_fill
+from rtlscout.design_db_fill import FILL_MODEL_ENV, fill_slot, make_rtlscout_fill
 
 
 @pytest.fixture
@@ -67,7 +67,7 @@ def test_rtlscout_fill_hook(db, monkeypatch):
     index = json.loads((db / VERSION_DIR / key / "index.json").read_text())
     assert len(index) >= 1
 
-    from core.design_db_fill import rtlscout_fill
+    from rtlscout.design_db_fill import rtlscout_fill
     monkeypatch.delenv(FILL_MODEL_ENV, raising=False)
     with pytest.raises(DesignDBError, match=FILL_MODEL_ENV):
         rtlscout_fill(key, db_root=db)

@@ -99,7 +99,7 @@ For data-driven testbenches, place the vectors in `vectors.dat` next to `tb.sv` 
 
 **Where the expected values come from.** A self-checking testbench needs a known-correct oracle. If you have a reference design, use it directly (instantiate it alongside `dut` and compare, or pre-compute outputs from it). If you're starting from only a *specification*, derive the golden behavior yourself: compute it inline for simple/derivable logic, or write a behavioral / Python reference model that emits `vectors.dat` (inputs + expected outputs). No reference is required to author a benchmark — but the expected behavior must come from *somewhere* trustworthy.
 
-Anything in `context/` is copied into the agent's workspace at the start of a run (see `core/runner.py`). Typical contents:
+Anything in `context/` is copied into the agent's workspace at the start of a run (see `rtlscout/runner.py`). Typical contents:
 
 - `starting_point.py` — a known-correct reference design the agent can read and incrementally modify (used by the `fpmul_f16` / `fpadd_f16` benchmarks).
 - Helper modules (Python or Verilog) that the reference depends on.
@@ -121,7 +121,7 @@ After creating the files, confirm the benchmark loads and the module name matche
 ~/pyenv_eda/bin/python -c "
 import re
 from pathlib import Path
-from core.benchmarks import load_benchmark
+from rtlscout.benchmarks import load_benchmark
 b = load_benchmark(Path('benchmarks/<bench_name>'))
 tb_dut = re.search(r'(\w+)\s+dut\s*\(', b.testbench.read_text()).group(1)
 print('module_name:', b.module_name, '| tb dut:', tb_dut, '| match:', b.module_name == tb_dut)

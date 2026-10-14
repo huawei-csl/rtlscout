@@ -56,7 +56,7 @@ def measure_design(design_py: Path, workdir: Path, force, env):
     decorators fire. An empty ``force`` compiles with the natural pick (used for eval
     snapshots). Returns ``(transistors, aig_depth)``.
     """
-    from core.cost import make_cost_metric
+    from rtlscout.cost import make_cost_metric
     from spire.design_db import PINS_ENV
     from spire.design_db._yosys import run_yosys
     if Path(design_py).resolve() != (workdir / "design.py").resolve():

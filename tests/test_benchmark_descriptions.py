@@ -1,5 +1,5 @@
 """Benchmark descriptions must cite context files by their path inside context/:
-the provisioning step (core.runner.provision_workspace) places the contents of a
+the provisioning step (rtlscout.runner.provision_workspace) places the contents of a
 benchmark's context/ directory at the agent workspace root, subfolders kept, so
 `context/starting_point.py` names a path that does not exist there (it cost every
 run one wasted step before the 2026-10 sweep)."""
@@ -27,8 +27,8 @@ def test_descriptions_cite_context_files_by_bare_name():
 
 def test_provisioning_copies_context_flat(tmp_path):
     """Pin the layout the descriptions rely on."""
-    from core.benchmarks import load_benchmark
-    from core.runner import provision_workspace
+    from rtlscout.benchmarks import load_benchmark
+    from rtlscout.runner import provision_workspace
     bench_dir = ROOT / "benchmarks" / "fpadd_f16"
     if not (bench_dir / "context").is_dir():
         pytest.skip("fpadd_f16 benchmark with context/ not present")

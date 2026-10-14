@@ -134,7 +134,7 @@ FRONT_INITIAL_DEEPSYN_2X = FRONTS / "initial_deepsyn_2x"  # optional 2x-effort b
 
 # The sweep's outputs (results JSON, quick-look PNGs, worker_* synthesis
 # dirs) are all cwd-relative — stage 3 runs it with cwd=SWEEP_DIR, which
-# relocates everything here without touching deps/tech_eval.
+# relocates everything here without touching the package directory.
 SWEEP_DIR = DATA / "sweep"
 SWEEP_RESULTS = SWEEP_DIR / "results" / "ppa" / "FpMul_e5f10_results.json"
 

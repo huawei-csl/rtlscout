@@ -3,3 +3,5 @@ anthropic>=0.40.0
 python-dotenv>=1.0.0
 matplotlib>=3.5.0
 amaranth
+numpy
+pandas

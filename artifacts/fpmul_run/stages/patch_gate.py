@@ -1,4 +1,4 @@
-"""Patchability gate helper (run with the venv python, tech_eval on sys.path):
+"""Patchability gate helper (run with the venv python, rtlscout.tech_eval on sys.path):
 for each design script, confirm the fpmul sweep's strict AST matcher finds the
 main multiplier and adder. Prints one marker-prefixed JSON object per design
 ("GATE_RESULT {...}") — the import/patch machinery prints its own chatter, so
@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 def main():
-    from tech_eval.ppa_extract.sweeps.fpmul.script_to_component import load_component_cls
+    from rtlscout.tech_eval.ppa_extract.sweeps.fpmul.script_to_component import load_component_cls
     for arg in sys.argv[1:]:
         path = Path(arg)
         entry = {"path": str(path), "ok": False, "error": None}

@@ -105,7 +105,7 @@ METRIC_FIELDS = {
     "wires": {"baseline": "baseline_wires", "cost": "yosys_wires"},
     "cells": {"baseline": "baseline_cells", "cost": "yosys_cells"},
     # transistor count is a side-stat captured during the same yosys synth run
-    # used for wires/cells (core/cost.py `_YosysStatCost`); the paper has no
+    # used for wires/cells (rtlscout/cost.py `_YosysStatCost`); the paper has no
     # transistor target, so Δ V/RTLR and Δ S/RTLR show em-dash.
     "transistors": {"baseline": "baseline_transistors", "cost": "transistors_estimate"},
 }

@@ -3,7 +3,7 @@
 
 Spins up (case × language) agent runs in parallel with ProcessPoolExecutor.
 Each task maps to a single `benchmarks/rtl_rewriter{_spirehdl}/case<N>/`
-benchmark and is executed via `core.runner.run_agent_on_benchmark`.
+benchmark and is executed via `rtlscout.runner.run_agent_on_benchmark`.
 
 After each run succeeds the script re-measures both `yosys_wires` and
 `yosys_cells` on the agent's saved `best_design/` so the summary JSON
@@ -34,9 +34,9 @@ from typing import Any, Dict, List, Optional
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from core.benchmarks import load_benchmark  # noqa: E402
-from core.cost import COST_METRICS, make_cost_metric  # noqa: E402
-from core.runner import parse_model_spec, run_agent_on_benchmark  # noqa: E402
+from rtlscout.benchmarks import load_benchmark  # noqa: E402
+from rtlscout.cost import COST_METRICS, make_cost_metric  # noqa: E402
+from rtlscout.runner import parse_model_spec, run_agent_on_benchmark  # noqa: E402
 
 # Case IDs that exist under benchmarks/rtl_rewriter/ (confidence ≥ medium).
 AVAILABLE_CASES = [1, 2, 3, 4, 6, 7, 9, 10, 11, 13]
@@ -269,7 +269,7 @@ def backfill_summary(summary_path: Path) -> int:
     model = summary["model"]
     _, model_name = parse_model_spec(model)
 
-    # Re-load baselines from the shipped eval_verify.json so a core.cost
+    # Re-load baselines from the shipped eval_verify.json so a rtlscout.cost
     # measurement-convention change (e.g. `clean -purge`) flows through.
     baselines = _load_baselines()
 

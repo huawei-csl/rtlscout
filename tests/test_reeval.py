@@ -1,5 +1,5 @@
-"""Phase-1 integrity tests: advisory shim (core.eval_store.run_eval_and_store) and the
-authoritative clean-room re-eval (core.reeval.reeval_run) with its agreement gate.
+"""Phase-1 integrity tests: advisory shim (rtlscout.eval_store.run_eval_and_store) and the
+authoritative clean-room re-eval (rtlscout.reeval.reeval_run) with its agreement gate.
 
 The crux: a run whose agent fakes correctness (tampered testbench) or fabricates a low
 cost must be CORRECTED by the authoritative re-score against the benchmark's own inputs,
@@ -59,10 +59,10 @@ def _make_run(base: Path, bench, design_src: str, advisory_cost, advisory_passed
 @requires_yosys
 def test_run_eval_and_store_tree(tmp_path):
     """The advisory shim emits the standard tree: eval_{i}/, best_design/ + meta, agent_evals.jsonl."""
-    from core.benchmarks import load_benchmark
-    from core.cost import make_cost_metric
-    from core.eval_store import run_eval_and_store
-    from core.runner import provision_workspace
+    from rtlscout.benchmarks import load_benchmark
+    from rtlscout.cost import make_cost_metric
+    from rtlscout.eval_store import run_eval_and_store
+    from rtlscout.runner import provision_workspace
 
     bench = load_benchmark(SIMPLE_ADDER_ROOT)
     workdir = tmp_path / "wd"
@@ -96,10 +96,10 @@ def test_run_eval_and_store_tree(tmp_path):
 def test_reeval_catches_tampered_pass(tmp_path):
     """Agent fakes a pass with a tampered testbench + a wrong design. The authoritative
     re-eval against the benchmark's own tb.sv must DOWNGRADE it to FAIL and flag it."""
-    from core.benchmarks import load_benchmark
-    from core.cost import make_cost_metric
-    from core.reeval import reeval_run
-    from core.sandbox import LocalSandbox
+    from rtlscout.benchmarks import load_benchmark
+    from rtlscout.cost import make_cost_metric
+    from rtlscout.reeval import reeval_run
+    from rtlscout.sandbox import LocalSandbox
 
     bench = load_benchmark(SIMPLE_ADDER_ROOT)
     workdir = _make_run(tmp_path, bench, BAD_ADDER, advisory_cost=5.0,
@@ -127,10 +127,10 @@ def test_reeval_catches_tampered_pass(tmp_path):
 def test_reeval_flags_cost_divergence(tmp_path):
     """Agent reports a (good, passing) design but fabricates an absurdly low cost. The
     authoritative cost is the real one and the gate flags the divergence."""
-    from core.benchmarks import load_benchmark
-    from core.cost import make_cost_metric
-    from core.reeval import reeval_run
-    from core.sandbox import LocalSandbox
+    from rtlscout.benchmarks import load_benchmark
+    from rtlscout.cost import make_cost_metric
+    from rtlscout.reeval import reeval_run
+    from rtlscout.sandbox import LocalSandbox
 
     bench = load_benchmark(SIMPLE_ADDER_ROOT)
     workdir = _make_run(tmp_path, bench, GOOD_ADDER, advisory_cost=1.0,
@@ -152,10 +152,10 @@ def test_reeval_honest_run_agrees(tmp_path):
     """An honest run (advisory == authoritative) is NOT flagged, and best_design/ is
     rebuilt from the authoritative numbers. Value-agnostic: round 1 discovers the real
     cost, round 2 uses it as the honest advisory."""
-    from core.benchmarks import load_benchmark
-    from core.cost import make_cost_metric
-    from core.reeval import reeval_run
-    from core.sandbox import LocalSandbox
+    from rtlscout.benchmarks import load_benchmark
+    from rtlscout.cost import make_cost_metric
+    from rtlscout.reeval import reeval_run
+    from rtlscout.sandbox import LocalSandbox
 
     bench = load_benchmark(SIMPLE_ADDER_ROOT)
     cm = make_cost_metric("transistors")

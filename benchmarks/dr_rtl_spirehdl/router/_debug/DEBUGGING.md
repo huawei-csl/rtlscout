@@ -484,6 +484,6 @@ diff <(grep -oE "cyc=[0-9]+|count_0=[0-9]+|incr0=[0-9]+" spire_trace.log) \
 ```
 
 The `_debug/` directory is excluded from agent workspaces by the
-`_*` filename convention; `core/runner.py` and
-`core/benchmarks.py:discover_benchmarks` both skip paths whose segments
+`_*` filename convention; `rtlscout/runner.py` and
+`rtlscout/benchmarks.py:discover_benchmarks` both skip paths whose segments
 start with `_`.

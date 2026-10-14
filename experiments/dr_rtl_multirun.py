@@ -36,8 +36,8 @@ from typing import Any, Dict, List, Optional
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from core.benchmarks import load_benchmark  # noqa: E402
-from core.cost import COST_METRICS, make_cost_metric  # noqa: E402
+from rtlscout.benchmarks import load_benchmark  # noqa: E402
+from rtlscout.cost import COST_METRICS, make_cost_metric  # noqa: E402
 
 AVAILABLE_CASES = [
     "ticket",
@@ -222,7 +222,7 @@ def _measure_design(design_file: Path, top_module: str) -> Dict[str, Optional[in
         c = make_cost_metric("yosys_cells").evaluate(
             design_file.parent, top_module=top_module, design_file=design_file)
         # Both wires and cells metrics now carry `transistors` as a side-stat
-        # (core/cost.py); read it off whichever evaluation succeeded.
+        # (rtlscout/cost.py); read it off whichever evaluation succeeded.
         t_stats = c.stats if c.ok else (w.stats if w.ok else {})
         t_val = t_stats.get("transistors")
         return {
@@ -303,7 +303,7 @@ def _summarize_phase(phase_runs_root: Path, language: str,
 # Per-task worker — runs phase 1 (+ phase 2) sequentially for one (case, lang)
 # ---------------------------------------------------------------------------
 def _run_one(task: Dict[str, Any]) -> Dict[str, Any]:
-    from core.multirun import run_multirun
+    from rtlscout.multirun import run_multirun
 
     case_name = task["case_name"]
     language = task["language"]
@@ -369,7 +369,7 @@ def _run_one(task: Dict[str, Any]) -> Dict[str, Any]:
         try:
             # Phase 2 is the exploitation phase: force every agent to seed
             # from the pool (pre-populated from phase 1's summary) by pinning
-            # the fresh-agent probability to 0. This reverses core.multirun's
+            # the fresh-agent probability to 0. This reverses rtlscout.multirun's
             # default 0.5 → 0.1 schedule, which is tuned for a cold-start
             # exploration-then-exploitation run inside a single multirun
             # call — appropriate for phase 1, wasted budget for phase 2.
@@ -415,7 +415,7 @@ def _run_one(task: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 def backfill_summary(summary_path: Path) -> int:
     summary = json.loads(summary_path.read_text())
-    # Re-load baselines (stale whenever the core.cost measurement changes).
+    # Re-load baselines (stale whenever the rtlscout.cost measurement changes).
     baselines = _load_baselines()
     healed = 0
     for case_id, per_lang in summary.get("results", {}).items():
@@ -625,7 +625,7 @@ def main():
                        for lang in LANGUAGES},
         },
         "phase_exploration": {
-            # Phase-1 uses core.multirun's default fresh schedule
+            # Phase-1 uses rtlscout.multirun's default fresh schedule
             # (0.5 → 0.1, half-explore / half-exploit). Phase-2 overrides
             # with fresh=0 so every agent seeds from phase-1's elite pool.
             "phase1": {"fresh_base": 0.5, "fresh_min": 0.1, "fresh_first": 0},

@@ -1,4 +1,0 @@
-numpy
-pandas
-matplotlib
-spire-hdl@git+https://github.com/huawei-csl/spire-hdl

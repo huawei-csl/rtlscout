@@ -5,7 +5,7 @@ import argparse
 import json
 from pathlib import Path
 
-from core.runner import parse_model_spec, run_agent_across_benchmarks
+from rtlscout.runner import parse_model_spec, run_agent_across_benchmarks
 
 
 def main():

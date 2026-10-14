@@ -30,7 +30,7 @@ endmodule
 @requires_yosys
 @requires_yosys_abc
 def test_run_cec_equivalent(tmp_path):
-    from core.equivalence import run_cec
+    from rtlscout.equivalence import run_cec
 
     (tmp_path / "design.v").write_text(ADDER_PLUS)
     (tmp_path / "golden.v").write_text(ADDER_PLUS)
@@ -48,7 +48,7 @@ def test_run_cec_equivalent(tmp_path):
 @requires_yosys
 @requires_yosys_abc
 def test_run_cec_not_equivalent(tmp_path):
-    from core.equivalence import run_cec
+    from rtlscout.equivalence import run_cec
 
     (tmp_path / "design.v").write_text(ADDER_PLUS)
     (tmp_path / "golden.v").write_text(ADDER_MINUS)
@@ -65,7 +65,7 @@ def test_run_cec_not_equivalent(tmp_path):
 @requires_yosys
 @requires_yosys_abc
 def test_run_cec_missing_reference(tmp_path):
-    from core.equivalence import run_cec
+    from rtlscout.equivalence import run_cec
 
     (tmp_path / "design.v").write_text(ADDER_PLUS)
     r = run_cec(tmp_path / "design.v", tmp_path / "nope.v", tmp_path,
@@ -77,7 +77,7 @@ def test_run_cec_missing_reference(tmp_path):
 
 
 def test_resolve_golden_reference_verilog(tmp_path):
-    from core.equivalence import resolve_golden_reference
+    from rtlscout.equivalence import resolve_golden_reference
 
     class _Bench:
         root = tmp_path
@@ -104,7 +104,7 @@ def _make_workspace(tmp_path):
 @requires_yosys_abc
 def test_evaluate_cec_gate_fails(tmp_path):
     """Design passes the testbench but differs from golden -> gate fails it."""
-    from core.evaluation import evaluate
+    from rtlscout.evaluation import evaluate
 
     workdir = _make_workspace(tmp_path)
     golden = tmp_path / "golden.sv"  # outside workspace/
@@ -133,7 +133,7 @@ def test_evaluate_cec_gate_fails(tmp_path):
 @requires_yosys_abc
 def test_evaluate_cec_gate_passes(tmp_path):
     """Design equivalent to golden -> CEC passes and result passes."""
-    from core.evaluation import evaluate
+    from rtlscout.evaluation import evaluate
 
     workdir = _make_workspace(tmp_path)
     golden = tmp_path / "golden.sv"
@@ -156,7 +156,7 @@ def test_evaluate_cec_gate_passes(tmp_path):
 @requires_yosys
 def test_evaluate_skip_cec(tmp_path):
     """run_cec=False skips CEC even when a (mismatched) reference is given."""
-    from core.evaluation import evaluate
+    from rtlscout.evaluation import evaluate
 
     workdir = _make_workspace(tmp_path)
     golden = tmp_path / "golden.sv"
@@ -177,7 +177,7 @@ def test_evaluate_skip_cec(tmp_path):
 @requires_yosys
 def test_evaluate_default_no_reference(tmp_path):
     """Default run_cec=True but no reference -> CEC skipped, cec is None."""
-    from core.evaluation import evaluate
+    from rtlscout.evaluation import evaluate
 
     workdir = _make_workspace(tmp_path)
     result = evaluate(

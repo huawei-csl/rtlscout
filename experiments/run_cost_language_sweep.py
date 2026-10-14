@@ -20,14 +20,14 @@ from itertools import product
 from pathlib import Path
 from typing import Any, Dict, List
 
-from core.benchmarks import load_benchmarks
-from core.cost import make_cost_metric
-from core.runner import (
+from rtlscout.benchmarks import load_benchmarks
+from rtlscout.cost import make_cost_metric
+from rtlscout.runner import (
     DEFAULT_BENCHMARKS_ROOT,
     parse_model_spec,
     run_agent_on_benchmark,
 )
-from tech_eval.ppa_extract.core.template import target_delay_time_unit
+from rtlscout.tech_eval.ppa_extract.core.template import target_delay_time_unit
 
 # ── configuration ────────────────────────────────────────────────────────
 

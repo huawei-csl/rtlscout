@@ -23,8 +23,8 @@ import tempfile
 import time
 from pathlib import Path
 
-from core.cost import PPADelayCost
-from core.correctness import evaluate_correctness
+from rtlscout.cost import PPADelayCost
+from rtlscout.correctness import evaluate_correctness
 
 
 def parse_port_spec(spec: str) -> list[tuple[str, int]]:
