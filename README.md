@@ -107,6 +107,12 @@ The base EDA image (OpenROAD, Yosys, Verilator, OpenSTA, sv2v, …) is large. Th
 
 The VS Code devcontainer pulls by default; to self-build instead, edit `initializeCommand` in `.devcontainer/devcontainer.json`.
 
+Verilator compilation uses `ccache` by default (`OBJCACHE=ccache`). The cache lives in
+`/tmp/ccache`, outside the per-evaluation `obj_dir`, so repeated evaluations in the
+same container can reuse compiled C++ objects. Set `CCACHE_DIR` to a mounted directory
+to retain the cache across container recreation. Use `ccache --show-stats` to inspect
+reuse, or `CCACHE_DISABLE=1` to bypass caching.
+
 ### Install as a Python package
 
 RTL Scout is also an installable package (`rtlscout`), so another project can use it without working inside this checkout. It is installed from git by URL:
