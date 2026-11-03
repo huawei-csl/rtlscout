@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="imgs/rtlscout_logo_white_800.png" alt="RTL Scout" width="600">
+  <img src="imgs/rtlscout_logo_white_800.png" alt="RTLScout" width="600">
 </div>
 
 <br>
@@ -12,11 +12,11 @@
   <a href="https://vscode.dev/redirect?url=vscode%3A%2F%2Fms-vscode-remote.remote-containers%2FcloneInVolume%3Furl%3Dhttps%3A%2F%2Fgithub.com%2Fhuawei-csl%2Frtlscout"><img src="https://img.shields.io/static/v1?label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode" alt="Open in Dev Containers"></a>
 </p>
 
-# RTL Scout
+# RTLScout
 
-An RTL design agent powered by selectable LLM backends (DeepInfra, Anthropic, OpenRouter, or a self-hosted OpenAI-compatible server) with tool use. The agent iteratively creates and optimizes Verilog/SystemVerilog, [Spire HDL](https://github.com/huawei-csl/spire-hdl) or Amaranth designs, targeting **correctness first, then minimal cost** under a configurable cost metric. The agent can run as the built-in in-process loop or as an external OpenCode agent in a sandboxed, per-run container.
+An RTL design agent powered by selectable LLM backends (DeepInfra, Anthropic, OpenRouter, or a self-hosted OpenAI-compatible server) with tool use. The agent iteratively creates and optimizes Verilog/SystemVerilog, [Spire HDL](https://github.com/huawei-csl/spire-hdl) or Amaranth designs, **targeting correctness and minimal cost** under a configurable cost metric. The agent can run as the built-in in-process loop or as an external OpenCode agent in a sandboxed, per-run container. [RTLScout-Bench](https://github.com/plex1/rtlscout-bench) uses RTLScout to benchmark different LLM models in RTL optimization.
 
-## What RTL Scout does
+## What RTLScout does
 
 - Generates and optimizes RTL from a specification or a starting design.
 - Runs correctness checking with Verilator-based testbenches.
@@ -109,7 +109,7 @@ The VS Code devcontainer pulls by default; to self-build instead, edit `initiali
 
 ### Install as a Python package
 
-RTL Scout is also an installable package (`rtlscout`), so another project can use it without working inside this checkout. It is installed from git by URL:
+RTLScout is also an installable package (`rtlscout`), so another project can use it without working inside this checkout. It is installed from git by URL:
 
 ```bash
 pip install "rtlscout @ git+https://github.com/huawei-csl/rtlscout"
@@ -852,7 +852,7 @@ For the specialized floating-point pipeline, see **[README_fpmul.md](README_fpmu
 
 ## Citation
 
-If you use RTL Scout in your research, please cite:
+If you use RTLScout in your research, please cite:
 
 ```bibtex
 @misc{arnold2026rtlscout,
